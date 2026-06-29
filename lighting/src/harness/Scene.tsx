@@ -24,17 +24,15 @@ function Box(props: {
   )
 }
 
-export function Scene() {
+/** One furnished room's geometry, offset by [ox,oz] meters (for the multi-room layout). */
+function RoomGeo({ ox = 0, oz = 0 }: { ox?: number; oz?: number }) {
   return (
-    <>
-      <LightingRig houseHalfExtentM={Math.max(RW, RD) / 2} />
-
+    <group position={[ox, 0, oz]}>
       {/* floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[RW, RD]} />
         <meshStandardMaterial color="#c9bda8" roughness={0.95} />
       </mesh>
-
       {/* back wall (-z) */}
       <mesh position={[0, WH / 2, -RD / 2]} castShadow receiveShadow>
         <boxGeometry args={[RW, WH, WT]} />
@@ -45,18 +43,28 @@ export function Scene() {
         <boxGeometry args={[WT, WH, RD]} />
         <meshStandardMaterial color="#ded8cc" roughness={1} />
       </mesh>
-
       {/* furniture — boxes sized in meters, all cast + receive shadow */}
-      {/* bed against left wall */}
       <Box pos={[-1.0, 0.28, -1.4]} size={[1.6, 0.55, 2.1]} color="#8a6f5a" />
-      {/* wardrobe against back wall (tall -> long shadow) */}
       <Box pos={[1.3, 1.0, -2.1]} size={[1.0, 2.0, 0.55]} color="#5d4b3a" />
-      {/* coffee/dining table center */}
       <Box pos={[0.4, 0.37, 0.6]} size={[1.2, 0.75, 0.8]} color="#7a5c43" />
-      {/* sofa */}
       <Box pos={[-1.1, 0.4, 1.4]} size={[1.9, 0.8, 0.85]} color="#9a9388" />
-      {/* small stool to show crisp contact shadow */}
       <Box pos={[1.2, 0.23, 1.2]} size={[0.4, 0.45, 0.4]} color="#b5793f" />
+    </group>
+  )
+}
+
+// Multi-room layout: room B sits to the +x of room A (matches a House footprint offset).
+export const ROOM_B_OFFSET_X = RW + 0.2
+
+export function Scene({ multi = false }: { multi?: boolean }) {
+  // House half-extent must enclose ALL rooms or the sun's shadow frustum clips.
+  const houseHalf = multi ? (ROOM_B_OFFSET_X + RW / 2 + RW / 2) / 2 : Math.max(RW, RD) / 2
+
+  return (
+    <>
+      <LightingRig houseHalfExtentM={houseHalf} />
+      <RoomGeo />
+      {multi && <RoomGeo ox={ROOM_B_OFFSET_X} />}
     </>
   )
 }

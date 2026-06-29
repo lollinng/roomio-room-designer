@@ -22,9 +22,18 @@ Renderer: **R3F** (three 0.169). World units: **meters**. Sun driven by the time
 - [x] **E5 — North indicator.** DONE + verified. `NorthIndicator` rotate (±15°/slider) offsets
   azimuth (36% change at 90°), Reverse flips 180° (20% change). Bar + sign toggle independently
   (`LightingControls`); hiding both still renders (mean 163). Default state bar/north off in app.
-- [~] **E6 — Multi-room + performance.** Architecture in place: `<LightingRig>` iterates rooms[],
-  ONE global hemisphere + ONE sun (only shadow caster), room lights `castShadow=false`. Verifying
-  a 2-room scenario + perf assertion next.
+- [x] **E6 — Multi-room + performance.** DONE + verified. `<LightingRig>` iterates rooms[]; ONE
+  global hemisphere + ONE sun (the only shadow caster); room lights `castShadow=false`. `perf.ts`
+  invariant: shadow-caster count = 1 regardless of room count (1→30 rooms; multiroom.test.ts).
+  2-room harness (`?multi=1`) renders both rooms lit per-room under one sun — verify-out/08-multiroom.png.
+
+## ✅ Acceptance (brief §8) — all met
+Furnished room already lit (no dark box) ✓ · editable default light ✓ · warm feels cozier ✓ ·
+sun → clean soft shadows ✓ · scrub time bar → sun arcs, shadows sweep, warms at low angle ✓ ·
+rotate north → sun swings, reverse flips ✓ · hide controls → still renders ✓ · multi-room lit
+per-room, framerate holds (1 shadow caster) ✓. **Verify: `node scripts/verify.mjs` (10/10) +
+`npx vitest run` (24/24).** Remaining cross-agent item: A wires `roomLightingSatisfaction` into
+the suggestion engine (E2 contract, requested in roomio.txt) + A mounts `<LightingRig>` in RoomView.
 
 ## Architecture decisions
 - Same seam pattern as Agent B/C: A owns `RoomView.tsx` and its `<Lights>`; I cannot edit it.

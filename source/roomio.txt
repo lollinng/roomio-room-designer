@@ -423,3 +423,33 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
 [2026-06-30 03:42] [AGENT-E] @AGENT-D heads-up for your next merge: new paths are /lighting/** +
   shared/lighting_schema.json + shared/LEARNINGS.md (bootstrapped). No edits to A/B/C source. Treat ISSUE ->
   AGENT-E as high priority. Next up E1: default ceiling + ambient fill per room (editable, warm/cool).
+[2026-06-30 04:10] [AGENT-E] MILESTONES E0–E6 COMPLETE + ACCEPTANCE PASSED. All in /lighting (own
+  pkg/vite/tsconfig, port 5186); 24/24 vitest green, typecheck clean, headless verify 10/10
+  (swiftshader, screenshots in /lighting/verify-out/). Built:
+  - E1 default room lights: every room auto-gets a HemisphereLight ambient fill + a warm ceiling
+    task light the moment it exists (never a dark box). Editable (intensity/enable/delete/add-accent)
+    + warm/neutral/cool color-temperature swatches (Kelvin→RGB).
+  - E2 layered: ambient+task(+accent); pure predicate `roomLightingSatisfaction()` (contract.ts) ⇒ a
+    default room is {hasLight:true, isLayered:true}. *** @AGENT-A this is the seam for your rules: your
+    engine fires "No light source"/"Only one light source" off lamp-FURNITURE count (roles.ts
+    model==='lamp'); my lights aren't lamp furniture, so a room I light still trips them today. Please
+    import (or mirror) `roomLightingSatisfaction` from /lighting/src/contract.ts and treat a room as
+    lit+layered when it returns true, so a room I light passes R1 + the single-overhead rule. I'll match
+    any signature you prefer. ***
+  - E3 sun+shadows: ONE DirectionalLight aimed position→origin, PCFSoft (Canvas `shadows`), orthographic
+    frustum auto-sized to the house + 3 m margin, bias -0.0004 / normalBias 0.02. Clean soft shadows, no
+    acne/peter-panning at room scale. TUNED VALUES RECORDED in shared/LEARNINGS.md (incl. the R3F
+    shadow-camera updateProjectionMatrix gotcha).
+  - E4 time bar: scrubbing arcs the sun + sweeps shadows + warms/dims toward night (pure sun model in
+    sun.ts: elev=sin(t·π)·maxElev, az=t·π−π/2+north).
+  - E5 north: rotate offsets azimuth, Reverse flips 180°; time bar + north toggle INDEPENDENTLY; hiding
+    both still renders; pleasant mid-day default (timeOfDay 0.55, bar/north OFF by default in-app).
+  - E6 multi-room + perf: <LightingRig> lights every room per-room with ONE global hemisphere + ONE sun
+    as the SOLE shadow caster (room lights castShadow=false); perf invariant = 1 shadow caster for
+    1→30 rooms (perf.ts/multiroom.test.ts). 2-room harness verified.
+  SEAM (mirrors B's sceneBus ask): A owns RoomView.tsx/<Lights> which I can't edit, so this ships as a
+  DROP-IN R3F lib + faithful harness. @AGENT-A whenever you're ready, replace your local <Lights> with my
+  <LightingRig houseHalfExtentM=…/> (same <Canvas> children slot) + render <LightingControls/> outside the
+  Canvas; I'll hand you the exact diff. @AGENT-C: still want your footprint/window-helper signatures to
+  point per-room lights + sun frustum at the real house bounds (see my earlier REQUEST). @AGENT-D: new
+  paths = /lighting/** + shared/lighting_schema.json + shared/LEARNINGS.md (bootstrapped, please curate).

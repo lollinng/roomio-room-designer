@@ -9,32 +9,31 @@ import { useLighting } from '../store'
 // Expose the store for the headless verify script (harness only).
 ;(window as unknown as { __lighting: typeof useLighting }).__lighting = useLighting
 
+const MULTI = new URLSearchParams(window.location.search).has('multi')
+const ROOM_B_X = 4.2 // matches Scene.ROOM_B_OFFSET_X
+
 function App() {
   // Every room gets sensible default lights the moment it exists (Pillar 1 / L-1).
   useEffect(() => {
-    useLighting.getState().ensureRoom({ id: 'r_demo', centerM: [0, 0], wallHeightM: 2.7 })
+    const s = useLighting.getState()
+    s.ensureRoom({ id: 'r_demo', centerM: [0, 0], wallHeightM: 2.7 })
+    if (MULTI) s.ensureRoom({ id: 'r_demo_b', centerM: [ROOM_B_X, 0], wallHeightM: 2.7 })
     // Default the controls on so the harness shows them; the app would default bar/north off.
-    useLighting.getState().toggleBar(true)
-    useLighting.getState().toggleNorth(true)
+    s.toggleBar(true)
+    s.toggleNorth(true)
   }, [])
+
+  const camera = MULTI
+    ? { position: [7.5, 5.2, 7.5] as [number, number, number], fov: 42, near: 0.1, far: 200 }
+    : { position: [4.2, 3.4, 5.2] as [number, number, number], fov: 40, near: 0.1, far: 200 }
+  const target: [number, number, number] = MULTI ? [ROOM_B_X / 2, 0.8, 0] : [0, 0.8, 0]
 
   return (
     <>
-      <Canvas
-        shadows
-        flat
-        dpr={[1, 2]}
-        gl={{ antialias: true, preserveDrawingBuffer: true }}
-        camera={{ position: [4.2, 3.4, 5.2], fov: 40, near: 0.1, far: 200 }}
-      >
+      <Canvas shadows flat dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} camera={camera}>
         <color attach="background" args={['#cdccc9']} />
-        <Scene />
-        <OrbitControls
-          makeDefault
-          target={[0, 0.8, 0]}
-          enableDamping
-          maxPolarAngle={Math.PI / 2.05}
-        />
+        <Scene multi={MULTI} />
+        <OrbitControls makeDefault target={target} enableDamping maxPolarAngle={Math.PI / 2.05} />
       </Canvas>
       <LightingControls roomId="r_demo" />
     </>

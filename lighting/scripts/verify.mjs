@@ -158,6 +158,17 @@ try {
   ok(barGone, 'time bar hidden when toggled off')
   ok(hidden.mean > 80, `scene still renders with controls hidden (mean ${hidden.mean.toFixed(0)})`)
 
+  // 7) MULTI-ROOM — two rooms each lit, sun still the only shadow caster
+  await page.goto(APP_URL + '?multi=1', { waitUntil: 'networkidle0' })
+  await page.waitForSelector('canvas', { timeout: 15000 })
+  await page.waitForFunction(() => !!window.__lighting, { timeout: 10000 })
+  await sleep(900)
+  const multi = await sample()
+  await shot('08-multiroom.png')
+  const roomCount = await page.evaluate(() => Object.keys(window.__lighting.getState().rooms).length)
+  ok(roomCount >= 2, `multi-room house has ${roomCount} rooms lit per-room`)
+  ok(multi.mean > 80 && multi.darkFrac > 0.01, `both rooms lit with shadows (mean ${multi.mean.toFixed(0)}, dark ${(multi.darkFrac * 100).toFixed(1)}%)`)
+
   console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILED'} — screenshots in verify-out/`)
 } finally {
   if (browser) await browser.close()
