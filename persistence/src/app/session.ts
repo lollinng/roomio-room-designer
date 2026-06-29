@@ -16,6 +16,18 @@ import { AutosaveController } from '../autosave/engine'
 import type { SaveStatus } from '../autosave/status'
 import { installUnloadGuard } from '../autosave/beforeUnload'
 import { captureThumbnail } from '../render/thumbnail'
+import { makeSnapshot, pushHistory, shouldAutoSnapshot, restoreFrom } from '../envelope/history'
+import type { VersionSnapshot } from '../envelope/types'
+
+/** Adapters that support fault injection (the demo "simulate save failure"). */
+interface FaultInjectable {
+  setFailing(on: boolean): void
+  readonly failing: boolean
+}
+function asFault(a: StorageAdapter): FaultInjectable | null {
+  const f = a as unknown as Partial<FaultInjectable>
+  return typeof f.setFailing === 'function' ? (f as FaultInjectable) : null
+}
 
 export interface SessionState {
   repo: DesignRepository
@@ -26,6 +38,9 @@ export interface SessionState {
   status: SaveStatus
   /** Library summaries (refreshed after every successful save / mutation). */
   summaries: DesignSummary[]
+  /** True when the storage backend supports the demo failure simulation. */
+  canSimulateFailure: boolean
+  failureSimOn: boolean
 
   // lifecycle
   refreshLibrary: () => Promise<void>
@@ -37,6 +52,12 @@ export interface SessionState {
   rename: (name: string) => void
   mutate: (producer: (d: RoomioDesign) => RoomioDesign) => void
   saveNow: () => Promise<void>
+  // version history
+  checkpoint: (label?: string) => Promise<void>
+  restoreVersion: (rev: number) => void
+  history: () => VersionSnapshot[]
+  // demo: simulate a storage outage
+  simulateSaveFailure: (on: boolean) => void
 }
 
 /** Build the autosave controller, wiring its save fn through the repository. */
@@ -44,11 +65,16 @@ function makeAutosave(getRepo: () => DesignRepository, onSaved: (committed: Room
   return new AutosaveController<RoomioDesign>({
     debounceMs: 1200,
     save: async (env) => {
-      const committed: RoomioDesign = {
+      const now = Date.now()
+      let committed: RoomioDesign = {
         ...env,
-        updatedAt: Date.now(),
+        updatedAt: now,
         rev: Math.max(env.rev, currentRev() + 1),
         thumbnail: captureThumbnail(env.scene.house) ?? env.thumbnail,
+      }
+      // Periodic autosnapshot (throttled) so a bad edit can always be rolled back.
+      if (shouldAutoSnapshot(committed, now)) {
+        committed = pushHistory(committed, makeSnapshot(committed, 'auto', now))
       }
       await getRepo().save(committed)
       onSaved(committed)
@@ -64,6 +90,7 @@ function currentRev(): number {
 
 export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter()): SessionState {
   const repo = new DesignRepository(adapter)
+  const fault = asFault(adapter)
   const autosave = makeAutosave(
     () => repo,
     (committed) => {
@@ -82,6 +109,8 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
     current: null,
     status: { phase: 'idle' },
     summaries: [],
+    canSimulateFailure: !!fault,
+    failureSimOn: false,
 
     refreshLibrary: async () => {
       const summaries = await useSession.getState().repo.list()
@@ -126,6 +155,37 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
 
     saveNow: async () => {
       await useSession.getState().autosave.saveNow()
+    },
+
+    // ── version history ──
+    checkpoint: async (label) => {
+      const st = useSession.getState()
+      if (!st.current) return
+      // A manual checkpoint doubles as a named restore point (brief §3).
+      const snapped = pushHistory(st.current, makeSnapshot(st.current, 'manual', Date.now(), label))
+      useSession.setState({ current: snapped })
+      st.autosave.markDirty(snapped)
+      await st.autosave.saveNow()
+    },
+
+    restoreVersion: (rev) => {
+      const st = useSession.getState()
+      if (!st.current) return
+      const restored = restoreFrom(st.current, rev)
+      if (!restored) return
+      // Restoring is itself an edit → saved as a new rev; history is preserved.
+      useSession.setState({ current: restored })
+      st.autosave.markDirty(restored)
+    },
+
+    history: () => useSession.getState().current?.history ?? [],
+
+    // ── demo: simulate a storage outage ──
+    simulateSaveFailure: (on) => {
+      fault?.setFailing(on)
+      useSession.setState({ failureSimOn: on })
+      // When recovering, nudge a flush so the kept-in-memory data lands immediately.
+      if (!on) void useSession.getState().autosave.saveNow()
     },
   }
 }

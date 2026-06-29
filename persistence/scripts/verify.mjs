@@ -113,6 +113,41 @@ try {
   await page.keyboard.up('Control')
   ok(await waitForPhase(page, 'saved', 6000), 'manual Ctrl/Cmd-S resolves to Saved')
 
+  // 4b) SIMULATED SAVE FAILURE → "retrying", data kept (never dropped), then recovery.
+  const revBeforeFail = await page.evaluate(() => window.__roomioRev?.() ?? null)
+  await page.evaluate(() => window.__roomioFail?.(true))
+  await clickByText(page, 'Move item ↓')
+  ok(await waitForPhase(page, 'error', 8000), 'save failure shows "Couldn’t save — retrying…"')
+  const failText = await statusText(page)
+  ok(/retry/i.test(failText), `failure status reads "${failText.trim()}"`)
+  const revDuringFail = await page.evaluate(() => window.__roomioRev?.() ?? null)
+  ok(revDuringFail === revBeforeFail, 'rev does NOT advance while saving fails (no false success)')
+  const hasUnsaved = await page.evaluate(() => window.__roomioUnsaved?.() ?? null)
+  ok(hasUnsaved === true, 'edit kept in memory while failing (not dropped)')
+  await page.screenshot({ path: `${OUT}c2-2-retry.png` })
+  // recover
+  await page.evaluate(() => window.__roomioFail?.(false))
+  ok(await waitForPhase(page, 'saved', 8000), 'turning storage back on → kept edit saves (recovers)')
+  const revAfterRecover = await page.evaluate(() => window.__roomioRev?.() ?? null)
+  ok(revAfterRecover > revBeforeFail, `rev advances after recovery ${revBeforeFail} -> ${revAfterRecover}`)
+
+  // 4c) VERSION HISTORY — manual checkpoint creates a restore point; restore works.
+  await clickByText(page, 'History')
+  await clickByText(page, 'Save') // manual checkpoint
+  await waitForPhase(page, 'saved', 6000)
+  const restorePoints = await page.evaluate(
+    () => [...document.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Restore').length,
+  )
+  ok(restorePoints >= 1, 'manual checkpoint appears as a restore point in History')
+  const revBeforeRestore = await page.evaluate(() => window.__roomioRev?.() ?? null)
+  await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Restore')
+    btn?.click()
+  })
+  ok(await waitForPhase(page, 'saved', 6000), 'restoring a version saves cleanly')
+  const revAfterRestore = await page.evaluate(() => window.__roomioRev?.() ?? null)
+  ok(revAfterRestore > revBeforeRestore, 'restore is recorded as a new revision (history not destroyed)')
+
   // 5) Reload → design persists in My Designs WITH a thumbnail.
   await page.evaluate(() => history.pushState(null, '', '/')) // no-op; ensure same origin
   await page.reload({ waitUntil: 'networkidle0' })

@@ -24,8 +24,14 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
         canvas, demo Editor (rename, edit, ⌘/Ctrl-S, Save), baseline Library, App shell.
       - 18/18 vitest + 10/10 headless browser checks green (Saving…→Saved, optimistic, rev advance,
         reload-persists-with-thumbnail, reopen round-trip). Screenshots in `verify-out/`.
-- [ ] **C2-2** — Save-failure retry (never silently drop; keep in memory; backoff) + (stretch)
-      lightweight version history / restore points.
+- [x] **C2-2** — Save-failure retry (never drop; keep in memory; backoff) + version history.
+      - Retry path lives in `AutosaveController` (built C2-1); now surfaced: demo failure toggle
+        (`FlakyAdapter.setFailing`) + visible "Couldn’t save — retrying…" + recovery on restore.
+      - Version history: `src/envelope/history.ts` (snapshot/cap/restore, throttled autosnapshots,
+        manual checkpoints keep-preferentially); session `checkpoint`/`restoreVersion`/`history`; UI
+        History panel. ⌘/Ctrl-S = manual restore point.
+      - 22/22 vitest + 19/19 headless checks (failure→retry, rev frozen during failure, kept-in-memory,
+        recovery, checkpoint→restore-point, restore-as-new-rev). Screenshot `verify-out/c2-2-retry.png`.
 - [ ] **C2-3** — My Designs library: grid of cards (thumbnail + name + last-edited), open / inline
       rename / duplicate / delete-with-undo; new design = "Untitled room" autosaved; sort/filter.
 - [ ] **C2-4** — Share panel: copy-link + view/edit access (default view) + a dedicated view-only

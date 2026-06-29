@@ -9,6 +9,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useSession } from '../app/session'
 import { Floorplan } from '../ui/Floorplan'
 import { SaveStatusIndicator } from '../ui/SaveStatus'
+import { savedLabel } from '../autosave/status'
 import { T, panel, btnPrimary, btnGhost } from '../ui/theme'
 import type { House, FurnitureItem } from '../scene/slices'
 import type { RoomioDesign } from '../envelope/types'
@@ -21,8 +22,13 @@ export function Editor({ onShare }: { onShare: () => void }) {
   const backend = useSession((s) => s.backend)
   const rename = useSession((s) => s.rename)
   const mutate = useSession((s) => s.mutate)
-  const saveNow = useSession((s) => s.saveNow)
+  const checkpoint = useSession((s) => s.checkpoint)
+  const restoreVersion = useSession((s) => s.restoreVersion)
   const closeToLibrary = useSession((s) => s.closeToLibrary)
+  const canSimulateFailure = useSession((s) => s.canSimulateFailure)
+  const failureSimOn = useSession((s) => s.failureSimOn)
+  const simulateSaveFailure = useSession((s) => s.simulateSaveFailure)
+  const [showHistory, setShowHistory] = useState(false)
 
   const [nameDraft, setNameDraft] = useState(current?.name ?? '')
   const nameRef = useRef<HTMLInputElement | null>(null)
@@ -30,17 +36,17 @@ export function Editor({ onShare }: { onShare: () => void }) {
     setNameDraft(current?.name ?? '')
   }, [current?.design_id])
 
-  // Ctrl/Cmd-S → manual save checkpoint with feedback.
+  // Ctrl/Cmd-S → manual save checkpoint (also a named restore point) with feedback.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        void saveNow()
+        void checkpoint()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [saveNow])
+  }, [checkpoint])
 
   if (!current) return null
   const house = current.scene.house
@@ -62,8 +68,11 @@ export function Editor({ onShare }: { onShare: () => void }) {
         />
         <div style={{ flex: 1 }} />
         <SaveStatusIndicator status={status} backend={backend} />
-        <button style={btnGhost} onClick={() => void saveNow()} title="Save now (⌘/Ctrl-S)">
+        <button style={btnGhost} onClick={() => void checkpoint()} title="Save a version now (⌘/Ctrl-S)">
           Save
+        </button>
+        <button style={btnGhost} onClick={() => setShowHistory((v) => !v)} title="Version history">
+          History
         </button>
         <button style={btnPrimary} onClick={onShare}>
           Share
@@ -105,11 +114,58 @@ export function Editor({ onShare }: { onShare: () => void }) {
             <div>rev {current.rev}</div>
             <div>storage: {backend}</div>
           </div>
+
+          {canSimulateFailure && (
+            <>
+              <SectionTitle>Reliability (demo)</SectionTitle>
+              <button
+                style={{ ...ctrlBtn, color: failureSimOn ? T.danger : T.ink, borderColor: failureSimOn ? '#e7c9c5' : T.panelBorder }}
+                onClick={() => simulateSaveFailure(!failureSimOn)}
+                title="Force the storage layer to fail, to prove edits are retried — never dropped."
+              >
+                {failureSimOn ? '■ Stop simulating failure' : '⚠ Simulate save failure'}
+              </button>
+              {failureSimOn && (
+                <p style={{ ...hint, color: T.danger }}>
+                  Storage is failing. Edits stay in memory and retry — nothing is lost. Turn off to recover.
+                </p>
+              )}
+            </>
+          )}
         </aside>
 
         <main style={{ ...panel, ...stage }}>
           <Floorplan house={house} style={{ width: '100%', height: '100%' }} />
         </main>
+
+        {showHistory && (
+          <aside style={{ ...panel, ...historyPanel }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <SectionTitle>Version history</SectionTitle>
+              <button style={{ ...btnGhost, padding: 4 }} onClick={() => setShowHistory(false)}>✕</button>
+            </div>
+            <p style={hint}>Restore points. ⌘/Ctrl-S makes a manual one; autosnapshots happen as you work.</p>
+            {(current.history ?? []).length === 0 ? (
+              <p style={{ ...hint, fontStyle: 'italic' }}>No restore points yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: 6 }}>
+                {(current.history ?? []).map((h) => (
+                  <div key={`${h.rev}-${h.at}`} style={historyRow}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {h.label || (h.kind === 'manual' ? 'Manual save' : 'Autosnapshot')}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.inkFaint }}>rev {h.rev} · {savedLabel(h.at)}</div>
+                    </div>
+                    <button style={{ ...btnGhost, padding: '4px 8px', fontSize: 12 }} onClick={() => restoreVersion(h.rev)}>
+                      Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </aside>
+        )}
       </div>
     </div>
   )
@@ -165,3 +221,5 @@ const sectionTitle: CSSProperties = { fontSize: 11, fontWeight: 700, letterSpaci
 const hint: CSSProperties = { fontSize: 12, color: T.inkSoft, margin: 0 }
 const ctrlBtn: CSSProperties = { ...btnGhost, justifyContent: 'flex-start', border: `1px solid ${T.panelBorder}` }
 const meta: CSSProperties = { fontSize: 12, color: T.inkSoft, display: 'grid', gap: 3 }
+const historyPanel: CSSProperties = { width: 240, padding: 16, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }
+const historyRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 8px', border: `1px solid ${T.panelBorder}`, borderRadius: 8 }

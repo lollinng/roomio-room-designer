@@ -138,6 +138,14 @@ export class FlakyAdapter implements StorageAdapter {
     this.inner = inner
   }
 
+  /** Fault-injection toggle (drives the demo "simulate save failure" control). */
+  setFailing(on: boolean): void {
+    this.hardDown = on
+  }
+  get failing(): boolean {
+    return this.hardDown
+  }
+
   async getItem(key: string): Promise<string | null> {
     return this.inner.getItem(key)
   }
