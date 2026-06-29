@@ -9,11 +9,24 @@ Dev server: `npm run dev` → http://localhost:5180/
 
 ## Legend: ✅ done · 🚧 in progress · ⬜ next/todo
 
-## roomio.txt feed (from user)
-- "keep working for next 4 hours" → iterate autonomously through all milestones + polish, no pausing.
-- "make sure everything is scalable in long term" → keep data-driven catalogs, pure decoupled
-  geometry/collision modules, a single serializable scene-graph store, versioned persistence,
-  clean component layers. Adding presets/archetypes/materials/openings must stay one-array-entry easy.
+## roomio.txt feed (from user) — all addressed
+- "keep working for next 4 hours" → iterating autonomously, no pausing.
+- "make sure everything is scalable in long term" → data-driven catalogs, pure decoupled
+  geometry/collision modules, single serializable scene-graph store, versioned persistence, clean layers.
+- #3 furniture lock toggle → DONE (panel button + 3D floating toolbar + lock badge).
+- #4 login + Postgres session storage → DONE (Express+pg server :5181, Vite /api proxy, auth store, repository).
+- #5 resize doors/windows → DONE (Step 3 "Adjust opening" width/height/sill, clamped).
+- #6 PR + test cases (spawn test agent) → tests DONE (87 vitest), PR in progress.
+- #9 saved positions not preserved on reopen → FIXED (data round-trips exact; now also persist+restore camera view).
+- #10 lock button not visible → FIXED (3D toolbar lock + panel lock button).
+- Coordinating with Agent B (detection pipeline) via source/roomio.txt comms log; archetype + schema contract acked.
+
+## Backend / infra
+- server/ : Express + pg (port 5181), Postgres `roomio` db. Auth (signup/login/logout/me, cookie sessions),
+  per-user designs (GET/POST/DELETE). `cd server && npm install && npm start`.
+- Vite proxies /api → :5181. Front-end: src/auth.ts (store), src/api.ts (client), src/repository.ts
+  (server-when-authed / localStorage-as-guest). Run: `npm run dev` (front-end) + server.
+- Tests: `npm test` (87 vitest), `npm run check:browser` (puppeteer e2e), scripts/auth-check.mjs (auth e2e).
 
 ## Milestones
 - ✅ **M0** Scaffold, scene-graph store, 6 shape presets, 3D viewport (walls+floor), dev server up

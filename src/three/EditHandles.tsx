@@ -28,6 +28,8 @@ function useFloorRay() {
 function WallHandle({ wall }: { wall: Wall }) {
   const corners = useStore((s) => s.design.corners)
   const dragWallPerp = useStore((s) => s.dragWallPerp)
+  const beginGesture = useStore((s) => s.beginGesture)
+  const endGesture = useStore((s) => s.endGesture)
   const frame = useMemo(() => makeFrame(corners), [corners])
   const controls = useThree((s) => s.controls) as unknown as { enabled: boolean } | undefined
   const floorRay = useFloorRay()
@@ -48,6 +50,7 @@ function WallHandle({ wall }: { wall: Wall }) {
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
     drag.current = { start: hit.clone(), prev: 0 }
+    beginGesture()
     if (controls) controls.enabled = false
   }
   const onMove = (e: any) => {
@@ -62,6 +65,7 @@ function WallHandle({ wall }: { wall: Wall }) {
     drag.current.prev = along
   }
   const onUp = (e: any) => {
+    if (drag.current) endGesture()
     drag.current = null
     if (controls) controls.enabled = true
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
@@ -76,12 +80,14 @@ function WallHandle({ wall }: { wall: Wall }) {
         onPointerOver={() => setHover(true)}
         onPointerOut={() => setHover(false)}
       >
-        <boxGeometry args={[Math.max(lenM - 0.18, 0.1), 0.1, 0.16]} />
+        <boxGeometry args={[Math.max(lenM - 0.16, 0.1), 0.07, 0.1]} />
         <meshStandardMaterial
-          color={hover ? '#f3b700' : '#1f6dd0'}
+          color={hover ? '#f3b700' : '#2a7de1'}
           transparent
-          opacity={hover ? 0.95 : 0.7}
-          roughness={0.4}
+          opacity={hover ? 0.98 : 0.6}
+          roughness={0.35}
+          emissive={hover ? '#f3b700' : '#000000'}
+          emissiveIntensity={hover ? 0.25 : 0}
         />
       </mesh>
     </group>

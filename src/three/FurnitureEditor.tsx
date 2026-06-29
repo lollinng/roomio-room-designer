@@ -32,6 +32,8 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const updateFurniture = useStore((s) => s.updateFurniture)
   const removeFurniture = useStore((s) => s.removeFurniture)
   const setOverlaps = useStore((s) => s.setOverlaps)
+  const beginGesture = useStore((s) => s.beginGesture)
+  const endGesture = useStore((s) => s.endGesture)
 
   const floorRay = useFloorRay()
   const toggleControls = useControlsToggle()
@@ -77,9 +79,11 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   // ---- MOVE handlers (on the invisible hitbox) ----------------------------
   const onMoveDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     selectFurniture(item.id)
+    if (item.locked) return // pinned: select only, ignore drag
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     moving.current = true
+    beginGesture()
     toggleControls(false)
     // Record grab offset so the item doesn't jump its center onto the cursor.
     const hit = floorRay(e.clientX, e.clientY)
@@ -92,7 +96,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   }
 
   const onMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!moving.current) return
+    if (!moving.current || item.locked) return
     e.stopPropagation()
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
@@ -103,6 +107,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const onMoveUp = (e: ThreeEvent<PointerEvent>) => {
     if (!moving.current) return
     moving.current = false
+    endGesture()
     toggleControls(true)
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
   }
@@ -110,14 +115,16 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   // ---- ROTATE handlers (on the front handle) ------------------------------
   const onRotDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     selectFurniture(item.id)
+    if (item.locked) return // pinned: ignore rotation too
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     rotating.current = true
+    beginGesture()
     toggleControls(false)
   }
 
   const onRotMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!rotating.current) return
+    if (!rotating.current || item.locked) return
     e.stopPropagation()
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
@@ -146,6 +153,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const onRotUp = (e: ThreeEvent<PointerEvent>) => {
     if (!rotating.current) return
     rotating.current = false
+    endGesture()
     toggleControls(true)
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
   }
@@ -189,42 +197,59 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
             <lineBasicMaterial color="#f3b700" />
           </lineSegments>
 
-          {/* Rotate handle: a grabbable knob in front of the item (+z). */}
-          <group position={[0, 0.02, dM / 2 + 0.35]}>
-            <mesh
-              onPointerDown={onRotDown}
-              onPointerMove={onRotMove}
-              onPointerUp={onRotUp}
-            >
-              <sphereGeometry args={[0.075, 20, 16]} />
-              <meshStandardMaterial color="#1f6dd0" roughness={0.4} metalness={0.1} />
-            </mesh>
-            {/* small ring under the knob to read as a rotate affordance */}
-            <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-              <torusGeometry args={[0.11, 0.012, 10, 28]} />
-              <meshStandardMaterial color="#1f6dd0" roughness={0.5} />
-            </mesh>
-          </group>
+          {/* Rotate handle: a grabbable knob in front of the item (+z). Hidden when locked. */}
+          {!item.locked && (
+            <group position={[0, 0.02, dM / 2 + 0.35]}>
+              <mesh onPointerDown={onRotDown} onPointerMove={onRotMove} onPointerUp={onRotUp}>
+                <sphereGeometry args={[0.075, 20, 16]} />
+                <meshStandardMaterial color="#1f6dd0" roughness={0.4} metalness={0.1} />
+              </mesh>
+              {/* small ring under the knob to read as a rotate affordance */}
+              <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+                <torusGeometry args={[0.11, 0.012, 10, 28]} />
+                <meshStandardMaterial color="#1f6dd0" roughness={0.5} />
+              </mesh>
+            </group>
+          )}
 
-          {/* Floating trash button above the item. */}
-          <Html position={[0, hM + 0.3, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
-            <button
-              className="trash-btn"
-              onClick={(ev) => {
-                ev.stopPropagation()
-                removeFurniture(item.id)
-              }}
-              title="Delete"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16">
-                <path
-                  fill="currentColor"
-                  d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1v-8h-1zm3 0v8h1v-8h-1z"
-                />
-              </svg>
-            </button>
+          {/* Floating toolbar above the item: lock + delete. */}
+          <Html position={[0, hM + 0.32, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
+            <div className="item-toolbar">
+              <button
+                className={`tool-btn${item.locked ? ' on' : ''}`}
+                onClick={(ev) => {
+                  ev.stopPropagation()
+                  updateFurniture(item.id, { locked: !item.locked })
+                }}
+                title={item.locked ? 'Locked — click to unlock' : 'Lock in place'}
+              >
+                {item.locked ? '🔒' : '🔓'}
+              </button>
+              <button
+                className="tool-btn danger"
+                onClick={(ev) => {
+                  ev.stopPropagation()
+                  removeFurniture(item.id)
+                }}
+                title="Delete"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15">
+                  <path
+                    fill="currentColor"
+                    d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1v-8h-1zm3 0v8h1v-8h-1z"
+                  />
+                </svg>
+              </button>
+            </div>
           </Html>
         </>
+      )}
+
+      {/* Lock indicator — visible when pinned but NOT selected (toolbar shows it otherwise). */}
+      {item.locked && !selected && (
+        <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[35, 0]}>
+          <div className="lock-badge" title="Locked">🔒</div>
+        </Html>
       )}
     </group>
   )

@@ -46,11 +46,19 @@ export interface FurnitureItem {
   d: number // depth (local z), cm
   h: number // height, cm
   color: string
+  /** when true, the item is pinned and ignores drag/rotate gestures */
+  locked?: boolean
 }
 
 export interface Materials {
   wallColor: string
   floorTexture: string // key into floor texture catalog
+}
+
+/** Saved 3D camera viewpoint so reopening restores the exact same view. */
+export interface CameraView {
+  cam: [number, number, number]
+  target: [number, number, number]
 }
 
 export interface RoomDesign {
@@ -64,6 +72,8 @@ export interface RoomDesign {
   openings: Opening[]
   materials: Materials
   furniture: FurnitureItem[]
+  /** optional saved camera viewpoint (additive; old designs simply lack it) */
+  view?: CameraView
   createdAt: number
   updatedAt: number
 }

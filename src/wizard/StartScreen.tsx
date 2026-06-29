@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
-import {
-  listDesigns,
-  loadDesign as loadStored,
-  deleteDesign,
-  importDesignJSON,
-  type DesignSummary,
-} from '../persistence'
+import { useAuth } from '../auth'
+import { importDesignJSON, type DesignSummary } from '../persistence'
+import { listDesigns, loadDesign as repoLoad, deleteDesign as repoDelete } from '../repository'
 
 const SHAPE_LABELS: Record<string, string> = {
   rect: 'Rectangle',
@@ -17,50 +13,53 @@ const SHAPE_LABELS: Record<string, string> = {
   beveled: 'Beveled',
 }
 
-function shapeLabel(shape: string): string {
-  return SHAPE_LABELS[shape] ?? shape
-}
+const shapeLabel = (shape: string): string => SHAPE_LABELS[shape] ?? shape
 
 function formatUpdated(ts: number): string {
   const d = new Date(ts)
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 }
 
 export function StartScreen() {
   const resetDesign = useStore((s) => s.resetDesign)
   const loadDesignIntoStore = useStore((s) => s.loadDesign)
 
+  const authStatus = useAuth((s) => s.status)
+  const user = useAuth((s) => s.user)
+  const logout = useAuth((s) => s.logout)
+
   const [designs, setDesigns] = useState<DesignSummary[]>([])
+  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  function refresh() {
-    setDesigns(listDesigns())
+  async function refresh() {
+    setLoading(true)
+    try {
+      setDesigns(await listDesigns())
+    } catch {
+      setDesigns([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     refresh()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus])
 
-  function handleOpen(id: string) {
-    const d = loadStored(id)
+  async function handleOpen(id: string) {
+    const d = await repoLoad(id)
     if (d) loadDesignIntoStore(d)
   }
 
-  function handleDelete(id: string) {
-    deleteDesign(id)
+  async function handleDelete(id: string) {
+    await repoDelete(id)
     refresh()
-  }
-
-  function handleImportClick() {
-    fileInputRef.current?.click()
   }
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    // reset the input so the same file can be re-selected later
     e.target.value = ''
     if (!file) return
     const reader = new FileReader()
@@ -68,42 +67,59 @@ export function StartScreen() {
       try {
         const text = typeof reader.result === 'string' ? reader.result : ''
         const d = importDesignJSON(text)
-        if (d) {
-          loadDesignIntoStore(d)
-        }
+        if (d) loadDesignIntoStore(d)
       } catch {
-        // ignore malformed file
+        /* ignore malformed file */
       }
     }
     try {
       reader.readAsText(file)
     } catch {
-      // ignore unreadable file
+      /* ignore */
     }
   }
+
+  const cloud = authStatus === 'authed'
 
   return (
     <div className="start">
       <div className="start-card" style={{ width: 560, maxWidth: '92vw' }}>
-        <div className="brand">
-          <span className="dot" />
-          Roomio
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="brand" style={{ marginBottom: 0 }}>
+            <span className="dot" />
+            Roomio
+          </div>
+          {cloud ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+                {user?.name || user?.email}
+              </span>
+              <button className="btn btn-ghost btn-sm" style={{ flex: 'none' }} onClick={logout}>
+                Log out
+              </button>
+            </div>
+          ) : (
+            <span className="guest-pill">Guest · saved to this browser</span>
+          )}
         </div>
-        <h1 className="start-title">Design your room</h1>
+
+        <h1 className="start-title" style={{ marginTop: 26 }}>
+          Design your room
+        </h1>
         <p className="start-sub">
           Pick a shape, set the dimensions, add doors &amp; windows, choose your style — then
           furnish it. A clean, accurate room you author yourself.
         </p>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            className="btn btn-primary"
-            style={{ flex: 1 }}
-            onClick={() => resetDesign('rect')}
-          >
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => resetDesign('rect')}>
             Start a new room
           </button>
-          <button className="btn btn-ghost btn-sm" style={{ flex: 'none' }} onClick={handleImportClick}>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ flex: 'none' }}
+            onClick={() => fileInputRef.current?.click()}
+          >
             Import JSON
           </button>
           <input
@@ -116,18 +132,13 @@ export function StartScreen() {
         </div>
 
         <div style={{ marginTop: 32 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: 'var(--ink)',
-              marginBottom: 14,
-            }}
-          >
-            Your saved rooms
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 14 }}>
+            {cloud ? 'Your saved rooms' : 'Saved rooms (this browser)'}
           </div>
 
-          {designs.length === 0 ? (
+          {loading ? (
+            <p style={{ fontSize: 13.5, color: 'var(--ink-3)', margin: 0 }}>Loading…</p>
+          ) : designs.length === 0 ? (
             <p style={{ fontSize: 13.5, color: 'var(--ink-3)', margin: 0, lineHeight: 1.5 }}>
               No saved rooms yet — start one above.
             </p>
@@ -147,25 +158,7 @@ export function StartScreen() {
                 <div
                   key={d.id}
                   onClick={() => handleOpen(d.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    background: '#fff',
-                    border: '1px solid #e6e3dd',
-                    borderRadius: 12,
-                    padding: '14px 16px',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#b9b4a9'
-                    e.currentTarget.style.background = '#fbfaf7'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e6e3dd'
-                    e.currentTarget.style.background = '#fff'
-                  }}
+                  className="saved-row"
                 >
                   <div style={{ minWidth: 0 }}>
                     <div
@@ -189,22 +182,7 @@ export function StartScreen() {
                       e.stopPropagation()
                       handleDelete(d.id)
                     }}
-                    style={{
-                      flex: 'none',
-                      border: '1px solid #e6e3dd',
-                      background: '#fff',
-                      borderRadius: 999,
-                      padding: '7px 14px',
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      color: '#b0392f',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#b0392f'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#e6e3dd'
-                    }}
+                    className="saved-del"
                   >
                     Delete
                   </button>

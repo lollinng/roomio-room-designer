@@ -11,6 +11,7 @@ import type {
 import type { Unit } from './units'
 import { presetCorners } from './geometry/presets'
 import { deriveWalls, bbox, signedArea, safeInteriorPoint } from './geometry/walls'
+import { resolveFurniture } from './geometry/collision'
 import { OPENING_MAP } from './data/openings'
 import { ARCHETYPE_MAP } from './data/archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR } from './data/materials'
@@ -56,6 +57,21 @@ interface DesignStore {
   /** transient: id of furniture currently flagged as overlapping another */
   overlapIds: string[]
 
+  /** bump to ask the 3D view to refit the camera to the room */
+  fitNonce: number
+  fitView: () => void
+
+  // ---- undo / redo ----
+  past: RoomDesign[]
+  future: RoomDesign[]
+  /** true while a pointer-drag gesture is in flight (suppresses per-tick history) */
+  interacting: boolean
+  pushHistory: () => void
+  beginGesture: () => void
+  endGesture: () => void
+  undo: () => void
+  redo: () => void
+
   // ---- navigation ----
   setStage: (s: Stage) => void
   next: () => void
@@ -74,6 +90,7 @@ interface DesignStore {
   setPlacingStyle: (style: OpeningStyle | null) => void
   addOpening: (style: OpeningStyle, wallId: string, t: number) => void
   moveOpening: (id: string, wallId: string, t: number) => void
+  updateOpening: (id: string, patch: Partial<Pick<Opening, 'width' | 'height' | 'sill'>>) => void
   removeOpening: (id: string) => void
   selectOpening: (id: string | null) => void
 
@@ -100,14 +117,73 @@ function touch(d: RoomDesign): RoomDesign {
   return { ...d, updatedAt: Date.now() }
 }
 
+const HISTORY_LIMIT = 80
+// snapshot captured at the start of a drag gesture (module-scoped, not reactive)
+let gestureSnap: RoomDesign | null = null
+let lastCoalesceTs = 0
+
 export const useStore = create<DesignStore>((set, get) => ({
   stage: 'start',
+  fitNonce: 0,
+  fitView: () => set({ fitNonce: get().fitNonce + 1 }),
+  past: [],
+  future: [],
+  interacting: false,
   design: newDesign('rect'),
   walls: deriveWalls(presetCorners('rect')),
   selectedOpeningId: null,
   selectedFurnitureId: null,
   placingStyle: null,
   overlapIds: [],
+
+  pushHistory: () =>
+    set((s) => ({ past: [...s.past, s.design].slice(-HISTORY_LIMIT), future: [] })),
+  beginGesture: () => {
+    gestureSnap = get().design
+    set({ interacting: true })
+  },
+  endGesture: () => {
+    const snap = gestureSnap
+    gestureSnap = null
+    const cur = get().design
+    if (snap && snap !== cur) {
+      set((s) => ({ past: [...s.past, snap].slice(-HISTORY_LIMIT), future: [], interacting: false }))
+    } else {
+      set({ interacting: false })
+    }
+  },
+  undo: () => {
+    const s = get()
+    if (!s.past.length) return
+    const prev = s.past[s.past.length - 1]
+    set({
+      design: prev,
+      walls: deriveWalls(prev.corners),
+      past: s.past.slice(0, -1),
+      future: [s.design, ...s.future].slice(0, HISTORY_LIMIT),
+      interacting: false,
+      selectedFurnitureId: null,
+      selectedOpeningId: null,
+      overlapIds: [],
+    })
+    gestureSnap = null
+  },
+  redo: () => {
+    const s = get()
+    if (!s.future.length) return
+    const next = s.future[0]
+    set({
+      design: next,
+      walls: deriveWalls(next.corners),
+      future: s.future.slice(1),
+      past: [...s.past, s.design].slice(-HISTORY_LIMIT),
+      interacting: false,
+      selectedFurnitureId: null,
+      selectedOpeningId: null,
+      overlapIds: [],
+    })
+    gestureSnap = null
+  },
 
   setStage: (s) => set({ stage: s }),
   next: () => {
@@ -125,6 +201,7 @@ export const useStore = create<DesignStore>((set, get) => ({
   },
 
   setShape: (id) => {
+    get().pushHistory()
     const corners = presetCorners(id)
     const design = touch({
       ...get().design,
@@ -189,16 +266,22 @@ export const useStore = create<DesignStore>((set, get) => ({
     const next = signedArea(corners)
     const prev = signedArea(design.corners)
     if (Math.sign(next) !== Math.sign(prev) || Math.abs(next) < 1000) return
+    get().pushHistory()
     applyCorners(set, get, corners)
   },
 
-  setWallHeight: (cm) =>
-    set({ design: touch({ ...get().design, wallHeight: Math.max(180, Math.min(400, cm)) }) }),
+  setWallHeight: (cm) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    set({ design: touch({ ...get().design, wallHeight: Math.max(180, Math.min(400, cm)) }) })
+  },
 
   setPlacingStyle: (style) => set({ placingStyle: style }),
   addOpening: (style, wallId, t) => {
     const def = OPENING_MAP[style]
     if (!def) return
+    get().pushHistory()
     const op: Opening = {
       id: uid('op'),
       kind: def.kind,
@@ -223,25 +306,57 @@ export const useStore = create<DesignStore>((set, get) => ({
         ),
       }),
     }),
-  removeOpening: (id) =>
+  updateOpening: (id, patch) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    const { design, walls } = get()
+    set({
+      design: touch({
+        ...design,
+        openings: design.openings.map((o) => {
+          if (o.id !== id) return o
+          const wall = walls.find((w) => w.id === o.wallId)
+          const maxW = wall ? wall.length * 0.96 : 400
+          const next = { ...o, ...patch }
+          next.width = Math.max(40, Math.min(maxW, next.width))
+          next.height = Math.max(40, Math.min(design.wallHeight - 5, next.height))
+          next.sill = Math.max(0, Math.min(design.wallHeight - next.height, next.sill))
+          return next
+        }),
+      }),
+    })
+  },
+  removeOpening: (id) => {
+    get().pushHistory()
     set({
       design: touch({
         ...get().design,
         openings: get().design.openings.filter((o) => o.id !== id),
       }),
       selectedOpeningId: get().selectedOpeningId === id ? null : get().selectedOpeningId,
-    }),
+    })
+  },
   selectOpening: (id) => set({ selectedOpeningId: id }),
 
-  setWallColor: (hex) =>
-    set({ design: touch({ ...get().design, materials: { ...get().design.materials, wallColor: hex } }) }),
-  setFloor: (id) =>
-    set({ design: touch({ ...get().design, materials: { ...get().design.materials, floorTexture: id } }) }),
+  setWallColor: (hex) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    set({ design: touch({ ...get().design, materials: { ...get().design.materials, wallColor: hex } }) })
+  },
+  setFloor: (id) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    set({ design: touch({ ...get().design, materials: { ...get().design.materials, floorTexture: id } }) })
+  },
 
   addFurniture: (archetypeId, x, z) => {
     const a = ARCHETYPE_MAP[archetypeId]
     if (!a) return ''
-    const item: FurnitureItem = {
+    get().pushHistory()
+    const base: FurnitureItem = {
       id: uid('f'),
       archetype: a.id,
       category: a.category,
@@ -254,51 +369,85 @@ export const useStore = create<DesignStore>((set, get) => ({
       h: a.h,
       color: a.color,
     }
+    const st = get()
+    // clamp the placement inside the walls using the verified §7 solver
+    const r = resolveFurniture(base, { x, z }, st.walls, st.design.furniture, st.design.corners, {
+      wallThickness: st.design.wallThickness,
+    })
+    const item = { ...base, x: r.x, z: r.z, rotation: r.rotation }
     set({
-      design: touch({ ...get().design, furniture: [...get().design.furniture, item] }),
+      design: touch({ ...st.design, furniture: [...st.design.furniture, item] }),
       selectedFurnitureId: item.id,
     })
     return item.id
   },
   addFurnitureCentered: (archetypeId) => {
-    const p = safeInteriorPoint(get().design.corners)
-    return get().addFurniture(archetypeId, p.x, p.z)
+    const corners = get().design.corners
+    const p = safeInteriorPoint(corners)
+    // stagger successive additions so they don't perfectly stack
+    const n = get().design.furniture.length
+    const off = 40
+    const px = p.x + ((n % 3) - 1) * off
+    const pz = p.z + ((Math.floor(n / 3) % 3) - 1) * off
+    return get().addFurniture(archetypeId, px, pz)
   },
-  updateFurniture: (id, patch) =>
+  updateFurniture: (id, patch) => {
+    // during a drag gesture the snapshot covers history; otherwise (panel
+    // resize/recolor) coalesce rapid edits into a single undo step.
+    if (!get().interacting) {
+      const now = Date.now()
+      if (now - lastCoalesceTs > 600) get().pushHistory()
+      lastCoalesceTs = now
+    }
     set({
       design: touch({
         ...get().design,
         furniture: get().design.furniture.map((f) => (f.id === id ? { ...f, ...patch } : f)),
       }),
-    }),
-  removeFurniture: (id) =>
+    })
+  },
+  removeFurniture: (id) => {
+    get().pushHistory()
     set({
       design: touch({
         ...get().design,
         furniture: get().design.furniture.filter((f) => f.id !== id),
       }),
       selectedFurnitureId: get().selectedFurnitureId === id ? null : get().selectedFurnitureId,
-    }),
+    })
+  },
   selectFurniture: (id) => set({ selectedFurnitureId: id }),
   setOverlaps: (ids) => set({ overlapIds: ids }),
 
   setName: (name) => set({ design: touch({ ...get().design, name }) }),
-  loadDesign: (d) =>
+  loadDesign: (d) => {
+    gestureSnap = null
     set({
       design: d,
       walls: deriveWalls(d.corners),
       stage: 'furnish',
       selectedOpeningId: null,
       selectedFurnitureId: null,
-    }),
+      past: [],
+      future: [],
+      interacting: false,
+      // refit the camera to the loaded room so the saved layout is framed
+      // exactly the same way every time it's reopened
+      fitNonce: get().fitNonce + 1,
+    })
+  },
   resetDesign: (shape = 'rect') => {
     const d = newDesign(shape)
+    gestureSnap = null
     set({
       design: d,
       walls: deriveWalls(d.corners),
       stage: 'step1',
       selectedOpeningId: null,
       selectedFurnitureId: null,
+      past: [],
+      future: [],
+      interacting: false,
     })
   },
 }))
@@ -312,6 +461,11 @@ function applyCorners(
     design: touch({ ...get().design, corners }),
     walls: deriveWalls(corners),
   })
+}
+
+// expose the store for debugging / interaction tests in dev
+if (typeof window !== 'undefined' && import.meta.env?.DEV) {
+  ;(window as unknown as { __roomio?: typeof useStore }).__roomio = useStore
 }
 
 // convenience selectors
