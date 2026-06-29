@@ -70,6 +70,8 @@ function OpeningGizmo({ opening, frame }: { opening: Opening; frame: ReturnType<
   const selectOpening = useStore((s) => s.selectOpening)
   const moveOpening = useStore((s) => s.moveOpening)
   const removeOpening = useStore((s) => s.removeOpening)
+  const beginGesture = useStore((s) => s.beginGesture)
+  const endGesture = useStore((s) => s.endGesture)
   const floorRay = useFloorRay()
   const toggleControls = useControlsToggle()
   const dragging = useRef(false)
@@ -92,6 +94,7 @@ function OpeningGizmo({ opening, frame }: { opening: Opening; frame: ReturnType<
           ;(e.target as Element).setPointerCapture?.(e.pointerId)
           selectOpening(opening.id)
           dragging.current = true
+          beginGesture()
           toggleControls(false)
         }}
         onPointerMove={(e) => {
@@ -104,6 +107,7 @@ function OpeningGizmo({ opening, frame }: { opening: Opening; frame: ReturnType<
           moveOpening(opening.id, w.id, t)
         }}
         onPointerUp={(e) => {
+          if (dragging.current) endGesture()
           dragging.current = false
           toggleControls(true)
           ;(e.target as Element).releasePointerCapture?.(e.pointerId)

@@ -43,6 +43,10 @@ export function Wizard() {
   const next = useStore((s) => s.next)
   const back = useStore((s) => s.back)
   const setStage = useStore((s) => s.setStage)
+  const undo = useStore((s) => s.undo)
+  const redo = useStore((s) => s.redo)
+  const canUndo = useStore((s) => s.past.length > 0)
+  const canRedo = useStore((s) => s.future.length > 0)
   const meta = META[stage]
   const [saved, setSaved] = useState(false)
 
@@ -57,6 +61,17 @@ export function Wizard() {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       const st = useStore.getState()
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        if (e.shiftKey) st.redo()
+        else st.undo()
+        return
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        st.redo()
+        return
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (st.selectedFurnitureId) {
           st.removeFurniture(st.selectedFurnitureId)
@@ -109,6 +124,12 @@ export function Wizard() {
         <RoomView />
         <NameBadge />
         <div className="vp-tools">
+          <button className="home-btn" onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+            ↶
+          </button>
+          <button className="home-btn" onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)">
+            ↷
+          </button>
           <button className="home-btn" onClick={() => useStore.getState().fitView()} title="Fit view">
             ⤢
           </button>

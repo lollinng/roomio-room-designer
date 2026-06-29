@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "source": "Mirror of src/data/archetypes.ts (Agent A's corpus). Agent A owns the corpus; Agent B mirrors it here as the single source of truth for valid archetype_id values. If A adds/renames/removes an archetype, update this file and note it in roomio.txt; Agent B then supports the new id. Agent B NEVER emits an archetype_id absent from this file — it falls back to fallback_id.",
+  "fallback_id": "misc-box",
+  "categories": [
+    { "id": "sofa", "label": "Sofas" },
+    { "id": "bed", "label": "Beds" },
+    { "id": "table", "label": "Tables" },
+    { "id": "chair", "label": "Chairs" },
+    { "id": "storage", "label": "Storage" },
+    { "id": "decor", "label": "Decor" },
+    { "id": "misc", "label": "Other" }
+  ],
+  "archetypes": [
+    { "id": "sofa-3",            "category": "sofa",    "name": "3-Seater Sofa",       "default_color_hex": "#7d8a99" },
+    { "id": "sofa-love",         "category": "sofa",    "name": "Loveseat",            "default_color_hex": "#9c8f86" },
+    { "id": "sofa-sectional",    "category": "sofa",    "name": "L-Shaped Sectional",  "default_color_hex": "#6f7d72" },
+    { "id": "sofa-recliner",     "category": "sofa",    "name": "Recliner",            "default_color_hex": "#8a6f5e" },
+
+    { "id": "bed-single",        "category": "bed",     "name": "Single Bed",          "default_color_hex": "#cdbfa6" },
+    { "id": "bed-queen",         "category": "bed",     "name": "Queen Bed",           "default_color_hex": "#c4b39a" },
+    { "id": "bed-king",          "category": "bed",     "name": "King Bed",            "default_color_hex": "#b9a489" },
+
+    { "id": "table-coffee",      "category": "table",   "name": "Coffee Table",        "default_color_hex": "#8a5a36" },
+    { "id": "table-dining",      "category": "table",   "name": "Dining Table",        "default_color_hex": "#7a5230" },
+    { "id": "table-round",       "category": "table",   "name": "Round Dining Table",  "default_color_hex": "#7a5230" },
+    { "id": "table-side",        "category": "table",   "name": "Side Table",          "default_color_hex": "#9a6a40" },
+
+    { "id": "chair-dining",      "category": "chair",   "name": "Dining Chair",        "default_color_hex": "#6b6f76" },
+    { "id": "chair-arm",         "category": "chair",   "name": "Armchair",            "default_color_hex": "#8f7d6b" },
+    { "id": "chair-office",      "category": "chair",   "name": "Office Chair",        "default_color_hex": "#3b3f45" },
+    { "id": "chair-accent",      "category": "chair",   "name": "Accent Chair",        "default_color_hex": "#9a6a72" },
+
+    { "id": "storage-wardrobe",  "category": "storage", "name": "Wardrobe",            "default_color_hex": "#b39873" },
+    { "id": "storage-bookcase",  "category": "storage", "name": "Bookcase",            "default_color_hex": "#9a7a52" },
+    { "id": "storage-tv",        "category": "storage", "name": "TV Unit",             "default_color_hex": "#7a6a58" },
+    { "id": "storage-dresser",   "category": "storage", "name": "Dresser",             "default_color_hex": "#a98a63" },
+
+    { "id": "decor-rug",         "category": "decor",   "name": "Rug",                 "default_color_hex": "#c08a6a" },
+    { "id": "decor-lamp",        "category": "decor",   "name": "Floor Lamp",          "default_color_hex": "#cbb892" },
+    { "id": "decor-plant",       "category": "decor",   "name": "Potted Plant",        "default_color_hex": "#3f7a4b" },
+
+    { "id": "misc-box",          "category": "misc",    "name": "Placeholder Box",     "default_color_hex": "#b7b2a8" }
+  ]
+}

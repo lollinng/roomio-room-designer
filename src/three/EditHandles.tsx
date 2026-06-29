@@ -28,6 +28,8 @@ function useFloorRay() {
 function WallHandle({ wall }: { wall: Wall }) {
   const corners = useStore((s) => s.design.corners)
   const dragWallPerp = useStore((s) => s.dragWallPerp)
+  const beginGesture = useStore((s) => s.beginGesture)
+  const endGesture = useStore((s) => s.endGesture)
   const frame = useMemo(() => makeFrame(corners), [corners])
   const controls = useThree((s) => s.controls) as unknown as { enabled: boolean } | undefined
   const floorRay = useFloorRay()
@@ -48,6 +50,7 @@ function WallHandle({ wall }: { wall: Wall }) {
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
     drag.current = { start: hit.clone(), prev: 0 }
+    beginGesture()
     if (controls) controls.enabled = false
   }
   const onMove = (e: any) => {
@@ -62,6 +65,7 @@ function WallHandle({ wall }: { wall: Wall }) {
     drag.current.prev = along
   }
   const onUp = (e: any) => {
+    if (drag.current) endGesture()
     drag.current = null
     if (controls) controls.enabled = true
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)

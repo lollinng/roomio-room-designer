@@ -61,6 +61,17 @@ interface DesignStore {
   fitNonce: number
   fitView: () => void
 
+  // ---- undo / redo ----
+  past: RoomDesign[]
+  future: RoomDesign[]
+  /** true while a pointer-drag gesture is in flight (suppresses per-tick history) */
+  interacting: boolean
+  pushHistory: () => void
+  beginGesture: () => void
+  endGesture: () => void
+  undo: () => void
+  redo: () => void
+
   // ---- navigation ----
   setStage: (s: Stage) => void
   next: () => void
@@ -105,16 +116,73 @@ function touch(d: RoomDesign): RoomDesign {
   return { ...d, updatedAt: Date.now() }
 }
 
+const HISTORY_LIMIT = 80
+// snapshot captured at the start of a drag gesture (module-scoped, not reactive)
+let gestureSnap: RoomDesign | null = null
+let lastCoalesceTs = 0
+
 export const useStore = create<DesignStore>((set, get) => ({
   stage: 'start',
   fitNonce: 0,
   fitView: () => set({ fitNonce: get().fitNonce + 1 }),
+  past: [],
+  future: [],
+  interacting: false,
   design: newDesign('rect'),
   walls: deriveWalls(presetCorners('rect')),
   selectedOpeningId: null,
   selectedFurnitureId: null,
   placingStyle: null,
   overlapIds: [],
+
+  pushHistory: () =>
+    set((s) => ({ past: [...s.past, s.design].slice(-HISTORY_LIMIT), future: [] })),
+  beginGesture: () => {
+    gestureSnap = get().design
+    set({ interacting: true })
+  },
+  endGesture: () => {
+    const snap = gestureSnap
+    gestureSnap = null
+    const cur = get().design
+    if (snap && snap !== cur) {
+      set((s) => ({ past: [...s.past, snap].slice(-HISTORY_LIMIT), future: [], interacting: false }))
+    } else {
+      set({ interacting: false })
+    }
+  },
+  undo: () => {
+    const s = get()
+    if (!s.past.length) return
+    const prev = s.past[s.past.length - 1]
+    set({
+      design: prev,
+      walls: deriveWalls(prev.corners),
+      past: s.past.slice(0, -1),
+      future: [s.design, ...s.future].slice(0, HISTORY_LIMIT),
+      interacting: false,
+      selectedFurnitureId: null,
+      selectedOpeningId: null,
+      overlapIds: [],
+    })
+    gestureSnap = null
+  },
+  redo: () => {
+    const s = get()
+    if (!s.future.length) return
+    const next = s.future[0]
+    set({
+      design: next,
+      walls: deriveWalls(next.corners),
+      future: s.future.slice(1),
+      past: [...s.past, s.design].slice(-HISTORY_LIMIT),
+      interacting: false,
+      selectedFurnitureId: null,
+      selectedOpeningId: null,
+      overlapIds: [],
+    })
+    gestureSnap = null
+  },
 
   setStage: (s) => set({ stage: s }),
   next: () => {
@@ -132,6 +200,7 @@ export const useStore = create<DesignStore>((set, get) => ({
   },
 
   setShape: (id) => {
+    get().pushHistory()
     const corners = presetCorners(id)
     const design = touch({
       ...get().design,
@@ -196,16 +265,22 @@ export const useStore = create<DesignStore>((set, get) => ({
     const next = signedArea(corners)
     const prev = signedArea(design.corners)
     if (Math.sign(next) !== Math.sign(prev) || Math.abs(next) < 1000) return
+    get().pushHistory()
     applyCorners(set, get, corners)
   },
 
-  setWallHeight: (cm) =>
-    set({ design: touch({ ...get().design, wallHeight: Math.max(180, Math.min(400, cm)) }) }),
+  setWallHeight: (cm) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    set({ design: touch({ ...get().design, wallHeight: Math.max(180, Math.min(400, cm)) }) })
+  },
 
   setPlacingStyle: (style) => set({ placingStyle: style }),
   addOpening: (style, wallId, t) => {
     const def = OPENING_MAP[style]
     if (!def) return
+    get().pushHistory()
     const op: Opening = {
       id: uid('op'),
       kind: def.kind,
@@ -230,24 +305,35 @@ export const useStore = create<DesignStore>((set, get) => ({
         ),
       }),
     }),
-  removeOpening: (id) =>
+  removeOpening: (id) => {
+    get().pushHistory()
     set({
       design: touch({
         ...get().design,
         openings: get().design.openings.filter((o) => o.id !== id),
       }),
       selectedOpeningId: get().selectedOpeningId === id ? null : get().selectedOpeningId,
-    }),
+    })
+  },
   selectOpening: (id) => set({ selectedOpeningId: id }),
 
-  setWallColor: (hex) =>
-    set({ design: touch({ ...get().design, materials: { ...get().design.materials, wallColor: hex } }) }),
-  setFloor: (id) =>
-    set({ design: touch({ ...get().design, materials: { ...get().design.materials, floorTexture: id } }) }),
+  setWallColor: (hex) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    set({ design: touch({ ...get().design, materials: { ...get().design.materials, wallColor: hex } }) })
+  },
+  setFloor: (id) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    set({ design: touch({ ...get().design, materials: { ...get().design.materials, floorTexture: id } }) })
+  },
 
   addFurniture: (archetypeId, x, z) => {
     const a = ARCHETYPE_MAP[archetypeId]
     if (!a) return ''
+    get().pushHistory()
     const base: FurnitureItem = {
       id: uid('f'),
       archetype: a.id,
@@ -283,41 +369,60 @@ export const useStore = create<DesignStore>((set, get) => ({
     const pz = p.z + ((Math.floor(n / 3) % 3) - 1) * off
     return get().addFurniture(archetypeId, px, pz)
   },
-  updateFurniture: (id, patch) =>
+  updateFurniture: (id, patch) => {
+    // during a drag gesture the snapshot covers history; otherwise (panel
+    // resize/recolor) coalesce rapid edits into a single undo step.
+    if (!get().interacting) {
+      const now = Date.now()
+      if (now - lastCoalesceTs > 600) get().pushHistory()
+      lastCoalesceTs = now
+    }
     set({
       design: touch({
         ...get().design,
         furniture: get().design.furniture.map((f) => (f.id === id ? { ...f, ...patch } : f)),
       }),
-    }),
-  removeFurniture: (id) =>
+    })
+  },
+  removeFurniture: (id) => {
+    get().pushHistory()
     set({
       design: touch({
         ...get().design,
         furniture: get().design.furniture.filter((f) => f.id !== id),
       }),
       selectedFurnitureId: get().selectedFurnitureId === id ? null : get().selectedFurnitureId,
-    }),
+    })
+  },
   selectFurniture: (id) => set({ selectedFurnitureId: id }),
   setOverlaps: (ids) => set({ overlapIds: ids }),
 
   setName: (name) => set({ design: touch({ ...get().design, name }) }),
-  loadDesign: (d) =>
+  loadDesign: (d) => {
+    gestureSnap = null
     set({
       design: d,
       walls: deriveWalls(d.corners),
       stage: 'furnish',
       selectedOpeningId: null,
       selectedFurnitureId: null,
-    }),
+      past: [],
+      future: [],
+      interacting: false,
+    })
+  },
   resetDesign: (shape = 'rect') => {
     const d = newDesign(shape)
+    gestureSnap = null
     set({
       design: d,
       walls: deriveWalls(d.corners),
       stage: 'step1',
       selectedOpeningId: null,
       selectedFurnitureId: null,
+      past: [],
+      future: [],
+      interacting: false,
     })
   },
 }))

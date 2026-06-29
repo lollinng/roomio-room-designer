@@ -139,6 +139,29 @@ log('\n--- interaction: click-select + drag furniture (furnish) ---')
   await page.close()
 }
 
+// 3) Undo/redo logic (driven via the store)
+log('\n--- undo / redo ---')
+{
+  const page = await browser.newPage()
+  await page.goto(`${BASE}/?stage=furnish&seed=1`, { waitUntil: 'networkidle0' })
+  await new Promise((r) => setTimeout(r, 1500))
+  const r = await page.evaluate(() => {
+    const S = () => window.__roomio.getState()
+    const n0 = S().design.furniture.length
+    S().addFurnitureCentered('table-dining')
+    const n1 = S().design.furniture.length
+    S().undo()
+    const n2 = S().design.furniture.length
+    S().redo()
+    const n3 = S().design.furniture.length
+    return { n0, n1, n2, n3 }
+  })
+  const ok = r.n1 === r.n0 + 1 && r.n2 === r.n0 && r.n3 === r.n0 + 1
+  log(`  ${ok ? '✓' : '❌'} add→undo→redo restores count (${r.n0}→${r.n1}→${r.n2}→${r.n3})`)
+  if (!ok) totalErrors++
+  await page.close()
+}
+
 log(`\n==== ${totalErrors === 0 ? 'ALL CHECKS PASSED ✓' : totalErrors + ' issue(s) ❌'} ====`)
 await browser.close()
 process.exit(totalErrors ? 1 : 0)

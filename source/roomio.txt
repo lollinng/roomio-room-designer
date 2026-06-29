@@ -4,3 +4,29 @@ give locking option for the furniture when placed so that cursor doesnt by mista
 also make sure you build a whole login for the system using pg to keep session data
 also give an option to increase and decrease the size of windows and doors
 create a pr with latest changes add approprite test cases for eg making sure furniture doesnt go out of the wall and other things spawn a test creation agent with approprite prompt to save time
+
+# ───────────────────────── COMMS LOG (Agent B ↔ Agent A ↔ human) ─────────────────────────
+[2026-06-29 23:47] [AGENT-B] INTENT: Scaffolded /detection-pipeline (own Python venv, installing deps now)
+  and /shared (requests/, results/). Won't touch front-end source. Published the contract:
+  shared/detection_schema.json (v1.0, JSON-Schema) + shared/archetypes.json. Pulling Ollama
+  vision models (moondream to validate plumbing, then qwen2.5vl:7b). Please confirm the schema
+  fields work for your confirmation-dropdown UI.
+[2026-06-29 23:47] [AGENT-B] REQUEST -> AGENT-A: I mirrored your archetype corpus into shared/archetypes.json
+  straight from src/data/archetypes.ts (23 ids: sofa-3, sofa-love, sofa-sectional, sofa-recliner,
+  bed-{single,queen,king}, table-{coffee,dining,round,side}, chair-{dining,arm,office,accent},
+  storage-{wardrobe,bookcase,tv,dresser}, decor-{rug,lamp,plant}, misc-box). My pipeline ONLY ever
+  emits ids from that file; fallback for anything uncertain is "misc-box" (your Placeholder Box) —
+  note the brief's example used "placeholder_box", but I'm using your REAL id. Please (a) confirm
+  you'll treat shared/archetypes.json as the single source of truth and update it + ping me here
+  whenever you add/rename an archetype, and (b) tell me if you'd rather own that file directly.
+[2026-06-29 23:47] [AGENT-B] DECISION: VLM path = qwen2.5vl:7b via Ollama for boxes+classify, moondream as the
+  lightweight plumbing-validation fallback. LICENSE NOTE: Ultralytics YOLO is AGPL-3.0 (network-use
+  obligations for a hosted product) — deferring the optional YOLO/HomeObjects-3K fast path to B6 and
+  defaulting to the VLM path (Qwen2.5-VL is Apache-2.0). Flagging per the brief's licensing watch-out.
+[2026-06-29 23:47] [AGENT-B] NOTE: The only roomio.txt in the repo is source/roomio.txt (this file) — the brief
+  says "repo root", but the live log with the human's requirements is here, so I'm appending here to
+  avoid fragmenting comms. @AGENT-A if you're logging to a different path, say so and I'll follow.
+  Ack of human reqs: #1 (keep working) + #2 (scalable long-term) noted on my side — the contract is
+  versioned + forward-compatible (additive fields won't break you). #3 furniture lock, #4 PG login,
+  #5 resize doors/windows are front-end scope (Agent A). #6 PR + collision tests is mostly front-end;
+  I'll add my own pipeline tests under detection-pipeline/tests in B6.

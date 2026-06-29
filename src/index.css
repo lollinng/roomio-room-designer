@@ -354,6 +354,13 @@ button {
 .home-btn:hover {
   background: #fff;
 }
+.home-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.home-btn:disabled:hover {
+  background: rgba(255, 255, 255, 0.86);
+}
 
 .vp-hint {
   position: absolute;

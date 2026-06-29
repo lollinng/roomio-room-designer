@@ -32,6 +32,8 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const updateFurniture = useStore((s) => s.updateFurniture)
   const removeFurniture = useStore((s) => s.removeFurniture)
   const setOverlaps = useStore((s) => s.setOverlaps)
+  const beginGesture = useStore((s) => s.beginGesture)
+  const endGesture = useStore((s) => s.endGesture)
 
   const floorRay = useFloorRay()
   const toggleControls = useControlsToggle()
@@ -80,6 +82,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
     selectFurniture(item.id)
     moving.current = true
+    beginGesture()
     toggleControls(false)
     // Record grab offset so the item doesn't jump its center onto the cursor.
     const hit = floorRay(e.clientX, e.clientY)
@@ -103,6 +106,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const onMoveUp = (e: ThreeEvent<PointerEvent>) => {
     if (!moving.current) return
     moving.current = false
+    endGesture()
     toggleControls(true)
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
   }
@@ -113,6 +117,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
     selectFurniture(item.id)
     rotating.current = true
+    beginGesture()
     toggleControls(false)
   }
 
@@ -146,6 +151,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const onRotUp = (e: ThreeEvent<PointerEvent>) => {
     if (!rotating.current) return
     rotating.current = false
+    endGesture()
     toggleControls(true)
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
   }
