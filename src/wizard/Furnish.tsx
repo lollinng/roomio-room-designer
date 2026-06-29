@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useStore } from '../store'
 import { ARCHETYPES, ARCHETYPE_MAP, CATEGORY_ORDER } from '../data/archetypes'
 import { formatLenShort } from '../units'
 import type { FurnitureItem } from '../types'
+import { ScanRoom } from './ScanRoom'
 
 // Curated furniture palette — greys, blues, greens, tans, terracotta, charcoal,
 // cream, mustard, plum. The selected item's archetype default is appended too,
@@ -160,11 +162,22 @@ export function Furnish() {
   const sel = useStore((s) => s.selectedFurnitureId)
   const furniture = useStore((s) => s.design.furniture)
   const addFurnitureCentered = useStore((s) => s.addFurnitureCentered)
+  const [scanning, setScanning] = useState(false)
 
   const selected = sel ? furniture.find((f) => f.id === sel) : undefined
 
   return (
     <div>
+      <button
+        className="btn btn-ghost"
+        style={{ width: '100%', justifyContent: 'center', marginBottom: 18 }}
+        onClick={() => setScanning((v) => !v)}
+      >
+        📷 Scan a room photo
+      </button>
+
+      {scanning && <ScanRoom onClose={() => setScanning(false)} />}
+
       {selected && <ItemEditor item={selected} />}
 
       {CATEGORY_ORDER.map((cat) => {

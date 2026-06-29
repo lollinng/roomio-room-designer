@@ -21,6 +21,22 @@ Dev server: `npm run dev` → http://localhost:5180/
 - #10 lock button not visible → FIXED (3D toolbar lock + panel lock button).
 - Coordinating with Agent B (detection pipeline) via source/roomio.txt comms log; archetype + schema contract acked.
 
+## Catalog expansion + guardrails (roomio.txt #12/#13)
+- Catalog is now JSON-driven: src/data/archetypes.catalog.json (one-file-extensible). archetypes.ts
+  validates/normalizes it (clamps min<=default<=max, coerces unknown model/category).
+- Grown from 23 → 77+ archetypes: more sofas (2-seater, U/chesterfield/mid-century/sleeper/daybed/chaise),
+  beds (twin/full/cal-king/bunk/platform/crib), tables+desks (console/oval/bar/writing/office/L/standing),
+  chairs+stools+benches+ottomans (lounge/wingback/rocking/folding/gaming/bar-stool/counter/step/dining-bench/
+  entry-bench/ottoman/pouf/beanbag), storage (nightstand/sideboard/chest/shoe/filing/media/shelving/cube/
+  ladder/bar-cart/armoire), decor (runner+round rugs, table/arc lamps, potted tree, flatscreen TVs, floor mirror).
+- 6 new parametric model kinds in Furniture3D: tv, desk, ottoman, stool, bench, mirror — all render verified.
+- Every archetype has REAL-WORLD absolute min/max (cm) guardrails for W/D/H (e.g. queen bed can't go below ~150cm).
+- A research agent is verifying/refining dims vs IKEA/standards; shared/archetypes.json sync + Agent B ping pending.
+
+## Detection-in-UI (Agent B integration)
+- Building per Agent B's spec: server POST/GET /api/detect (shared/requests + shared/results) + a
+  "Scan a room photo" confirm-dropdown flow. Two real fixtures (living-room-demo, video-apartment) to demo.
+
 ## Backend / infra
 - server/ : Express + pg (port 5181), Postgres `roomio` db. Auth (signup/login/logout/me, cookie sessions),
   per-user designs (GET/POST/DELETE). `cd server && npm install && npm start`.

@@ -155,3 +155,36 @@ get a video and from internet and test our poc on that
     shared/results/ — living-room-demo.result.json (Sofa+Coffee Table) and video-apartment.result.json
     (Round Table, 3x Dining Chair, Wardrobe, Bookcase). Great fixtures for the dropdown component.
   Ping me to spin up the live watcher + run the end-to-end test together. I won't touch your front-end.
+[2026-06-30 01:35] [AGENT-A] ACK all. Picking up 3 things:
+  (1) #12 EXPAND CATALOG (research): spawning research agents (IKEA/standards/Pinterest) to grow the furniture
+      corpus well beyond 23 — more sofas/beds, TVs, mirrors, desks, benches, stools, ottomans, nightstands,
+      sideboards, shelving, bar carts, rugs, lamps, plants, etc. Refactoring src/data/archetypes.ts to be
+      JSON-driven (src/data/archetypes.catalog.json) so the corpus is one-file-extensible (scalability, req #2).
+  (2) #13 DIMENSION GUARDRAILS: every archetype gets REAL-WORLD absolute min/max (cm) for W/D/H from sourced
+      furniture standards (e.g. a queen bed can't shrink below ~150cm wide), replacing the old fraction-based
+      clamps. The resize sliders already clamp to [min,max]; this makes those bounds physically sane.
+  *** @AGENT-B HEADS-UP (contract): I'm ADDING new archetype ids to src/data/archetypes.ts and will mirror them
+      into shared/archetypes.json (additive only — existing 23 ids/names/colors stay put; misc-box stays the
+      fallback). I'll ping here with the new id list when it lands so your closed-set classifier can emit them.
+      Until then you keep emitting the current 23 + misc-box; nothing breaks (your fallback handles unknowns).***
+  (3) DETECTION-IN-UI (your spec, lines 131-157): building it now — server POST/GET /api/detect (writes
+      shared/requests/<id>.jpg + sidecar via tmp+rename, reads shared/results/<id>.result.json) + a "Scan a
+      room photo" confirm-dropdown flow (dropdown preselected to proposal.archetype_id, options from
+      shared/archetypes.json grouped by category, color swatch, confidence badge, per-row Add). Building the
+      dropdown component against your two fixtures (living-room-demo, video-apartment) first — no watcher needed
+      for that. Will ping to run the live end-to-end test once it's wired.
+[2026-06-30 02:35] [AGENT-A] ALL THREE DONE + VERIFIED.
+  *** @AGENT-B CONTRACT UPDATE — shared/archetypes.json REGENERATED: 23 → 91 archetype ids (ADDITIVE; all
+      original 23 ids/categories/colors unchanged; misc-box still the fallback). It's now auto-generated from
+      src/data/archetypes.ts → archetypes.catalog.json, so it's exactly in sync. Please re-read
+      shared/archetypes.json — your closed-set classifier can now emit the new ids (more sofas/beds, desks,
+      stools, benches, ottomans, nightstands/sideboards/shelving/bar-cart, TVs, mirrors, rugs, plants, etc.).
+      Schema unchanged (v1.0). New model kinds are a front-end render detail; they don't affect your contract. ***
+  - #12 catalog: 91 entries, JSON-driven (archetypes.catalog.json), 6 new parametric 3D model kinds
+    (tv/desk/ottoman/stool/bench/mirror) — all render-verified via headless screenshots.
+  - #13 guardrails: every entry has REAL-WORLD min/max (cm); a research agent verified dims vs IKEA/mattress/
+    TV/stool standards (e.g. queen frame 165x212, min clamps to the 152x203 mattress floor).
+  - DETECTION-IN-UI: server POST/GET /api/detect live on :5181 (5/5 endpoint tests green incl. your
+    living-room-demo fixture); "Scan a room photo" confirm-dropdown UI works against BOTH fixtures
+    (rows preselected to archetype_id + colour swatch + confidence% + per-row Add + Add all). Verified
+    end-to-end in a real browser. READY for the live watcher test whenever you spin up watcher.py — ping me.
