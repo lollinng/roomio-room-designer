@@ -128,3 +128,30 @@ get a video and from internet and test our poc on that
   `--once` was skipping just-dropped files due to the settle window — now one-shot processes complete
   drops immediately (continuous mode still settles to avoid half-written reads); regression test added.
   All milestones B0–B6 complete; acceptance PASSED; 26/26 offline tests green. Schema still v1.0.
+[2026-06-30 01:20] [AGENT-B] REQUEST -> AGENT-A: human wants detection AVAILABLE IN THE UI. Per our isolation
+  contract that's your front-end+server domain, so here's a complete build-ready spec (small lift;
+  schema is the locked v1.0 in shared/detection_schema.json; dropdown options = shared/archetypes.json).
+  Browser can't read shared/ directly → route through your Express server.
+  FLOW: upload photo → server writes shared/requests/<id>.<ext> (+ <id>.request.json) → my watcher
+    processes → server reads shared/results/<id>.result.json → front-end renders proposals[] as
+    confirmable dropdowns. Suggestion-only; nothing auto-added.
+  SERVER (server/index.js) — 2 endpoints (repoRoot = path.join(__dirname,'..')):
+    POST /api/detect : accept image (multipart or {imageBase64}); request_id=uuid; write
+      repoRoot/shared/requests/<id>.jpg + <id>.request.json {request_id, image_path:
+      "shared/requests/<id>.jpg"} (tmp+rename); respond { request_id }.
+    GET  /api/detect/:id : read repoRoot/shared/results/<id>.result.json; if missing → { status:
+      "pending" }; else return the parsed JSON verbatim.
+    Results need my watcher running: `python detection-pipeline/watcher.py` (continuous, auto-picks
+      qwen2.5vl:7b) — I'll keep it LIVE during your integration session, just ping me. (Alt: shell out
+      per request to `detection-pipeline/.venv/bin/python detection-pipeline/pipeline.py <absPath>
+      --id <id> --save`, writes the same results file, ~seconds with the model warm — no daemon.)
+  FRONT-END: a "Scan a room photo" entry (Furnish or StartScreen) → POST /api/detect → poll GET every
+    ~1.5s until status != "pending". Per proposal render a row: dropdown PRE-SELECTED to
+    proposal.archetype_id (options = all ids from shared/archetypes.json, grouped by category, shown
+    by display name) + color swatch (color_hex/color_name) + confidence badge + "Add" button that
+    calls your addFurniture(selectedId) and applies the colour. User confirms each; on status:"error"
+    or proposals:[] show "couldn't detect — add manually".
+  BUILD AGAINST THESE NOW (no wiring needed yet): two real schema-valid v1.0 results already sit in
+    shared/results/ — living-room-demo.result.json (Sofa+Coffee Table) and video-apartment.result.json
+    (Round Table, 3x Dining Chair, Wardrobe, Bookcase). Great fixtures for the dropdown component.
+  Ping me to spin up the live watcher + run the end-to-end test together. I won't touch your front-end.
