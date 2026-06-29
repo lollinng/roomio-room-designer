@@ -15,8 +15,12 @@ export function buildScene(container: HTMLElement): {
   handle: SceneHandle
   orbit: OrbitControls
   userCamera: THREE.PerspectiveCamera
-  /** run the render loop; onFrame(dt) returns the camera to render, or null for the user camera */
-  startLoop: (onFrame?: (dt: number) => THREE.Camera | null) => void
+  /**
+   * Run the render loop. onFrame(dt) returns the camera to render, `null` for
+   * the user camera, or `false` to SKIP rendering this frame (e.g. while the
+   * deterministic capture loop owns the canvas).
+   */
+  startLoop: (onFrame?: (dt: number) => THREE.Camera | null | false) => void
   stopLoop: () => void
 } {
   const frame = makeFrame(ROOM_CORNERS)
@@ -145,14 +149,15 @@ export function buildScene(container: HTMLElement): {
 
   let raf = 0
   let last = performance.now()
-  function startLoop(onFrame?: (dt: number) => THREE.Camera | null) {
+  function startLoop(onFrame?: (dt: number) => THREE.Camera | null | false) {
     last = performance.now()
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
       const dt = Math.min((now - last) / 1000, 0.1)
       last = now
-      const chosen = onFrame?.(dt) ?? null
+      const chosen = onFrame ? onFrame(dt) : null
+      if (chosen === false) return // capture loop owns the canvas this frame
       const cameraToRender = chosen ?? camera
       if (cameraToRender === camera) orbit.update()
       renderer.render(scene, cameraToRender)

@@ -4,6 +4,7 @@ import { FirstPersonWalk } from '../engine/firstPersonWalk'
 import { DirectorView } from '../engine/directorView'
 import { WaypointPath } from '../engine/waypointPath'
 import { Playback } from '../engine/playback'
+import { captureFlythrough, webCodecsAvailable } from '../engine/videoCapture'
 
 /**
  * Dev-harness entry. Wires the flythrough engine to a faithful furnished-room
@@ -64,12 +65,25 @@ transport.innerHTML = `
   <input id="tp-scrub" type="range" min="0" max="1" step="0.001" value="0" />
   <span class="time" id="tp-time">0.0 / 0.0s</span>
   <label>dur <input id="tp-dur" type="number" min="1" step="1" value="8" />s</label>
+  <button id="tp-export">⤓ Export MP4</button>
 `
 document.body.appendChild(transport)
 const tpPlay = transport.querySelector<HTMLButtonElement>('#tp-play')!
 const tpScrub = transport.querySelector<HTMLInputElement>('#tp-scrub')!
 const tpTime = transport.querySelector<HTMLSpanElement>('#tp-time')!
 const tpDur = transport.querySelector<HTMLInputElement>('#tp-dur')!
+const tpExport = transport.querySelector<HTMLButtonElement>('#tp-export')!
+
+const toast = document.createElement('div')
+toast.id = 'toast'
+document.body.appendChild(toast)
+let toastTimer = 0
+function showToast(msg: string, ms = 3500) {
+  toast.textContent = msg
+  toast.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => toast.classList.remove('show'), ms)
+}
 
 const btnOrbit = hud.querySelector<HTMLButtonElement>('#btn-orbit')!
 const btnWalk = hud.querySelector<HTMLButtonElement>('#btn-walk')!
@@ -156,6 +170,37 @@ tpDur.addEventListener('change', () => {
   updateTransport()
 })
 
+let exporting = false
+async function runExport(download = true) {
+  if (exporting || !playback.hasPath()) return null
+  exporting = true
+  playback.pause()
+  tpExport.disabled = true
+  tpPlay.disabled = true
+  const codec = webCodecsAvailable() ? 'WebCodecs' : 'H264 WASM fallback'
+  try {
+    const res = await captureFlythrough(handle.renderer, handle.scene, director.recordingCamera, playback, {
+      fps: pathMeta.fps,
+      download,
+      filename: 'roomio-flythrough',
+      onProgress: (f, total) => {
+        tpTime.textContent = `Exporting ${f}/${total}…`
+      },
+    })
+    showToast(`✓ Exported ${res.frames} frames @ ${res.width}×${res.height} ${res.fps}fps (${codec})${download ? ' — downloading .mp4' : ''}`, 5000)
+    return res
+  } catch (e) {
+    showToast(`✗ Export failed: ${(e as Error).message}`, 6000)
+    throw e
+  } finally {
+    exporting = false
+    tpExport.disabled = false
+    tpPlay.disabled = false
+    updateTransport()
+  }
+}
+tpExport.addEventListener('click', () => { void runExport(true) })
+
 function setMode(next: Mode) {
   if (next === mode) return
   if (mode === 'walk') walk.disable()
@@ -212,7 +257,8 @@ updatePathEditing()
 refreshHud()
 
 // ---- render loop ----
-startLoop((dt): THREE.Camera | null => {
+startLoop((dt): THREE.Camera | null | false => {
+  if (exporting) return false // deterministic capture loop owns the canvas
   if (mode === 'walk') return walk.update(dt)
   if (mode === 'director') {
     if (playback.hasPath()) {
@@ -291,4 +337,21 @@ startLoop((dt): THREE.Camera | null => {
     return pose ? { position: pose.position.toArray(), target: pose.target.toArray(), u: pose.u } : null
   },
   recCamPos: () => director.recordingCamera.position.toArray(),
+  webCodecs: () => webCodecsAvailable(),
+  // capture (download:false for tests — returns buffer info)
+  capture: async (download = false) => {
+    const res = await runExport(download)
+    if (!res) return null
+    const buf = res.buffer
+    let bytes: Uint8Array | null = null
+    if (buf instanceof Uint8Array) bytes = buf
+    else if (buf instanceof ArrayBuffer) bytes = new Uint8Array(buf)
+    else if (Array.isArray(buf)) {
+      const blob = new Blob(buf as Blob[])
+      bytes = new Uint8Array(await blob.arrayBuffer())
+    }
+    // sniff the MP4 'ftyp' box (bytes 4..8) for a sanity check
+    const head = bytes ? Array.from(bytes.slice(0, 12)) : []
+    return { frames: res.frames, width: res.width, height: res.height, fps: res.fps, webcodecs: res.webcodecs, byteLength: bytes?.length ?? 0, head }
+  },
 }

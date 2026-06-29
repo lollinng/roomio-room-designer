@@ -12,7 +12,7 @@ Milestones map to the brief (§9). Each is independently testable.
 | **C2** | F2 top-down director view + camera gizmo + one-tap POV toggle | ✅ done |
 | **C3** | F3 waypoint spline authoring (raycast floor, CatmullRomCurve3, draggable, per-point look-at + timing) | ✅ done |
 | **C4** | F5 playback along path (getPointAt + look-ahead, play/pause/scrub, previewable POV) | ✅ done |
-| **C5** | F6 frame-by-frame video export (canvas-record / WebCodecs, deterministic step loop, MP4 download) | ⬜ todo |
+| **C5** | F6 frame-by-frame video export (canvas-record / WebCodecs, deterministic step loop, MP4 download) | ✅ done |
 | **C6** | F4 walk-and-record path + JSON save/reload + polish | ⬜ todo |
 
 ## Renderer fact (C0)
