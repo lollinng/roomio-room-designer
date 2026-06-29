@@ -46,6 +46,8 @@ export interface FurnitureItem {
   d: number // depth (local z), cm
   h: number // height, cm
   color: string
+  /** when true, the item is pinned and ignores drag/rotate gestures */
+  locked?: boolean
 }
 
 export interface Materials {

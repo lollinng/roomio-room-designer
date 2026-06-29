@@ -1,5 +1,46 @@
 import { useStore } from '../store'
 import { DOOR_DEFS, WINDOW_DEFS, type OpeningDef } from '../data/openings'
+import { formatLenShort } from '../units'
+
+function SelectedOpeningEditor() {
+  const id = useStore((s) => s.selectedOpeningId)
+  const openings = useStore((s) => s.design.openings)
+  const walls = useStore((s) => s.walls)
+  const wallHeight = useStore((s) => s.design.wallHeight)
+  const unit = useStore((s) => s.design.unit)
+  const updateOpening = useStore((s) => s.updateOpening)
+  const removeOpening = useStore((s) => s.removeOpening)
+
+  const op = id ? openings.find((o) => o.id === id) : undefined
+  if (!op) return null
+  const wall = walls.find((w) => w.id === op.wallId)
+  const maxW = Math.round((wall ? wall.length : 400) * 0.96)
+  const isWin = op.kind === 'window'
+
+  const Row = ({ label, value, min, max, on }: { label: string; value: number; min: number; max: number; on: (v: number) => void }) => (
+    <div className="wall-row" style={{ marginBottom: 10 }}>
+      <span className="wall-name" style={{ flex: 'none', minWidth: 54 }}>{label}</span>
+      <input type="range" min={min} max={max} step={1} value={value} onChange={(e) => on(Number(e.target.value))} style={{ flex: 1 }} />
+      <span style={{ minWidth: 56, textAlign: 'right', fontSize: 13.5, fontWeight: 600 }}>{formatLenShort(value, unit)}</span>
+    </div>
+  )
+
+  return (
+    <div style={{ background: '#fbfaf7', padding: '16px 18px', borderRadius: 14, border: '1.5px solid #e6e3dd', marginBottom: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <span style={{ fontSize: 15, fontWeight: 700 }}>Adjust opening</span>
+        <button onClick={() => removeOpening(op.id)} style={{ border: 'none', background: 'none', color: '#b0392f', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+          Remove
+        </button>
+      </div>
+      <Row label="Width" value={op.width} min={40} max={maxW} on={(v) => updateOpening(op.id, { width: v })} />
+      <Row label="Height" value={op.height} min={40} max={wallHeight - 5} on={(v) => updateOpening(op.id, { height: v })} />
+      {isWin && (
+        <Row label="Sill" value={op.sill} min={0} max={Math.max(0, wallHeight - op.height)} on={(v) => updateOpening(op.id, { sill: v })} />
+      )}
+    </div>
+  )
+}
 
 function OpeningIcon({ def }: { def: OpeningDef }) {
   const W = 60
@@ -74,6 +115,7 @@ export function Step3Openings() {
 
   return (
     <div>
+      <SelectedOpeningEditor />
       <div className="section-label">Door styles</div>
       <div className="opening-grid">
         {DOOR_DEFS.map((d) => (

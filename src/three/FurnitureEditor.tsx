@@ -79,8 +79,9 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   // ---- MOVE handlers (on the invisible hitbox) ----------------------------
   const onMoveDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     selectFurniture(item.id)
+    if (item.locked) return // pinned: select only, ignore drag
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     moving.current = true
     beginGesture()
     toggleControls(false)
@@ -195,22 +196,20 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
             <lineBasicMaterial color="#f3b700" />
           </lineSegments>
 
-          {/* Rotate handle: a grabbable knob in front of the item (+z). */}
-          <group position={[0, 0.02, dM / 2 + 0.35]}>
-            <mesh
-              onPointerDown={onRotDown}
-              onPointerMove={onRotMove}
-              onPointerUp={onRotUp}
-            >
-              <sphereGeometry args={[0.075, 20, 16]} />
-              <meshStandardMaterial color="#1f6dd0" roughness={0.4} metalness={0.1} />
-            </mesh>
-            {/* small ring under the knob to read as a rotate affordance */}
-            <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-              <torusGeometry args={[0.11, 0.012, 10, 28]} />
-              <meshStandardMaterial color="#1f6dd0" roughness={0.5} />
-            </mesh>
-          </group>
+          {/* Rotate handle: a grabbable knob in front of the item (+z). Hidden when locked. */}
+          {!item.locked && (
+            <group position={[0, 0.02, dM / 2 + 0.35]}>
+              <mesh onPointerDown={onRotDown} onPointerMove={onRotMove} onPointerUp={onRotUp}>
+                <sphereGeometry args={[0.075, 20, 16]} />
+                <meshStandardMaterial color="#1f6dd0" roughness={0.4} metalness={0.1} />
+              </mesh>
+              {/* small ring under the knob to read as a rotate affordance */}
+              <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+                <torusGeometry args={[0.11, 0.012, 10, 28]} />
+                <meshStandardMaterial color="#1f6dd0" roughness={0.5} />
+              </mesh>
+            </group>
+          )}
 
           {/* Floating trash button above the item. */}
           <Html position={[0, hM + 0.3, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
@@ -231,6 +230,13 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
             </button>
           </Html>
         </>
+      )}
+
+      {/* Lock indicator — visible whenever the item is pinned. */}
+      {item.locked && (
+        <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[35, 0]}>
+          <div className="lock-badge" title="Locked">🔒</div>
+        </Html>
       )}
     </group>
   )

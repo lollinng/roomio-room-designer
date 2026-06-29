@@ -33,6 +33,13 @@ export default function App() {
         st.addFurniture('decor-plant', 110, 110)
         st.addFurniture('chair-office', 140, 300)
         st.selectFurniture(null)
+        // demo-only: showcase selected-opening resize + a locked item (read fresh state)
+        const live = useStore.getState()
+        if (q === 'step3') live.selectOpening(live.design.openings[0]?.id ?? null)
+        if (q === 'furnish') {
+          const f = live.design.furniture[2]
+          if (f) live.updateFurniture(f.id, { locked: true })
+        }
       }
       setStage(q)
     }

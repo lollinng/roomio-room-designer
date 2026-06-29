@@ -63,22 +63,33 @@ function ItemEditor({ item }: { item: FurnitureItem }) {
         marginBottom: 22,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
         <span style={{ fontSize: 16, fontWeight: 700 }}>{item.name}</span>
-        <button
-          onClick={() => removeFurniture(item.id)}
-          style={{
-            border: 'none',
-            background: 'none',
-            color: '#b0392f',
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        >
-          Remove
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => updateFurniture(item.id, { locked: !item.locked })}
+            title={item.locked ? 'Unlock to move' : 'Lock in place'}
+            style={{
+              border: '1.5px solid',
+              borderColor: item.locked ? '#111' : '#d9d5cd',
+              background: item.locked ? '#111' : '#fff',
+              color: item.locked ? '#fff' : 'var(--ink-2)',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              padding: '5px 10px',
+              borderRadius: 999,
+            }}
+          >
+            {item.locked ? '🔒 Locked' : '🔓 Lock'}
+          </button>
+          <button
+            onClick={() => removeFurniture(item.id)}
+            style={{ border: 'none', background: 'none', color: '#b0392f', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 }}
+          >
+            Remove
+          </button>
+        </div>
       </div>
 
       {/* ---- Rotation ---- */}

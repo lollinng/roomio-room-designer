@@ -1,0 +1,16 @@
+{
+  "name": "roomio-server",
+  "version": "1.0.0",
+  "description": "Authentication, session, and designs backend for the Roomio room-designer.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

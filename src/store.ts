@@ -90,6 +90,7 @@ interface DesignStore {
   setPlacingStyle: (style: OpeningStyle | null) => void
   addOpening: (style: OpeningStyle, wallId: string, t: number) => void
   moveOpening: (id: string, wallId: string, t: number) => void
+  updateOpening: (id: string, patch: Partial<Pick<Opening, 'width' | 'height' | 'sill'>>) => void
   removeOpening: (id: string) => void
   selectOpening: (id: string | null) => void
 
@@ -305,6 +306,27 @@ export const useStore = create<DesignStore>((set, get) => ({
         ),
       }),
     }),
+  updateOpening: (id, patch) => {
+    const now = Date.now()
+    if (now - lastCoalesceTs > 600) get().pushHistory()
+    lastCoalesceTs = now
+    const { design, walls } = get()
+    set({
+      design: touch({
+        ...design,
+        openings: design.openings.map((o) => {
+          if (o.id !== id) return o
+          const wall = walls.find((w) => w.id === o.wallId)
+          const maxW = wall ? wall.length * 0.96 : 400
+          const next = { ...o, ...patch }
+          next.width = Math.max(40, Math.min(maxW, next.width))
+          next.height = Math.max(40, Math.min(design.wallHeight - 5, next.height))
+          next.sill = Math.max(0, Math.min(design.wallHeight - next.height, next.sill))
+          return next
+        }),
+      }),
+    })
+  },
   removeOpening: (id) => {
     get().pushHistory()
     set({
