@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { useStore, type Stage } from '../store'
 import { RoomView } from '../three/RoomView'
+import { saveDesign } from '../persistence'
 import { Step1Shape } from './Step1Shape'
 import { Step2Dimensions } from './Step2Dimensions'
 import { Step3Openings } from './Step3Openings'
@@ -14,11 +16,33 @@ const META: Record<Exclude<Stage, 'start'>, { eyebrow: string; title: string }> 
   furnish: { eyebrow: 'Furnish', title: 'Furnish the room' },
 }
 
+function NameBadge() {
+  const name = useStore((s) => s.design.name)
+  const setName = useStore((s) => s.setName)
+  return (
+    <input
+      className="name-badge"
+      value={name}
+      spellCheck={false}
+      onChange={(e) => setName(e.target.value)}
+      onFocus={(e) => e.target.select()}
+    />
+  )
+}
+
 export function Wizard() {
   const stage = useStore((s) => s.stage) as Exclude<Stage, 'start'>
   const next = useStore((s) => s.next)
   const back = useStore((s) => s.back)
+  const setStage = useStore((s) => s.setStage)
   const meta = META[stage]
+  const [saved, setSaved] = useState(false)
+
+  const onSave = () => {
+    saveDesign(useStore.getState().design)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1600)
+  }
 
   return (
     <>
@@ -43,8 +67,8 @@ export function Wizard() {
               {stage === 'step4' ? 'Design this room' : 'Next'}
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={() => {}}>
-              Save design
+            <button className="btn btn-primary" onClick={onSave}>
+              {saved ? 'Saved ✓' : 'Save design'}
             </button>
           )}
         </div>
@@ -52,7 +76,10 @@ export function Wizard() {
 
       <div className="stage">
         <RoomView />
-        <div className="vp-badge">{useStore.getState().design.name}</div>
+        <NameBadge />
+        <button className="home-btn" onClick={() => setStage('start')} title="Home">
+          ⌂
+        </button>
       </div>
     </>
   )

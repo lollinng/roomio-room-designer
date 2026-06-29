@@ -1,0 +1,259 @@
+import { useMemo, useRef } from 'react'
+import * as THREE from 'three'
+import { Html } from '@react-three/drei'
+import type { ThreeEvent } from '@react-three/fiber'
+import { useStore } from '../store'
+import { makeFrame } from './coords'
+import { useFloorRay, useControlsToggle } from './interaction'
+import { resolveFurniture } from '../geometry/collision'
+import { ARCHETYPE_MAP } from '../data/archetypes'
+import { FurnitureModel } from './Furniture3D'
+import type { FurnitureItem } from '../types'
+
+// Snap rotation to the nearest 15° increment (kept simple per spec).
+const ROT_SNAP = (15 * Math.PI) / 180
+function snapAngle(a: number): number {
+  return Math.round(a / ROT_SNAP) * ROT_SNAP
+}
+
+interface GizmoProps {
+  item: FurnitureItem
+  frame: ReturnType<typeof makeFrame>
+}
+
+function FurnitureGizmo({ item, frame }: GizmoProps) {
+  const walls = useStore((s) => s.walls)
+  const corners = useStore((s) => s.design.corners)
+  const furniture = useStore((s) => s.design.furniture)
+  const wallThickness = useStore((s) => s.design.wallThickness)
+  const selectedId = useStore((s) => s.selectedFurnitureId)
+  const overlapIds = useStore((s) => s.overlapIds)
+  const selectFurniture = useStore((s) => s.selectFurniture)
+  const updateFurniture = useStore((s) => s.updateFurniture)
+  const removeFurniture = useStore((s) => s.removeFurniture)
+  const setOverlaps = useStore((s) => s.setOverlaps)
+
+  const floorRay = useFloorRay()
+  const toggleControls = useControlsToggle()
+
+  // Drag state for a move (offset between the item center and the grab point, cm).
+  const moving = useRef(false)
+  const grabOffset = useRef<{ x: number; z: number }>({ x: 0, z: 0 })
+  // Drag state for the rotate handle.
+  const rotating = useRef(false)
+
+  const selected = selectedId === item.id
+  const overlapping = overlapIds.includes(item.id)
+
+  const [wx, wz] = frame.toWorld(item.x, item.z)
+  const archetype = ARCHETYPE_MAP[item.archetype]
+
+  // World meters of the footprint / height.
+  const wM = item.w / 100
+  const dM = item.d / 100
+  const hM = item.h / 100
+
+  // The selection-outline box geometry — memoized so it isn't rebuilt per frame.
+  const outlineGeo = useMemo(
+    () => new THREE.BoxGeometry(wM + 0.04, hM + 0.04, dM + 0.04),
+    [wM, hM, dM],
+  )
+
+  // ---- shared resolve helper: applies collision + snapping for a proposed center.
+  const resolveMove = (cx: number, cz: number) => {
+    const others = furniture.filter((f) => f.id !== item.id)
+    const r = resolveFurniture(
+      item,
+      { x: cx, z: cz },
+      walls,
+      others,
+      corners,
+      { wallThickness },
+    )
+    updateFurniture(item.id, { x: r.x, z: r.z, rotation: r.rotation })
+    setOverlaps(r.overlaps)
+  }
+
+  // ---- MOVE handlers (on the invisible hitbox) ----------------------------
+  const onMoveDown = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation()
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    selectFurniture(item.id)
+    moving.current = true
+    toggleControls(false)
+    // Record grab offset so the item doesn't jump its center onto the cursor.
+    const hit = floorRay(e.clientX, e.clientY)
+    if (hit) {
+      const [hx, hz] = frame.fromWorld(hit.x, hit.z)
+      grabOffset.current = { x: item.x - hx, z: item.z - hz }
+    } else {
+      grabOffset.current = { x: 0, z: 0 }
+    }
+  }
+
+  const onMove = (e: ThreeEvent<PointerEvent>) => {
+    if (!moving.current) return
+    e.stopPropagation()
+    const hit = floorRay(e.clientX, e.clientY)
+    if (!hit) return
+    const [cx, cz] = frame.fromWorld(hit.x, hit.z)
+    resolveMove(cx + grabOffset.current.x, cz + grabOffset.current.z)
+  }
+
+  const onMoveUp = (e: ThreeEvent<PointerEvent>) => {
+    if (!moving.current) return
+    moving.current = false
+    toggleControls(true)
+    ;(e.target as Element).releasePointerCapture?.(e.pointerId)
+  }
+
+  // ---- ROTATE handlers (on the front handle) ------------------------------
+  const onRotDown = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation()
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    selectFurniture(item.id)
+    rotating.current = true
+    toggleControls(false)
+  }
+
+  const onRotMove = (e: ThreeEvent<PointerEvent>) => {
+    if (!rotating.current) return
+    e.stopPropagation()
+    const hit = floorRay(e.clientX, e.clientY)
+    if (!hit) return
+    // Vector from item center to the cursor (world meters). A Y-rotation θ maps
+    // the item's local +z (its "front") to world ( sinθ, cosθ ), so to point the
+    // front at the cursor we set θ = atan2(dx, dz).
+    const dx = hit.x - wx
+    const dz = hit.z - wz
+    if (Math.abs(dx) < 1e-5 && Math.abs(dz) < 1e-5) return
+    const angle = snapAngle(Math.atan2(dx, dz))
+    // Push through resolveFurniture so any wall snap / inside-constraint that the
+    // new rotation triggers stays legal. We feed the current center as proposed.
+    const others = furniture.filter((f) => f.id !== item.id)
+    const r = resolveFurniture(
+      { ...item, rotation: angle },
+      { x: item.x, z: item.z },
+      walls,
+      others,
+      corners,
+      { wallThickness },
+    )
+    updateFurniture(item.id, { x: r.x, z: r.z, rotation: r.rotation })
+    setOverlaps(r.overlaps)
+  }
+
+  const onRotUp = (e: ThreeEvent<PointerEvent>) => {
+    if (!rotating.current) return
+    rotating.current = false
+    toggleControls(true)
+    ;(e.target as Element).releasePointerCapture?.(e.pointerId)
+  }
+
+  return (
+    <group position={[wx, 0, wz]} rotation={[0, item.rotation, 0]}>
+      {/* The furniture itself (rendered in local space). */}
+      <FurnitureModel
+        model={archetype.model}
+        w={item.w}
+        d={item.d}
+        h={item.h}
+        color={item.color}
+      />
+
+      {/* Invisible drag/select hitbox spanning the full footprint volume. */}
+      <mesh
+        position={[0, hM / 2, 0]}
+        onPointerDown={onMoveDown}
+        onPointerMove={onMove}
+        onPointerUp={onMoveUp}
+      >
+        <boxGeometry args={[wM, hM, dM]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      {/* Overlap warning: a translucent red box over the footprint. */}
+      {overlapping && (
+        <mesh position={[0, hM / 2, 0]}>
+          <boxGeometry args={[wM, hM, dM]} />
+          <meshBasicMaterial color="#e0483a" transparent opacity={0.18} depthWrite={false} />
+        </mesh>
+      )}
+
+      {/* Selection visuals. */}
+      {selected && (
+        <>
+          {/* Yellow selection outline. */}
+          <lineSegments position={[0, hM / 2, 0]}>
+            <primitive object={outlineGeo} attach="geometry" />
+            <lineBasicMaterial color="#f3b700" />
+          </lineSegments>
+
+          {/* Rotate handle: a grabbable knob in front of the item (+z). */}
+          <group position={[0, 0.02, dM / 2 + 0.35]}>
+            <mesh
+              onPointerDown={onRotDown}
+              onPointerMove={onRotMove}
+              onPointerUp={onRotUp}
+            >
+              <sphereGeometry args={[0.075, 20, 16]} />
+              <meshStandardMaterial color="#1f6dd0" roughness={0.4} metalness={0.1} />
+            </mesh>
+            {/* small ring under the knob to read as a rotate affordance */}
+            <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+              <torusGeometry args={[0.11, 0.012, 10, 28]} />
+              <meshStandardMaterial color="#1f6dd0" roughness={0.5} />
+            </mesh>
+          </group>
+
+          {/* Floating trash button above the item. */}
+          <Html position={[0, hM + 0.3, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
+            <button
+              className="trash-btn"
+              onClick={(ev) => {
+                ev.stopPropagation()
+                removeFurniture(item.id)
+              }}
+              title="Delete"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path
+                  fill="currentColor"
+                  d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1v-8h-1zm3 0v8h1v-8h-1z"
+                />
+              </svg>
+            </button>
+          </Html>
+        </>
+      )}
+    </group>
+  )
+}
+
+export function FurnitureEditor(): JSX.Element {
+  const corners = useStore((s) => s.design.corners)
+  const furniture = useStore((s) => s.design.furniture)
+  const selectFurniture = useStore((s) => s.selectFurniture)
+  const frame = useMemo(() => makeFrame(corners), [corners])
+
+  return (
+    <group>
+      {/* Click on empty floor to deselect. A large invisible plane just under the
+          furniture hitboxes catches pointer-downs that miss every item. */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.0005, 0]}
+        onPointerDown={() => selectFurniture(null)}
+      >
+        <planeGeometry args={[400, 400]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      {furniture.map((item) =>
+        ARCHETYPE_MAP[item.archetype] ? (
+          <FurnitureGizmo key={item.id} item={item} frame={frame} />
+        ) : null,
+      )}
+    </group>
+  )
+}

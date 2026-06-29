@@ -18,21 +18,21 @@ Dev server: `npm run dev` → http://localhost:5180/
 ## Milestones
 - ✅ **M0** Scaffold, scene-graph store, 6 shape presets, 3D viewport (walls+floor), dev server up
 - ✅ **M1** Step 1 shape picker · Step 2 dims: typed lengths + ft/cm toggle + live 3D drag handles + dim labels
-- ⬜ **M2** Step 3 doors/windows (place/move/delete snapped to walls) · Step 4 wall color + floor texture (panel ✅, live swap ✅)
-- ⬜ **M3** Furnish: archetype catalog, place/move/rotate/resize-clamped/recolor
-- ⬜ **M4** Collision & snapping (clamp+slide, snap flush, soft overlap warn) — the bespoke hard part
-- ⬜ **M5** Save / reopen designs (localStorage + JSON)
-- ⬜ **Polish** match IKEA reference fidelity, edge cases, roomio.txt items
+- ✅ **M2** Step 3 doors/windows (place/move/delete snapped to walls, real wall holes) · Step 4 wall color + floor texture
+- ✅ **M3** Furnish: archetype catalog, place/move/rotate/resize-clamped/recolor
+- ✅ **M4** Collision & snapping (clamp+slide, snap flush, soft overlap warn) — verified with 7/7 unit tests
+- ✅ **M5** Save / reopen designs (localStorage gallery + JSON import/export)
+- 🚧 **Polish** match IKEA reference fidelity, edge cases, roomio.txt items — ongoing
 
-## Acceptance checklist
-- ⬜ Step 1: room shape presets (Rect, L, T, U, Cut, Beveled) with live 3D preview — **icons ✅, live preview ✅**
-- 🚧 Step 2: draggable/typed wall dimensions with ft/cm toggle — typed + toggle ✅, drag handles ⬜
-- ⬜ Step 3: place/move/delete doors & windows snapped to walls
-- 🚧 Step 4: wall color + floor texture material swap — ✅ (verify in-scene)
-- ⬜ Furnish: place/move/rotate/resize (clamped) + recolor furniture archetypes
-- ⬜ Furniture cannot clip through walls; slides and snaps flush (the hard part)
-- ⬜ Save and reopen a design
-- 🚧 UI polish visibly comparable to IKEA reference — strong start
+## Acceptance checklist — ALL CORE ITEMS MET ✅ (now polishing)
+- ✅ Step 1: room shape presets (Rect, L, T, U, Cut, Beveled) with live 3D preview
+- ✅ Step 2: draggable/typed wall dimensions with ft/cm toggle (3D handles + dim labels + typed inputs)
+- ✅ Step 3: place/move/delete doors & windows snapped to walls (real holes cut)
+- ✅ Step 4: wall color + floor texture material swap
+- ✅ Furnish: place/move/rotate/resize (clamped) + recolor furniture archetypes
+- ✅ Furniture cannot clip through walls; slides and snaps flush — verified (7/7 §7 tests)
+- ✅ Save and reopen a design (localStorage + JSON)
+- 🚧 UI polish visibly comparable to IKEA reference — strong; continuing to refine
 
 ## Current cycle notes
 - Foundation modules complete: types, store, presets, walls geometry, units, materials,

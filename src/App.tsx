@@ -22,6 +22,13 @@ export default function App() {
         if (w[1]) st.addOpening('windowDouble', w[1].id, 0.5)
         if (w[2]) st.addOpening('french', w[2].id, 0.6)
         if (w[3]) st.addOpening('windowSingle', w[3].id, 0.5)
+        // furniture spread across the default 600x400 room (center 300,200)
+        st.addFurniture('sofa-3', 300, 320)
+        st.addFurniture('table-coffee', 300, 235)
+        st.addFurniture('bed-queen', 470, 110)
+        st.addFurniture('decor-plant', 110, 110)
+        st.addFurniture('chair-office', 140, 300)
+        st.selectFurniture(null)
       }
       setStage(q)
     }

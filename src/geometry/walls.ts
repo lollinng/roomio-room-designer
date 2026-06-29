@@ -198,6 +198,29 @@ export function buildWallParts(
   return parts
 }
 
+/** A guaranteed-interior point of the polygon (centroid, else grid-sampled). */
+export function safeInteriorPoint(corners: Vec2[]): Vec2 {
+  const c = polygonCentroid(corners)
+  if (pointInPolygon(c, corners)) return c
+  const b = bbox(corners)
+  let best: Vec2 = c
+  let bestScore = -Infinity
+  for (let i = 1; i < 8; i++) {
+    for (let j = 1; j < 8; j++) {
+      const p = { x: b.minX + (b.w * i) / 8, z: b.minZ + (b.d * j) / 8 }
+      if (pointInPolygon(p, corners)) {
+        // prefer points near the bbox center
+        const score = -Math.hypot(p.x - b.cx, p.z - b.cz)
+        if (score > bestScore) {
+          bestScore = score
+          best = p
+        }
+      }
+    }
+  }
+  return best
+}
+
 /** Point-in-polygon test (ray casting), point & corners in cm. */
 export function pointInPolygon(pt: Vec2, corners: Vec2[]): boolean {
   let inside = false

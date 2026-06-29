@@ -10,7 +10,7 @@ import type {
 } from './types'
 import type { Unit } from './units'
 import { presetCorners } from './geometry/presets'
-import { deriveWalls, bbox, signedArea } from './geometry/walls'
+import { deriveWalls, bbox, signedArea, safeInteriorPoint } from './geometry/walls'
 import { OPENING_MAP } from './data/openings'
 import { ARCHETYPE_MAP } from './data/archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR } from './data/materials'
@@ -83,6 +83,8 @@ interface DesignStore {
 
   // ---- furnish ----
   addFurniture: (archetypeId: string, x: number, z: number) => string
+  /** add an item at a guaranteed-interior point of the room */
+  addFurnitureCentered: (archetypeId: string) => string
   updateFurniture: (id: string, patch: Partial<FurnitureItem>) => void
   removeFurniture: (id: string) => void
   selectFurniture: (id: string | null) => void
@@ -257,6 +259,10 @@ export const useStore = create<DesignStore>((set, get) => ({
       selectedFurnitureId: item.id,
     })
     return item.id
+  },
+  addFurnitureCentered: (archetypeId) => {
+    const p = safeInteriorPoint(get().design.corners)
+    return get().addFurniture(archetypeId, p.x, p.z)
   },
   updateFurniture: (id, patch) =>
     set({
