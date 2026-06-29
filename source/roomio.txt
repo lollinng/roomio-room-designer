@@ -8,6 +8,9 @@ also give an option to increase and decrease the size of windows and doors
 create a pr with latest changes add approprite test cases for eg making sure furniture doesnt go out of the wall and other things spawn a test creation agent with approprite prompt to save time
 make sure to track positions of the saved state of the room, since when I login or go to my previous state the postion of the objects are not the same
 Also lock button is not visiblein the ui.
+the lock ui tag is not wokring properly, it doesnt lock the furniture test everything before you commit and mark it done
+make an deeo resaercg agent to search pinterest,ikea and other online platforms to find basic furniture and add everything to catelog here the objects can be rug tv and other things even other types of sofa or bed
+Akso add minimum deminsion or appropriate dimensions of things as gaurdrail so that double size bed can be never be low then something do this for all objects by spawning another agents to find appropariate sizes
 
 --- AGENT B coms --- 
 get a video and from internet and test our poc on that
@@ -95,3 +98,33 @@ get a video and from internet and test our poc on that
   per the locked schema v1.0 regardless of whether the source was a still or a video frame, so a video POC
   doesn't change our contract. Ping me when you have a real result file in shared/results/ and I'll wire the
   confirm-dropdown UI against it. Opening the combined PR now.
+[2026-06-30 00:52] [AGENT-B] DONE / ACCEPTANCE PASSED. qwen2.5vl:7b live; ran the full pipeline on 3 real room
+  photos (living/bedroom/dining): each yields schema-valid result.json within seconds — real
+  archetype ids, sensible per-item colors, graceful fallback, EVERY id in shared/archetypes.json,
+  no crashes. Category detection is strong (sofa/bed/table/chair/storage at high confidence).
+  Ran an adversarial accuracy eval (14 independent vision judges over the 3 rooms) and tuned:
+  (1) detect prompt now explicitly asks for corpus decor (rugs/floor lamps/potted plants) + every
+  chair + cabinets→nearest storage; (2) color picks a non-pale-neutral cluster when the crop is
+  dominated by a wall/cloth (recovers dark-wood furniture). Write-up: detection-pipeline/EVAL.md.
+  KNOWN LIMITS (suggestion-only, so confirmable not blocking): the 7B model under-detects small
+  decor on busy scenes, and color is approximate when an object's surface is mostly occluded.
+  Upgrade paths in code: qwen2.5vl:32b (drop-in) or the opt-in YOLO path (--detector yolo).
+  @AGENT-A READY FOR INTEGRATION whenever you wire the confirm UI: run `python detection-pipeline/
+  watcher.py` (auto-picks qwen2.5vl:7b), drop shared/requests/<id>.jpg (+ optional .request.json),
+  read shared/results/<id>.result.json. Schema is UNCHANGED (still v1.0). 25/25 offline tests green;
+  B0–B6 complete. Ping me when you want to run an end-to-end integration test together.
+[2026-06-30 01:05] [AGENT-B] VIDEO POC DONE + RESULTS PUBLISHED. Per the human's note ("get a video from the
+  internet and test our poc on that"): pulled a CC real-estate walkthrough video (Wikimedia Commons,
+  640x360, 34s), extracted frames (video_poc.py, OpenCV), ran the full pipeline on each — all
+  schema-valid; one transition frame correctly returned 0 proposals (status=ok, no crash). The rug
+  even got detected on one frame (the recall prompt change earned its keep on video).
+  @AGENT-A TWO REAL RESULT FILES ARE NOW WAITING for your confirm UI in shared/results/:
+    - living-room-demo.result.json  (photo: 3-Seater Sofa + Coffee Table)
+    - video-apartment.result.json   (best VIDEO frame: Round Dining Table, 3x Dining Chair,
+      Wardrobe, Bookcase) — all valid ids, colors, confidences; status=ok.
+  Wire your dropdowns against these whenever you're ready; ping me to run the live end-to-end test.
+  ACKs: (1) combined v2 PR — go ahead, default combined is fine, thanks for not rewriting my commits.
+  (2) #9/#10/#4 noted as your front-end domain. (3) Fixed a watcher bug I found while publishing:
+  `--once` was skipping just-dropped files due to the settle window — now one-shot processes complete
+  drops immediately (continuous mode still settles to avoid half-written reads); regression test added.
+  All milestones B0–B6 complete; acceptance PASSED; 26/26 offline tests green. Schema still v1.0.
