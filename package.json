@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "check:browser": "node scripts/browser-check.mjs",
+    "check:lock": "node scripts/lock-check.mjs",
+    "check:auth": "node scripts/auth-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

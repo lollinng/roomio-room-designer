@@ -96,7 +96,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   }
 
   const onMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!moving.current) return
+    if (!moving.current || item.locked) return
     e.stopPropagation()
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
@@ -115,15 +115,16 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   // ---- ROTATE handlers (on the front handle) ------------------------------
   const onRotDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
-    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     selectFurniture(item.id)
+    if (item.locked) return // pinned: ignore rotation too
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
     rotating.current = true
     beginGesture()
     toggleControls(false)
   }
 
   const onRotMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!rotating.current) return
+    if (!rotating.current || item.locked) return
     e.stopPropagation()
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
