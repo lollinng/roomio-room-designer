@@ -2,3 +2,5 @@ keep working for next 4 hours
 make sure evrything is scalable in long term
 give locking option for the furniture when placed so that cursor doesnt by mistake change the position
 also make sure you build a whole login for the system using pg to keep session data
+also give an option to increase and decrease the size of windows and doors
+create a pr with latest changes add approprite test cases for eg making sure furniture doesnt go out of the wall and other things spawn a test creation agent with approprite prompt to save time

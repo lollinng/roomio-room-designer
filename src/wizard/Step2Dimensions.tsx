@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
-import { formatLenShort, parseLen } from '../units'
+import { formatLenShort, parseLen, formatLen } from '../units'
+import { bbox } from '../geometry/walls'
 
 function LengthInput({
   cm,
@@ -44,9 +45,17 @@ export function Step2Dimensions() {
   const setWallLength = useStore((s) => s.setWallLength)
   const wallHeight = useStore((s) => s.design.wallHeight)
   const setWallHeight = useStore((s) => s.setWallHeight)
+  const corners = useStore((s) => s.design.corners)
+  const b = bbox(corners)
 
   return (
     <div>
+      <div className="overall-size">
+        <span>Overall</span>
+        <strong>
+          {formatLen(b.w, unit)} <span className="x">×</span> {formatLen(b.d, unit)}
+        </strong>
+      </div>
       <div className="segmented">
         <button className={unit === 'ft' ? 'active' : ''} onClick={() => setUnit('ft')}>
           Feet

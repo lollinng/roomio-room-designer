@@ -57,6 +57,10 @@ interface DesignStore {
   /** transient: id of furniture currently flagged as overlapping another */
   overlapIds: string[]
 
+  /** bump to ask the 3D view to refit the camera to the room */
+  fitNonce: number
+  fitView: () => void
+
   // ---- navigation ----
   setStage: (s: Stage) => void
   next: () => void
@@ -103,6 +107,8 @@ function touch(d: RoomDesign): RoomDesign {
 
 export const useStore = create<DesignStore>((set, get) => ({
   stage: 'start',
+  fitNonce: 0,
+  fitView: () => set({ fitNonce: get().fitNonce + 1 }),
   design: newDesign('rect'),
   walls: deriveWalls(presetCorners('rect')),
   selectedOpeningId: null,

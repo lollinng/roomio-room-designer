@@ -36,6 +36,7 @@ function Lights() {
 /** Refit the camera when the room shape changes (not on furniture/dimension edits). */
 function CameraFit() {
   const shape = useStore((s) => s.design.shape)
+  const fitNonce = useStore((s) => s.fitNonce)
   const { camera, controls } = useThree()
   useEffect(() => {
     const b = bbox(useStore.getState().design.corners)
@@ -49,7 +50,7 @@ function CameraFit() {
       c.update()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shape])
+  }, [shape, fitNonce])
   return null
 }
 

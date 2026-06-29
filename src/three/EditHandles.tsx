@@ -76,12 +76,14 @@ function WallHandle({ wall }: { wall: Wall }) {
         onPointerOver={() => setHover(true)}
         onPointerOut={() => setHover(false)}
       >
-        <boxGeometry args={[Math.max(lenM - 0.18, 0.1), 0.1, 0.16]} />
+        <boxGeometry args={[Math.max(lenM - 0.16, 0.1), 0.07, 0.1]} />
         <meshStandardMaterial
-          color={hover ? '#f3b700' : '#1f6dd0'}
+          color={hover ? '#f3b700' : '#2a7de1'}
           transparent
-          opacity={hover ? 0.95 : 0.7}
-          roughness={0.4}
+          opacity={hover ? 0.98 : 0.6}
+          roughness={0.35}
+          emissive={hover ? '#f3b700' : '#000000'}
+          emissiveIntensity={hover ? 0.25 : 0}
         />
       </mesh>
     </group>

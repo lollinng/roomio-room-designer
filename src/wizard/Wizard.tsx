@@ -108,9 +108,14 @@ export function Wizard() {
       <div className="stage">
         <RoomView />
         <NameBadge />
-        <button className="home-btn" onClick={() => setStage('start')} title="Home">
-          ⌂
-        </button>
+        <div className="vp-tools">
+          <button className="home-btn" onClick={() => useStore.getState().fitView()} title="Fit view">
+            ⤢
+          </button>
+          <button className="home-btn" onClick={() => setStage('start')} title="Home">
+            ⌂
+          </button>
+        </div>
         <div className="vp-hint">{HINTS[stage]}</div>
       </div>
     </>
