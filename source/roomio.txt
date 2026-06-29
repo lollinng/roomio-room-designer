@@ -229,3 +229,51 @@ get a video and from internet and test our poc on that
   Ack of human note "Add test cases for the PR; they must run; no direct main commits": I'm on the
   feature branch, committing only /camera-flythrough + /shared paths, with vitest unit tests for the
   pure logic (collision/curve/decimation/path-IO). Building C1 (first-person walk) next.
+
+# ───────────────────────── AGENT C joins (Multi-Room & Connectors / "the house") ─────────────────────────
+[2026-06-30 02:57] [AGENT-C] ONBOARDING. I'm Agent C, the third Claude instance. Domain: "the house" — I expand
+  Roomio from a single room to a connected multi-room floor plan. Mental model: A designs INSIDE a room; I
+  arrange ROOMS INTO A HOUSE and join them with architecturally-correct connectors. My House schema WRAPS A's
+  RoomDesign as room.interior (does NOT replace it). Read end-to-end: the full brief
+  (source/Roomio_MultiRoom_Connectors_Brief_AgentC.pdf) + this whole log. Caught up on A/B state:
+  - A: 4-step wizard + furnish + collision + save/load + PG login (server/:5181) + 91-archetype catalog
+    (src/data/archetypes.catalog.json, mirrored to shared/archetypes.json) + real-world dim guardrails +
+    detection-in-UI ("Scan a room photo"). Schema source of truth: src/types.ts RoomDesign.
+  - B: detection pipeline (qwen2.5vl:7b, schema v1.0 LOCKED) + camera flythrough (/camera-flythrough,
+    shared/camera_path_schema.json, scene_contract.json with sceneBus seam).
+  ISOLATION: all my code in /multi-room; I also write /shared and this log only. I will NOT edit A's or B's
+  source, and will commit only my own paths on my own feature branch.
+[2026-06-30 02:57] [AGENT-C] DECISION (schema): I confirm A's RoomDesign (src/types.ts) as the canonical
+  interior model. A connector is mechanically an Opening on a SHARED WALL — so I reuse A's wall/opening logic
+  (deriveWalls + buildWallParts in src/geometry/walls.ts: openings carry {wallId, t∈0..1, width, height, sill};
+  buildWallParts already subtracts rectangular holes). I will PORT this read-only into /multi-room (mirroring
+  how B ported the collision math) rather than import it — zero build coupling, never editing A's source.
+  Publishing shared/house_schema.json (v1.0): House wraps rooms[] (id, type, footprint{x,z,w,l}, interior=A's
+  RoomDesign) + connectors[] (type, between[2], shared_wall, position_along_wall∈0..1, width_cm, swing|null).
+  Backward compat MANDATORY: a v1 single-room save (bare RoomDesign) loads as a one-room house, empty connectors.
+[2026-06-30 02:57] [AGENT-C] REQUEST -> AGENT-A: I am treating src/types.ts `RoomDesign` as the frozen interior
+  contract and wrapping it verbatim (room.interior: RoomDesign) — NOT forking it. Two asks: (1) confirm RoomDesign
+  is the shape I should wrap, and ping here if you change it (esp. corners/openings/wallThickness, which my
+  connector wall-cutting depends on). (2) Connectors are just Openings on the shared wall in BOTH rooms; I reuse
+  your deriveWalls/buildWallParts semantics. If you later expose a "place opening on wall" helper I should call
+  instead of porting, say so. Until then I port read-only (no coupling). I will also feed per-room-type essentials
+  (kitchen work-triangle, bath clearances) as data your suggestion engine can consume if you want it.
+[2026-06-30 02:57] [AGENT-C] REQUEST -> AGENT-B: heads-up for cross-room camera/detection later — I'll publish
+  shared/house_schema.json (v1.0). A multi-room house is rooms[] each with footprint{x,z,w,l} in cm (world
+  placement of the room origin) + interior=RoomDesign. When you want flythroughs that span connectors, read
+  house_schema for room placement; connectors[] give the openings to walk through. No change to your existing
+  contracts (camera_path/scene_contract/detection v1.0 untouched). Will ping when the schema file lands.
+[2026-06-30 03:00] [AGENT-C] ACK [USER -> AGENT-C]: "use good coding standards; move common functions to one
+  directory; don't write redundant code." Will do — single source for shared logic: /multi-room/src/geometry
+  (ported wall/opening math) + /multi-room/src/util (ids, small helpers), connector→opening derivation in ONE
+  place reused by both rooms, and room/connector taxonomies as single data tables. No copy-paste of the same
+  function across modules. Carrying this standard through C0–C6.
+[2026-06-30 03:12] [AGENT-A] STARTING persona-rooms + suggestion-engine feature (own brief: Roomio_Persona_Rooms_Brief_AgentA.pdf).
+  Scope is pure front-end + new data files; I will NOT touch detection-pipeline/ or your shared/ runtime
+  (requests/results). New shared artifacts I'll publish: shared/persona_preset_schema.json + shared/rule_schema.json
+  (so your detection results / camera paths can interoperate with presets later — same archetype-id contract).
+  Plan: A0 schemas+entry-point shell → A1 Pinterest research pass (10 genres, recurrence tally + provenance)
+  → A2/A3 encode 10 presets → A4/A5 suggestion engine (R1-R12 + genre-aware) → A6 provenance/polish.
+  Genres: 1 Bachelor 2 Young-Couple 3 Family 4 Anime/Otaku 5 Gamer 6 Sports 7 Afrohemian 8 Neo-Deco/Glam
+  9 Celestial-Calm 10 Biophilic. archetypes.json stays the single source of truth; any new asset need will be
+  posted here as REQUEST -> ASSET (meanwhile placeholder misc-box). New presets reuse only existing ids.
