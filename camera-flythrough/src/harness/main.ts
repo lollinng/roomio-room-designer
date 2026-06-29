@@ -5,6 +5,8 @@ import { DirectorView } from '../engine/directorView'
 import { WaypointPath } from '../engine/waypointPath'
 import { Playback } from '../engine/playback'
 import { captureFlythrough, webCodecsAvailable } from '../engine/videoCapture'
+import { samplesToCameraPath } from '../engine/walkRecord'
+import { downloadPath, readPathFile, saveToLocal, loadFromLocal } from '../engine/pathIO'
 
 /**
  * Dev-harness entry. Wires the flythrough engine to a faithful furnished-room
@@ -40,6 +42,9 @@ hud.innerHTML = `
   <div class="group" id="grp-director">
     <button id="btn-pov">⤢ Camera POV</button>
   </div>
+  <div class="group" id="grp-walk">
+    <button id="btn-record">● Record walk</button>
+  </div>
   <div class="group" id="grp-path">
     <span class="label">Path</span>
     <span class="label" id="lbl-count">0 pts</span>
@@ -50,6 +55,9 @@ hud.innerHTML = `
     <span class="label">dwell</span>
     <input id="in-dwell" type="number" min="0" step="0.25" value="0" style="width:54px" />
     <label class="label"><input id="cb-loop" type="checkbox" /> loop</label>
+    <button id="btn-save">Save JSON</button>
+    <button id="btn-load">Load JSON</button>
+    <input id="file-load" type="file" accept="application/json,.json" style="display:none" />
   </div>
 `
 document.body.appendChild(hud)
@@ -98,6 +106,11 @@ const btnLookAt = hud.querySelector<HTMLButtonElement>('#btn-lookat')!
 const btnLookClear = hud.querySelector<HTMLButtonElement>('#btn-lookclear')!
 const inDwell = hud.querySelector<HTMLInputElement>('#in-dwell')!
 const cbLoop = hud.querySelector<HTMLInputElement>('#cb-loop')!
+const grpWalk = hud.querySelector<HTMLDivElement>('#grp-walk')!
+const btnRecord = hud.querySelector<HTMLButtonElement>('#btn-record')!
+const btnSave = hud.querySelector<HTMLButtonElement>('#btn-save')!
+const btnLoad = hud.querySelector<HTMLButtonElement>('#btn-load')!
+const fileLoad = hud.querySelector<HTMLInputElement>('#file-load')!
 
 function setBanner(html: string) {
   banner.innerHTML = html
@@ -136,7 +149,10 @@ function refreshHud() {
   btnWalk.classList.toggle('active', mode === 'walk')
   btnDirector.classList.toggle('active', mode === 'director')
   grpDirector.style.display = mode === 'director' ? 'flex' : 'none'
+  grpWalk.style.display = mode === 'walk' ? 'flex' : 'none'
   grpPath.style.display = pathEditable() ? 'flex' : 'none'
+  btnRecord.classList.toggle('active', walk.isRecording())
+  btnRecord.textContent = walk.isRecording() ? '■ Stop & build path' : '● Record walk'
   btnPov.classList.toggle('active', director.isPov())
   btnPov.textContent = director.isPov() ? '⤢ Top-down' : '⤢ Camera POV'
   btnLookAt.classList.toggle('active', path.isSettingLookAt())
@@ -244,6 +260,57 @@ btnLookClear.addEventListener('click', () => path.clearLookAt())
 inDwell.addEventListener('change', () => path.setDwell(parseFloat(inDwell.value) || 0))
 cbLoop.addEventListener('change', () => path.setLoop(cbLoop.checked))
 
+// ---- F4 walk-and-record ----
+function finishRecording() {
+  const samples = walk.stopRecording()
+  const cp = samplesToCameraPath(samples, pathMeta)
+  if (cp.controlPoints.length >= 2) {
+    path.loadCameraPath(cp)
+    cbLoop.checked = path.isLoop()
+    setMode('director')
+    showToast(`Recorded walk → ${cp.controlPoints.length} control points (decimated from ${samples.length} samples)`, 4500)
+  } else {
+    showToast('Walk too short to build a path — move further and try again.', 4000)
+  }
+  refreshHud()
+}
+btnRecord.addEventListener('click', () => {
+  if (walk.isRecording()) {
+    finishRecording()
+  } else {
+    walk.startRecording()
+    setBanner('<b>Recording walk</b> — move with WASD; your trajectory becomes the path. Tap <b>Stop &amp; build path</b> when done.')
+    refreshHud()
+  }
+})
+
+// ---- save / load JSON ----
+btnSave.addEventListener('click', () => {
+  if (!path.hasCurve()) { showToast('Add at least 2 waypoints first.', 3000); return }
+  const cp = path.toCameraPath(pathMeta)
+  downloadPath(cp)
+  saveToLocal(cp)
+  showToast('Saved path JSON (downloaded + cached locally).', 3500)
+})
+btnLoad.addEventListener('click', () => fileLoad.click())
+fileLoad.addEventListener('change', async () => {
+  const f = fileLoad.files?.[0]
+  if (!f) return
+  try {
+    const cp = await readPathFile(f)
+    pathMeta.duration = cp.duration
+    pathMeta.fps = cp.fps
+    pathMeta.fov = cp.fov ?? pathMeta.fov
+    tpDur.value = String(cp.duration)
+    path.loadCameraPath(cp)
+    cbLoop.checked = path.isLoop()
+    showToast(`Loaded "${cp.name}" — ${cp.controlPoints.length} points.`, 3500)
+  } catch (e) {
+    showToast(`Load failed: ${(e as Error).message}`, 5000)
+  }
+  fileLoad.value = ''
+})
+
 // Click the canvas to (re)acquire pointer lock while walking.
 handle.domElement.addEventListener('click', () => {
   if (mode === 'walk') walk.lock()
@@ -338,6 +405,28 @@ startLoop((dt): THREE.Camera | null | false => {
   },
   recCamPos: () => director.recordingCamera.position.toArray(),
   webCodecs: () => webCodecsAvailable(),
+  // F4 walk-and-record
+  startRecording: () => walk.startRecording(),
+  stopRecordingBuild: () => {
+    const samples = walk.stopRecording()
+    const cp = samplesToCameraPath(samples, pathMeta)
+    if (cp.controlPoints.length >= 2) path.loadCameraPath(cp)
+    return { samples: samples.length, points: cp.controlPoints.length }
+  },
+  isRecording: () => walk.isRecording(),
+  // save / load JSON round-trip
+  serializePath: () => JSON.stringify(path.toCameraPath(pathMeta)),
+  loadFromJSON: (text: string) => {
+    const cp = JSON.parse(text)
+    path.loadCameraPath(cp)
+    return path.count()
+  },
+  loadFromLocalCache: () => {
+    const cp = loadFromLocal()
+    if (cp) { path.loadCameraPath(cp); return path.count() }
+    return 0
+  },
+  saveLocal: () => saveToLocal(path.toCameraPath(pathMeta)),
   // capture (download:false for tests — returns buffer info)
   capture: async (download = false) => {
     const res = await runExport(download)
