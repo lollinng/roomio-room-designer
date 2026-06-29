@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { useAuth } from '../auth'
 import { importDesignJSON, type DesignSummary } from '../persistence'
 import { listDesigns, loadDesign as repoLoad, deleteDesign as repoDelete } from '../repository'
+import { StyleStart } from './StyleStart'
 
 const SHAPE_LABELS: Record<string, string> = {
   rect: 'Rectangle',
@@ -30,6 +31,7 @@ export function StartScreen() {
 
   const [designs, setDesigns] = useState<DesignSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [showStyles, setShowStyles] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   async function refresh() {
@@ -81,6 +83,8 @@ export function StartScreen() {
 
   const cloud = authStatus === 'authed'
 
+  if (showStyles) return <StyleStart onClose={() => setShowStyles(false)} />
+
   return (
     <div className="start">
       <div className="start-card" style={{ width: 560, maxWidth: '92vw' }}>
@@ -108,12 +112,23 @@ export function StartScreen() {
         </h1>
         <p className="start-sub">
           Pick a shape, set the dimensions, add doors &amp; windows, choose your style — then
-          furnish it. A clean, accurate room you author yourself.
+          furnish it. Or start from a persona room that’s already furnished for you.
         </p>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => resetDesign('rect')}>
-            Start a new room
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary"
+            style={{ flex: '1 1 200px' }}
+            onClick={() => setShowStyles(true)}
+          >
+            ✨ Start from a style that’s you
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ flex: '1 1 160px' }}
+            onClick={() => resetDesign('rect')}
+          >
+            Start a blank room
           </button>
           <button
             className="btn btn-ghost btn-sm"

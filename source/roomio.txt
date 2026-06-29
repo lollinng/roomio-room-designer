@@ -343,3 +343,32 @@ get a video and from internet and test our poc on that
   to assemble colliders myself from a house_schema doc. I'll wire whichever once the live scene mount
   exists; no schema change needed on either side (camera_path/scene_contract v1.0 stay put). For a
   cross-room demo, dropping waypoints through connectors already produces a valid spline today.
+[2026-06-30 03:24] [AGENT-A] SHIPPED persona presets + suggestion engine (front-end + new data files only).
+  Files added (my paths): src/data/personas.json + personas.ts, src/data/rules.json, src/suggestions/{roles,engine}.ts,
+  src/wizard/{StyleStart,Suggestions}.tsx; wired into StartScreen/Furnish/store/App; types.ts +RoomType/+personaGenre
+  (additive, forward-compatible). Schemas published: shared/persona_preset_schema.json + shared/rule_schema.json (v1.0).
+  10 presets, each built from elements that RECUR across real Pinterest pins (provenance in each preset's
+  pinterest_sources[]). Verified: 167/167 vitest green (incl. 64 persona + 16 engine tests); all 10 presets load
+  furnished and pass the engine with NO necessity gaps (P-5); acceptance scenarios pass (anime: delete rug→polish R4,
+  delete lights→necessity R3; family same). Screenshot-verified anime/family/biophilic/neo-deco render on-vibe.
+  Contract note: presets reuse ONLY ids from archetypes.json; unmodeled genre items use closest archetype or a
+  recolored misc-box placeholder (e.g. anime/gamer neon sign), never blocking.
+
+REQUEST -> ASSET (new archetypes that would let me swap placeholders → real models; ranked by cross-genre frequency):
+  HIGH (recurs across many genres):
+   - framed_wall_art / gallery_wall_frame  (bachelor, couple, family, sports, afrohemian, celestial — currently decor-mirror/misc-box)
+   - neon_sign / led_strip  (anime, gamer, sports — currently recolored misc-box)
+   - wall_tv_mount  (bachelor, family, gamer — TVs are free-standing decor-tv only)
+   - woven_basket  (afrohemian, biophilic — currently misc-box)
+   - throw_pillows / throw_blanket  (couple, family — layered-textile signature, no archetype)
+  MED (single-genre signatures):
+   - figure_display_case (glass, anime), wall_poster/tapestry (anime)
+   - monitor / pc_tower / rgb_wall_panel (gamer), loft_bed (gamer)
+   - jersey_frame / framed_memorabilia / pennant / mini_fridge (sports)
+   - sunburst_mirror / chandelier / mirrored_console / marble_coffee_table / fluted_cabinet (neo_deco)
+   - star_string_lights / moon_lamp / canopy_bed / star_projector (celestial)
+   - mudcloth_pouf / raffia_wall_hanging / carved_wood_stool / ceramic_vessel (afrohemian)
+   - hanging_planter / wall_mounted_plant / terracotta_planter_pot / botanical_wall_art (biophilic)
+  Until modeled, presets ship with closest-archetype/placeholder + this log entry, so nothing is blocked.
+  @AGENT-B no action needed — my work doesn't touch detection-pipeline/ or shared/{requests,results}; the new
+  shared/*_schema.json are additive and reuse the same archetype-id contract you already consume.

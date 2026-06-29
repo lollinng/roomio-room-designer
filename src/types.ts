@@ -61,6 +61,13 @@ export interface CameraView {
   target: [number, number, number]
 }
 
+/**
+ * Functional room type — drives the suggestion engine's necessity rules
+ * (e.g. a bedroom should have a bed). Additive/optional: blank rooms default
+ * to 'living' in the engine; persona presets set this explicitly.
+ */
+export type RoomType = 'living' | 'bedroom' | 'studio' | 'family' | 'office' | 'den'
+
 export interface RoomDesign {
   id: string
   name: string
@@ -74,6 +81,10 @@ export interface RoomDesign {
   furniture: FurnitureItem[]
   /** optional saved camera viewpoint (additive; old designs simply lack it) */
   view?: CameraView
+  /** functional room type for the suggestion engine (additive; defaults to 'living') */
+  roomType?: RoomType
+  /** persona preset this room was started from (additive; enables genre-aware rules) */
+  personaGenre?: string
   createdAt: number
   updatedAt: number
 }

@@ -15,6 +15,7 @@ import { resolveFurniture } from './geometry/collision'
 import { OPENING_MAP } from './data/openings'
 import { ARCHETYPE_MAP } from './data/archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR } from './data/materials'
+import { toRoomDesign, type PersonaPreset } from './data/personas'
 
 export type Stage = 'start' | 'step1' | 'step2' | 'step3' | 'step4' | 'furnish'
 
@@ -56,6 +57,8 @@ interface DesignStore {
   placingStyle: OpeningStyle | null
   /** transient: id of furniture currently flagged as overlapping another */
   overlapIds: string[]
+  /** transient: rule_ids the user has dismissed this session (suggestion engine) */
+  dismissedSuggestions: string[]
 
   /** bump to ask the 3D view to refit the camera to the room */
   fitNonce: number
@@ -107,9 +110,13 @@ interface DesignStore {
   selectFurniture: (id: string | null) => void
   setOverlaps: (ids: string[]) => void
 
+  // ---- suggestion engine ----
+  dismissSuggestion: (ruleId: string) => void
+
   // ---- design meta / persistence ----
   setName: (name: string) => void
   loadDesign: (d: RoomDesign) => void
+  loadPreset: (preset: PersonaPreset) => void
   resetDesign: (shape?: ShapeId) => void
 }
 
@@ -135,6 +142,7 @@ export const useStore = create<DesignStore>((set, get) => ({
   selectedFurnitureId: null,
   placingStyle: null,
   overlapIds: [],
+  dismissedSuggestions: [],
 
   pushHistory: () =>
     set((s) => ({ past: [...s.past, s.design].slice(-HISTORY_LIMIT), future: [] })),
@@ -419,6 +427,13 @@ export const useStore = create<DesignStore>((set, get) => ({
   selectFurniture: (id) => set({ selectedFurnitureId: id }),
   setOverlaps: (ids) => set({ overlapIds: ids }),
 
+  dismissSuggestion: (ruleId) =>
+    set((s) =>
+      s.dismissedSuggestions.includes(ruleId)
+        ? s
+        : { dismissedSuggestions: [...s.dismissedSuggestions, ruleId] },
+    ),
+
   setName: (name) => set({ design: touch({ ...get().design, name }) }),
   loadDesign: (d) => {
     gestureSnap = null
@@ -431,8 +446,25 @@ export const useStore = create<DesignStore>((set, get) => ({
       past: [],
       future: [],
       interacting: false,
+      dismissedSuggestions: [],
       // refit the camera to the loaded room so the saved layout is framed
       // exactly the same way every time it's reopened
+      fitNonce: get().fitNonce + 1,
+    })
+  },
+  loadPreset: (preset) => {
+    gestureSnap = null
+    const d = toRoomDesign(preset)
+    set({
+      design: d,
+      walls: deriveWalls(d.corners),
+      stage: 'furnish',
+      selectedOpeningId: null,
+      selectedFurnitureId: null,
+      past: [],
+      future: [],
+      interacting: false,
+      dismissedSuggestions: [],
       fitNonce: get().fitNonce + 1,
     })
   },
@@ -448,6 +480,7 @@ export const useStore = create<DesignStore>((set, get) => ({
       past: [],
       future: [],
       interacting: false,
+      dismissedSuggestions: [],
     })
   },
 }))
