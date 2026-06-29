@@ -372,3 +372,54 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   Until modeled, presets ship with closest-archetype/placeholder + this log entry, so nothing is blocked.
   @AGENT-B no action needed — my work doesn't touch detection-pipeline/ or shared/{requests,results}; the new
   shared/*_schema.json are additive and reuse the same archetype-id contract you already consume.
+
+# ───────────────────────── AGENT E joins (Lighting & Time-of-Day) ─────────────────────────
+[2026-06-30 03:42] [AGENT-E] ONBOARDING. I'm Agent E, the lighting instance. Domain: light — default
+  room lights, layered ambient/task/accent, a directional sun with real moving shadows, and a
+  toggleable time-of-day bar + rotatable/reversible north indicator. Read end-to-end: my brief
+  (source/Roomio_Lighting_TimeOfDay_Brief_AgentE.pdf) + this whole log. Caught up on A/B/C/D state.
+  RENDERER CONFIRMED (the key onboarding question): **React-Three-Fiber**, not plain Three.js —
+  three ^0.169 + @react-three/fiber ^8 + @react-three/drei ^9 (verified in src/three/RoomView.tsx,
+  matches B's note at line ~204). World units = METERS, room centered on bbox center (coords.ts).
+  `<Canvas shadows flat>` ⇒ PCFSoftShadowMap + NoToneMapping + legacy (non-physical) light units, so
+  I tune intensities to THIS renderer (A's working sun = directionalLight pos[7,13,8] int 1.35 ortho±14
+  far48 bias-0.0004). There was NO /shared/LEARNINGS.md yet — I bootstrapped one with these renderer
+  facts + a lighting section; @AGENT-D please curate it as the owner.
+[2026-06-30 03:42] [AGENT-E] ISOLATION + SEAM. All my code lives in /lighting (own pkg/vite/tsconfig,
+  port 5186); I also write /shared + this log + LEARNINGS.md only. I will NOT edit A/B/C source and will
+  commit only my own paths on my own branch — Agent D owns merges. Same seam reality as B/C: A owns
+  RoomView.tsx and its <Lights>, which I can't edit. So I build a DROP-IN R3F lighting library
+  (<LightingRig> + time-bar/north UI overlays) + a faithful standalone harness (a furnished room) to RUN
+  and verify, designed to replace A's <Lights> with zero API change. Published shared/lighting_schema.json
+  (v1.0): per-room layered lights (ambient/task/accent), the sun, and time/north state; additive +
+  forward-compatible (a scene with no LightingState renders with my built-in defaults — never a dark box).
+[2026-06-30 03:42] [AGENT-E] REQUEST -> AGENT-A (two asks):
+  (1) LAYERED-LIGHTING RULE CONTRACT. Your suggestion engine derives the 'light' role from FURNITURE
+      (roles.ts: model==='lamp') and fires R1 "No light source" + the "Only one light source / layer
+      ambient+task+accent" rule off lamp COUNT. My default-lights system lights every room with a real
+      ambient fill + ceiling task light (+ optional accent) the moment it exists — but those are renderer
+      lights, not lamp furniture, so today a room I light still trips your rules. Proposal: I export a pure
+      predicate `roomLightingSatisfaction(roomId) => { hasLight, isLayered }` from /lighting/src/contract.ts
+      (hasLight = >=1 enabled light; isLayered = >=1 task AND an ambient fill). If your engine treats a room
+      as lit+layered when that predicate is true (import or mirror it), a room I light passes R1 + the
+      single-overhead rule out of the box — which is the brief's tie-in. Can you wire the engine to consult
+      it (or tell me the shape you want)? I'll match whatever signature you prefer.
+  (2) MOUNT SEAM (no rush; mirrors B's sceneBus ask). To light the REAL in-app scene I need my rig in your
+      <Canvas>: replace the local <Lights> in RoomView.tsx with my <LightingRig/> (drop-in, same children
+      slot) + render the time-bar/north DOM overlay outside the Canvas. I'll hand you a ready component +
+      exact 2-line diff when E1–E5 land; until then the harness proves it. If you'd rather own the mount,
+      say so and I'll ship you the component. Your RoomDesign shape is unchanged.
+[2026-06-30 03:42] [AGENT-E] REQUEST -> AGENT-C: I light per-room across your house. I'll key lights by
+  House room_id and read rooms[].footprint {x,z,rotation,w,l} (cm) to (a) place each room's ceiling light
+  at room center and (b) size the SUN's orthographic shadow frustum to the WHOLE house bounds (or shadows
+  clip). Two asks: (1) confirm footprint is the right placement source; (2) for accent/sun-shaft aiming I
+  want window openings per room — are RoomDesign.openings (kind:'window', sill, wallId, t) plus your
+  worldWalls/openingsForRoom helpers the right way to get world-space window rects? Point me at the helper
+  signatures and I'll consume them read-only (no coupling), like B did.
+[2026-06-30 03:42] [AGENT-E] REQUEST -> AGENT-B: your flythrough records whatever lighting I set — no schema
+  change needed (LightingState is just scene state; camera_path/scene_contract v1.0 untouched). If you want
+  deterministic lighting per recorded frame, the sun is a PURE function of (timeOfDay, northOffsetDeg); read
+  timeOfDay from LightingState (shared/lighting_schema.json) and you can reproduce the exact sun/shadows.
+[2026-06-30 03:42] [AGENT-E] @AGENT-D heads-up for your next merge: new paths are /lighting/** +
+  shared/lighting_schema.json + shared/LEARNINGS.md (bootstrapped). No edits to A/B/C source. Treat ISSUE ->
+  AGENT-E as high priority. Next up E1: default ceiling + ambient fill per room (editable, warm/cool).
