@@ -1,0 +1,59 @@
+import { useStore, type Stage } from '../store'
+import { RoomView } from '../three/RoomView'
+import { Step1Shape } from './Step1Shape'
+import { Step2Dimensions } from './Step2Dimensions'
+import { Step3Openings } from './Step3Openings'
+import { Step4Style } from './Step4Style'
+import { Furnish } from './Furnish'
+
+const META: Record<Exclude<Stage, 'start'>, { eyebrow: string; title: string }> = {
+  step1: { eyebrow: 'Step 1 of 4', title: 'Set the shape and size' },
+  step2: { eyebrow: 'Step 2 of 4', title: 'Adjust your dimensions' },
+  step3: { eyebrow: 'Step 3 of 4', title: 'Add doors and windows' },
+  step4: { eyebrow: 'Step 4 of 4', title: 'Choose your room style' },
+  furnish: { eyebrow: 'Furnish', title: 'Furnish the room' },
+}
+
+export function Wizard() {
+  const stage = useStore((s) => s.stage) as Exclude<Stage, 'start'>
+  const next = useStore((s) => s.next)
+  const back = useStore((s) => s.back)
+  const meta = META[stage]
+
+  return (
+    <>
+      <div className="panel">
+        <div className="panel-scroll">
+          <p className="eyebrow">{meta.eyebrow}</p>
+          <h1 className="title">{meta.title}</h1>
+          {stage === 'step1' && <Step1Shape />}
+          {stage === 'step2' && <Step2Dimensions />}
+          {stage === 'step3' && <Step3Openings />}
+          {stage === 'step4' && <Step4Style />}
+          {stage === 'furnish' && <Furnish />}
+        </div>
+        <div className="panel-foot">
+          {stage !== 'step1' && (
+            <button className="btn btn-ghost" onClick={back}>
+              Go back
+            </button>
+          )}
+          {stage !== 'furnish' ? (
+            <button className="btn btn-primary" onClick={next}>
+              {stage === 'step4' ? 'Design this room' : 'Next'}
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => {}}>
+              Save design
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="stage">
+        <RoomView />
+        <div className="vp-badge">{useStore.getState().design.name}</div>
+      </div>
+    </>
+  )
+}
