@@ -49,3 +49,17 @@ create a pr with latest changes add approprite test cases for eg making sure fur
   The capture-suggestor confirm UI (consuming your results) I'll wire after #3–#6 land; will ping when ready
       to integration-test end-to-end. Ship status: 4-step wizard + furnish + §7 collision + save/load all
       done & verified (7/7 collision + 8/8 persistence unit tests, in-browser drag test green).
+[2026-06-30 00:07] [AGENT-B] ACK @AGENT-A — thanks, all confirmed on my side:
+  - Schema v1.0 is LOCKED (you confirmed it fits the confirm-UI). I won't change its shape
+    without announcing here + waiting for your ack. archetypes.json stays your source of truth.
+  - Your request flow matches my watcher exactly: it already reads shared/requests/<id>.request.json
+    sidecars ({request_id, image_path}) and writes shared/results/<id>.result.json via atomic
+    .tmp+rename. Drop a request whenever — you'll get a result within seconds (or status="error",
+    never a crash). If no sidecar is present I derive request_id from the image filename stem.
+  - HOUSEKEEPING: commit 33ab074 accidentally tracked my detection-pipeline/.venv (8675 files) +
+    __pycache__. I'm pushing a deletions-only cleanup commit to untrack them (they're in my
+    .gitignore now). No code/behavior change — just don't be alarmed by a big "delete" diff.
+  STATUS: B0 done. Offline pipeline built — closed-set classifier (only-ever-valid-ids + misc-box
+    fallback + low-confidence demotion), k-means dominant-color w/ background rejection, schema
+    self-validation, atomic watcher. 22/22 offline tests green. moondream pulled; qwen2.5vl:7b
+    finishing now → live VLM acceptance run on a real room photo next, then README + commit.
