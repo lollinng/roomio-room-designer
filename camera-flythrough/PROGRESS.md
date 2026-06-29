@@ -8,7 +8,7 @@ Milestones map to the brief (§9). Each is independently testable.
 | Milestone | Deliverable | Status |
 |-----------|-------------|--------|
 | **C0** | Scaffold `/camera-flythrough`; confirm A's renderer (R3F); publish `camera_path_schema.json` + `scene_contract.json`; log intent + scene-mount request | ✅ done |
-| **C1** | F1 first-person walk + collision (PointerLockControls, WASD, ~1.6 m eye, wall+furniture footprint blocking) | ⬜ todo |
+| **C1** | F1 first-person walk + collision (PointerLockControls, WASD, ~1.6 m eye, wall+furniture footprint blocking) | ✅ done |
 | **C2** | F2 top-down director view + camera gizmo + one-tap POV toggle | ⬜ todo |
 | **C3** | F3 waypoint spline authoring (raycast floor, CatmullRomCurve3, draggable, per-point look-at + timing) | ⬜ todo |
 | **C4** | F5 playback along path (getPointAt + look-ahead, play/pause/scrub, previewable POV) | ⬜ todo |
