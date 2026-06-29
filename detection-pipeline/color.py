@@ -129,20 +129,31 @@ def dominant_color(
     labs = _rgb_to_lab(centers)
 
     order = np.argsort(-fracs)  # largest first
-    # Pass 1: the largest chromatic (non-background) cluster above the coverage floor.
-    # This is what we want for furniture sitting against a near-white wall / dark shadow.
-    best = None
-    for idx in order:
-        if _is_background(centers[idx], labs[idx]):
-            continue
-        if fracs[idx] < min_coverage:
-            continue
-        best = idx
-        break
-    # Pass 2: nothing chromatic qualified → the crop really is white/black (e.g. a white
-    # sofa). Fall back to the single largest cluster so we still name it sensibly.
-    if best is None:
+
+    def _chroma(i: int) -> float:
+        return float(np.hypot(labs[i][1] - 128.0, labs[i][2] - 128.0))
+
+    def _light_neutral(i: int) -> bool:
+        # pale gray/greige (e.g. a wall, lace cloth, or papers behind/atop furniture)
+        return labs[i][0] >= 190.0 and _chroma(i) < 14.0
+
+    # Candidates = non-background clusters above the coverage floor, largest first.
+    candidates = [int(i) for i in order
+                  if not _is_background(centers[i], labs[i]) and fracs[i] >= min_coverage]
+    if not candidates:
+        # Crop really is white/black (e.g. a white sofa) → largest cluster so we still name it.
         best = int(order[0])
+    else:
+        best = candidates[0]
+        # Rescue: if the dominant cluster is a PALE neutral (likely a wall, lace cloth, or papers
+        # behind/atop the object, not the object itself), prefer the largest cluster that is NOT a
+        # pale neutral (a darker or chromatic surface) when it has meaningful coverage. This
+        # recovers dark-wood furniture (cabinets, cluttered coffee tables) buried under light
+        # surroundings, while leaving genuinely white/pale items alone (then no alternative exists).
+        if _light_neutral(best):
+            alt = [i for i in candidates if not _light_neutral(i) and fracs[i] >= 0.15]
+            if alt:
+                best = max(alt, key=lambda i: fracs[i])
 
     rgb = centers[best]
     return {

@@ -97,6 +97,14 @@ class TestColor(unittest.TestCase):
         self.assertNotIn(out["name"], ("white", "off-white"))
         self.assertIn("green", out["name"])
 
+    def test_prefers_chromatic_object_over_pale_neutral_background(self):
+        # ~60% pale-gray wall/clutter, ~40% dark walnut wood → should name the wood, not the gray
+        # (mirrors the china-cabinet / cluttered-coffee-table cases from the qwen eval).
+        img = np.full((100, 100, 3), _hex_to_rgb("#cccccc"), dtype=np.uint8)
+        img[:, :40] = _hex_to_rgb("#4e342e")  # dark brown column
+        out = dominant_color(img)
+        self.assertLess(sum(out["rgb"]), 350, f"expected dark wood, got {out}")
+
     def test_degenerate_crop_safe(self):
         self.assertIsInstance(dominant_color(np.zeros((0, 0, 3), dtype=np.uint8))["hex"], str)
         self.assertIsInstance(dominant_color(np.full((1, 1, 3), 120, dtype=np.uint8))["hex"], str)

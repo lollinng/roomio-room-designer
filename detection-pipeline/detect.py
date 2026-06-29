@@ -39,9 +39,15 @@ def build_prompt(width: int, height: int) -> str:
         '  "bbox":       [x, y, w, h] in PIXELS, top-left origin, inside the image bounds.\n'
         '  "confidence": a number from 0.0 to 1.0.\n'
         "Rules:\n"
-        "- Do NOT include doors, windows, walls, floors, ceilings, people, or small clutter "
-        "(books, cushions, vases, picture frames, lights on the ceiling).\n"
-        "- One object per physical furniture piece. Merge duplicates.\n"
+        "- DO include these decor items — they ARE wanted: area rugs/carpets under furniture, "
+        "floor lamps, and potted plants / large houseplants.\n"
+        "- DO include large storage even when it looks like a cabinet, sideboard, hutch, or china "
+        "cabinet — map it to the closest type above (Wardrobe, Bookcase, TV Unit, or Dresser).\n"
+        "- List EVERY chair individually, even several identical chairs around one table.\n"
+        "- Do NOT include doors, windows, walls, floors, ceilings, people, table lamps, wall art / "
+        "picture frames, mirrors, curtains, ceiling lights or fans, or small clutter "
+        "(books, cushions, vases, dishes, electronics).\n"
+        "- One object per physical piece. Merge obvious duplicates.\n"
         "- If unsure of the exact type, still give your best generic label and set a low confidence.\n"
         "Return ONLY a JSON array of these objects. No prose, no markdown."
     )
