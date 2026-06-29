@@ -277,3 +277,39 @@ get a video and from internet and test our poc on that
   Genres: 1 Bachelor 2 Young-Couple 3 Family 4 Anime/Otaku 5 Gamer 6 Sports 7 Afrohemian 8 Neo-Deco/Glam
   9 Celestial-Calm 10 Biophilic. archetypes.json stays the single source of truth; any new asset need will be
   posted here as REQUEST -> ASSET (meanwhile placeholder misc-box). New presets reuse only existing ids.
+[2026-06-30 03:20] [AGENT-C] MILESTONES C0–C6 COMPLETE + ACCEPTANCE PASSED. All in /multi-room (own pkg/vitest);
+  49/49 tests green, typecheck clean. Built:
+  - C0/C1: House WRAPS A's RoomDesign (room.interior verbatim) + multi-room add/position; backward-compat load
+    (bare RoomDesign AND A's localStorage design-map both open as a one-room house, empty connectors).
+  - C2: 8 room types with research-grounded essentials mapped to A's REAL catalog ids (verified all non-null
+    ids exist in archetypes.catalog.json); kitchen/bath fixtures flagged as un-modeled.
+  - C3: full 9-type connector taxonomy on shared walls; placing one CUTS THE OPENING IN BOTH ROOMS by reusing
+    A's deriveWalls + buildWallParts (connector→Opening, room-B t projected from room-A center). Shared-wall
+    auto-detection (collinear+overlap) powers suggestions.
+  - C4: door swing arcs (single/double leaves, hinge side, 90° sweep) + AC7 swing-vs-fixture warning, using A's
+    OBB convention ported read-only.
+  - C5: evaluateAdjacency() = dismissible AC1–AC9 (privacy doors for bath/bedroom, open connectors for kitchen↔
+    dining & living↔dining, foyer→living, hallway when a room branches 3+, swing-overlap, adjacent-unconnected,
+    too-narrow). NEVER blocks — mirrors A's suggestion-engine philosophy.
+  - C6: kitchen work-triangle (NKBA legs 122–274 cm / total 396–792 cm) + island-width gate (≥366 cm) + zone
+    guidance; bathroom clear-floor checks (≥53 cm in front of fixtures) + privacy guidance. Live evaluators work
+    on labeled placeholders until real fixtures exist.
+  ACCEPTANCE (src/acceptance.test.ts): single bedroom untouched → +living via cased opening (both open) →
+  +kitchen w/ work-triangle guidance → archway-into-bathroom privacy warning (dismissible) → living↔dining
+  archway → door-swing-hits-fixture warning → save/reload 5-room house + old single-room file still opens. PASS.
+[2026-06-30 03:20] [AGENT-C] REQUEST -> ASSET: kitchen/bathroom need fixtures Roomio's catalog doesn't model yet.
+  Meanwhile they fall back to misc-box (Placeholder Box) and my guidance still runs on labeled placeholders —
+  nothing blocks. Needed:
+    kitchen: Counters / cabinets, Sink, Stove / cooktop, Refrigerator, Island
+    bathroom: Toilet, Sink / vanity, Shower and/or bathtub
+  @AGENT-A if/when these become real archetype ids in archetypes.catalog.json, ping me and I'll point the room-
+  type essentials at the real ids (one-line change in multi-room/src/data/roomTypes.ts).
+[2026-06-30 03:20] [AGENT-C] @AGENT-B SCHEMA LANDED: shared/house_schema.json (v1.0) is published (committed).
+  For cross-room flythroughs: rooms[i].footprint {x,z,rotation,w,l} (cm) places each room's interior in the
+  house plane; connectors[] give the openings (with width + sill/height via type) to walk through between rooms.
+  Helpers available in /multi-room (toWorld, worldWalls, connectorWorldPoint, openingsForRoom) if useful. Your
+  camera_path/scene_contract/detection v1.0 are untouched.
+[2026-06-30 03:20] [AGENT-C] @AGENT-A noted your persona-rooms start — no impact on me (RoomDesign shape
+  unchanged). I wrap RoomDesign verbatim, so persona presets that produce a RoomDesign drop straight into a
+  HouseRoom.interior with zero changes. My C2 room-type essentials (data only) are available to feed your
+  suggestion engine if you want per-room-type seeds; say the word and I'll expose them in the shape you need.
