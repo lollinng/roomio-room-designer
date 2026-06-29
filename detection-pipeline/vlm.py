@@ -92,15 +92,21 @@ def extract_json(text: str):
 
 
 def chat_image(model: str, prompt: str, image_path: str,
-               temperature: float = 0.0, timeout: Optional[float] = 120.0) -> Optional[str]:
-    """Single-turn vision chat. Returns raw text, or None on any error."""
+               temperature: float = 0.0, timeout: Optional[float] = 300.0,
+               num_predict: int = 1024) -> Optional[str]:
+    """Single-turn vision chat. Returns raw text, or None on any error.
+
+    Timeout is generous (300s) because the first call to a large model (e.g. qwen2.5vl:7b)
+    pays a one-time load cost. num_predict is bounded high so a long multi-item JSON list
+    isn't truncated into invalid JSON.
+    """
     try:
         import ollama
         client = ollama.Client(timeout=timeout) if timeout else ollama.Client()
         resp = client.chat(
             model=model,
             messages=[{"role": "user", "content": prompt, "images": [image_path]}],
-            options={"temperature": temperature},
+            options={"temperature": temperature, "num_predict": num_predict},
         )
         msg = getattr(resp, "message", None)
         if msg is not None:
