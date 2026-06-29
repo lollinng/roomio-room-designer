@@ -194,6 +194,21 @@ class TestWatcherAtomic(unittest.TestCase):
             self.assertFalse(p.with_suffix(p.suffix + ".tmp").exists())
             self.assertEqual(json.loads(p.read_text())["version"], "1.0")
 
+    def test_one_shot_ignores_settle_window(self):
+        # A just-dropped file is skipped by the continuous settle window but MUST be picked up in
+        # one-shot mode (settle=0) — regression for --once silently processing nothing.
+        import tempfile
+        import watcher
+        with tempfile.TemporaryDirectory() as td:
+            orig = watcher.REQUESTS_DIR
+            watcher.REQUESTS_DIR = Path(td)
+            try:
+                (Path(td) / "fresh.jpg").write_bytes(b"\xff\xd8\xff\xe0fake")
+                self.assertEqual(len(watcher._pending_images(reprocess=True, settle=10.0)), 0)
+                self.assertEqual(len(watcher._pending_images(reprocess=True, settle=0.0)), 1)
+            finally:
+                watcher.REQUESTS_DIR = orig
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

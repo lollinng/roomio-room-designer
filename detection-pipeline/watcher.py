@@ -54,7 +54,7 @@ def _request_id_and_image(p: Path) -> tuple[str, str]:
     return request_id, image_path
 
 
-def _pending_images(reprocess: bool) -> list[Path]:
+def _pending_images(reprocess: bool, settle: float = SETTLE_SECONDS) -> list[Path]:
     if not REQUESTS_DIR.exists():
         return []
     now = time.time()
@@ -63,8 +63,8 @@ def _pending_images(reprocess: bool) -> list[Path]:
         if not p.is_file() or p.suffix.lower() not in IMAGE_EXTS:
             continue
         try:
-            if now - p.stat().st_mtime < SETTLE_SECONDS:
-                continue  # still settling
+            if settle > 0 and now - p.stat().st_mtime < settle:
+                continue  # still settling (guards against reading a half-written file)
         except OSError:
             continue
         rid, _ = _request_id_and_image(p)
@@ -93,8 +93,11 @@ def handle_one(p: Path, model: Optional[str], refine: bool, detector: str = "vlm
     return result
 
 
-def run_once(model: Optional[str], refine: bool, reprocess: bool, detector: str = "vlm") -> int:
-    pending = _pending_images(reprocess)
+def run_once(model: Optional[str], refine: bool, reprocess: bool, detector: str = "vlm",
+             settle: float = SETTLE_SECONDS) -> int:
+    # In one-shot mode (settle=0) we process every complete pending file immediately; in
+    # continuous mode we let files settle first to avoid reading a half-written copy.
+    pending = _pending_images(reprocess, settle=settle)
     for p in pending:
         handle_one(p, model, refine, detector)
     return len(pending)
@@ -130,7 +133,8 @@ def main():
     ap.add_argument("--reprocess", action="store_true", help="ignore existing results")
     args = ap.parse_args()
     if args.once:
-        n = run_once(args.model, args.refine, args.reprocess, args.detector)
+        # one-shot: caller dropped files deliberately, so don't wait out the settle window
+        n = run_once(args.model, args.refine, args.reprocess, args.detector, settle=0.0)
         print(f"[watcher] processed {n} pending request(s).")
     else:
         watch(args.interval, args.model, args.refine, args.reprocess, args.detector)
