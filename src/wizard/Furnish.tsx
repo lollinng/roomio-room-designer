@@ -4,6 +4,7 @@ import { ARCHETYPES, ARCHETYPE_MAP, CATEGORY_ORDER } from '../data/archetypes'
 import { formatLenShort } from '../units'
 import type { FurnitureItem } from '../types'
 import { ScanRoom } from './ScanRoom'
+import { Suggestions } from './Suggestions'
 
 // Curated furniture palette — greys, blues, greens, tans, terracotta, charcoal,
 // cream, mustard, plum. The selected item's archetype default is appended too,
@@ -177,6 +178,8 @@ export function Furnish() {
       </button>
 
       {scanning && <ScanRoom onClose={() => setScanning(false)} />}
+
+      <Suggestions />
 
       {selected && <ItemEditor item={selected} />}
 

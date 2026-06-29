@@ -21,9 +21,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Deep-link / verification helper: ?stage=step2 jumps straight to a stage.
+  // Deep-link / verification helper: ?stage=step2 jumps straight to a stage,
+  // and ?preset=<genre_id> loads a persona room directly into the furnish stage.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const presetId = params.get('preset')
+    if (presetId) {
+      import('./data/personas').then(({ PERSONA_MAP }) => {
+        const preset = PERSONA_MAP[presetId]
+        if (preset) useStore.getState().loadPreset(preset)
+      })
+      return
+    }
     const q = params.get('stage') as Stage | null
     if (q && STAGES.includes(q) && q !== 'start') {
       const shapeParam = params.get('shape') as ShapeId | null
@@ -58,8 +67,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ?stage deep-links bypass the auth gate (verification convenience).
-  const deepLinked = new URLSearchParams(window.location.search).get('stage')
+  // ?stage / ?preset deep-links bypass the auth gate (verification convenience).
+  const params = new URLSearchParams(window.location.search)
+  const deepLinked = params.get('stage') || params.get('preset')
 
   if (authStatus === 'loading') {
     return (
