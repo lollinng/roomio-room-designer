@@ -12,7 +12,8 @@
     "check:lock": "node scripts/lock-check.mjs",
     "check:auth": "node scripts/auth-check.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:detect": "node scripts/detect-check.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",

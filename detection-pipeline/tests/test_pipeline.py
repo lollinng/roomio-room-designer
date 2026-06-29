@@ -194,6 +194,69 @@ class TestWatcherAtomic(unittest.TestCase):
             self.assertFalse(p.with_suffix(p.suffix + ".tmp").exists())
             self.assertEqual(json.loads(p.read_text())["version"], "1.0")
 
+    def test_one_shot_ignores_settle_window(self):
+        # A just-dropped file is skipped by the continuous settle window but MUST be picked up in
+        # one-shot mode (settle=0) — regression for --once silently processing nothing.
+        import tempfile
+        import watcher
+        with tempfile.TemporaryDirectory() as td:
+            orig = watcher.REQUESTS_DIR
+            watcher.REQUESTS_DIR = Path(td)
+            try:
+                (Path(td) / "fresh.jpg").write_bytes(b"\xff\xd8\xff\xe0fake")
+                self.assertEqual(len(watcher._pending_images(reprocess=True, settle=10.0)), 0)
+                self.assertEqual(len(watcher._pending_images(reprocess=True, settle=0.0)), 1)
+            finally:
+                watcher.REQUESTS_DIR = orig
+
+
+class TestEdgeCases(unittest.TestCase):
+    """The suggestion layer must degrade gracefully on bad input — never raise."""
+
+    def test_corrupt_image_degrades_to_error(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "broken.jpg"
+            p.write_bytes(b"not a real jpeg " * 8)  # undecodable
+            r = process(str(p), request_id="broken")
+            self.assertEqual(r["status"], "error")
+            self.assertEqual(validate_result(r), [])
+            self.assertEqual(r["proposals"], [])
+
+    def test_empty_proposals_ok_is_schema_valid(self):
+        # a frame with no detectable furniture → status ok, proposals [] (mirrors a transition frame)
+        r = {"version": "1.0", "request_id": "x", "status": "ok", "error": None,
+             "generated_by": "agent_b", "model": "qwen2.5vl:7b", "proposals": []}
+        self.assertEqual(validate_result(r), [])
+
+    def test_watcher_ignores_non_image_files(self):
+        import tempfile
+        import watcher
+        with tempfile.TemporaryDirectory() as td:
+            orig = watcher.REQUESTS_DIR
+            watcher.REQUESTS_DIR = Path(td)
+            try:
+                (Path(td) / "notes.txt").write_text("hi")
+                (Path(td) / "a.request.json").write_text("{}")
+                self.assertEqual(watcher._pending_images(reprocess=True, settle=0.0), [])
+            finally:
+                watcher.REQUESTS_DIR = orig
+
+    def test_sidecar_request_id_override(self):
+        import tempfile
+        import watcher
+        with tempfile.TemporaryDirectory() as td:
+            orig = watcher.REQUESTS_DIR
+            watcher.REQUESTS_DIR = Path(td)
+            try:
+                img = Path(td) / "img123.jpg"
+                img.write_bytes(b"\xff\xd8\xff\xe0")
+                (Path(td) / "img123.request.json").write_text(json.dumps({"request_id": "custom-id"}))
+                rid, _ = watcher._request_id_and_image(img)
+                self.assertEqual(rid, "custom-id")
+            finally:
+                watcher.REQUESTS_DIR = orig
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

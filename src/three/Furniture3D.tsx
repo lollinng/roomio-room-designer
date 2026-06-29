@@ -556,6 +556,186 @@ function buildPlant(W: number, D: number, H: number, color: string): JSX.Element
   )
 }
 
+function buildTv(W: number, D: number, H: number, color: string): JSX.Element {
+  // Flat-screen TV: wide thin screen on a small pedestal stand. `color` tints the
+  // stand/back; the screen face is a dark, faintly-emissive panel.
+  const standH = Math.min(H * 0.2, 0.18)
+  const screenH = H - standH
+  const bezelT = Math.min(D, 0.08)
+  const baseY = standH
+  return (
+    <group>
+      {/* pedestal base plate */}
+      <Box size={[W * 0.42, standH * 0.28, Math.max(D, 0.18)]} pos={[0, (standH * 0.28) / 2, 0]} color={DARK} roughness={0.5} metalness={0.3} />
+      {/* neck */}
+      <Box size={[W * 0.08, standH, Math.max(D, 0.18) * 0.45]} pos={[0, standH / 2, 0]} color={DARK} roughness={0.5} metalness={0.2} />
+      {/* screen body / bezel */}
+      <Box size={[W, screenH, bezelT]} pos={[0, baseY + screenH / 2, 0]} color={'#15171a'} roughness={0.5} metalness={0.2} />
+      {/* screen face (slightly emissive so it reads as a display) */}
+      <mesh position={[0, baseY + screenH / 2, bezelT / 2 + 0.002]} castShadow>
+        <boxGeometry args={[W * 0.95, screenH * 0.9, 0.005]} />
+        <meshStandardMaterial color={GLASS} emissive={'#0d1c2e'} emissiveIntensity={0.35} roughness={0.18} metalness={0.2} />
+      </mesh>
+    </group>
+  )
+}
+
+function buildDesk(W: number, D: number, H: number, color: string): JSX.Element {
+  // Modesty-panel desk: top slab on two side panels + a back panel; small drawer block.
+  const panelColor = shade(color, 0.62)
+  const topT = Math.min(0.05, H * 0.12)
+  const panelT = Math.min(0.04, W * 0.05)
+  const legH = H - topT
+  const sideD = D * 0.9
+  const drawerW = Math.min(W * 0.3, 0.45)
+  const drawerH = Math.min(legH * 0.35, 0.18)
+  const drawerColor = shade(color, 1.05)
+  return (
+    <group>
+      {/* top slab */}
+      <Box size={[W, topT, D]} pos={[0, H - topT / 2, 0]} color={color} roughness={0.45} />
+      {/* side panels */}
+      <Box size={[panelT, legH, sideD]} pos={[-W / 2 + panelT / 2, legH / 2, 0]} color={panelColor} roughness={0.5} />
+      <Box size={[panelT, legH, sideD]} pos={[W / 2 - panelT / 2, legH / 2, 0]} color={panelColor} roughness={0.5} />
+      {/* back modesty panel (upper, along -z) */}
+      <Box size={[W - panelT * 2, legH * 0.55, 0.02]} pos={[0, legH * 0.7, -D / 2 + 0.02]} color={panelColor} roughness={0.55} />
+      {/* drawer block under the top on +x side */}
+      <Box size={[drawerW, drawerH, sideD * 0.92]} pos={[W / 2 - panelT - drawerW / 2 - 0.01, H - topT - drawerH / 2 - 0.01, 0]} color={drawerColor} roughness={0.5} />
+      {/* drawer handle */}
+      <Cyl rTop={0.008} rBottom={0.008} height={drawerW * 0.4} pos={[W / 2 - panelT - drawerW / 2 - 0.01, H - topT - drawerH / 2 - 0.01, D / 2 * 0.92 + 0.012]} color={METAL} segments={10} rotation={[0, 0, Math.PI / 2]} roughness={0.3} metalness={0.7} />
+    </group>
+  )
+}
+
+function buildOttoman(W: number, D: number, H: number, color: string): JSX.Element {
+  // Soft upholstered ottoman / pouf. Round if footprint is ~square, else a block.
+  const round = Math.abs(W - D) < 0.12
+  const footH = Math.min(0.04, H * 0.16)
+  const bodyH = H - footH
+  const seam = shade(color, 0.86)
+  if (round) {
+    const r = Math.min(W, D) / 2
+    return (
+      <group>
+        <Cyl rTop={r * 0.96} rBottom={r} height={bodyH} pos={[0, footH + bodyH / 2, 0]} color={color} segments={32} roughness={0.92} />
+        {/* seam line */}
+        <Cyl rTop={r * 1.01} rBottom={r * 1.01} height={0.012} pos={[0, footH + bodyH / 2, 0]} color={seam} segments={32} roughness={0.92} />
+        {/* short feet */}
+        {([[0.6, 0.6], [-0.6, 0.6], [0.6, -0.6], [-0.6, -0.6]] as [number, number][]).map(([fx, fz], i) => (
+          <Cyl key={i} rTop={0.012} rBottom={0.012} height={footH} pos={[fx * r * 0.7, footH / 2, fz * r * 0.7]} color={shade(color, 0.45)} segments={8} roughness={0.4} metalness={0.3} />
+        ))}
+      </group>
+    )
+  }
+  return (
+    <group>
+      <Box size={[W, bodyH, D]} pos={[0, footH + bodyH / 2, 0]} color={color} roughness={0.92} />
+      {/* seam line around the middle */}
+      <Box size={[W * 1.006, 0.012, D * 1.006]} pos={[0, footH + bodyH * 0.5, 0]} color={seam} roughness={0.92} />
+      {/* feet */}
+      {([[-1, -1], [1, -1], [-1, 1], [1, 1]] as [number, number][]).map(([sx, sz], i) => (
+        <Cyl key={i} rTop={0.014} rBottom={0.014} height={footH} pos={[sx * (W / 2 - 0.06), footH / 2, sz * (D / 2 - 0.06)]} color={shade(color, 0.45)} segments={8} roughness={0.4} metalness={0.3} />
+      ))}
+    </group>
+  )
+}
+
+function buildStool(W: number, D: number, H: number, color: string): JSX.Element {
+  // Stool / bar stool. Tall (>70cm) → central post + base + footrest ring; else 4 legs.
+  const legColor = shade(color, 0.5)
+  const seatT = Math.min(0.06, H * 0.1)
+  const seatTop = H
+  const round = Math.abs(W - D) < 0.1
+  const seatR = Math.min(W, D) / 2
+  const seat = round ? (
+    <Cyl rTop={seatR} rBottom={seatR * 0.96} height={seatT} pos={[0, seatTop - seatT / 2, 0]} color={color} segments={28} roughness={0.65} />
+  ) : (
+    <Box size={[W, seatT, D]} pos={[0, seatTop - seatT / 2, 0]} color={color} roughness={0.65} />
+  )
+  const tall = H > 0.7
+  if (tall) {
+    const postR = Math.min(0.03, W * 0.08)
+    const baseR = Math.min(W, D) * 0.45
+    const postH = seatTop - seatT
+    return (
+      <group>
+        {seat}
+        <Cyl rTop={postR} rBottom={postR} height={postH} pos={[0, postH / 2, 0]} color={METAL} segments={16} roughness={0.35} metalness={0.6} />
+        <Cyl rTop={baseR} rBottom={baseR} height={0.02} pos={[0, 0.01, 0]} color={METAL} segments={28} roughness={0.35} metalness={0.6} />
+        {/* footrest ring */}
+        <mesh position={[0, H * 0.32, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[baseR * 0.8, 0.012, 8, 28]} />
+          <meshStandardMaterial color={METAL} roughness={0.35} metalness={0.6} />
+        </mesh>
+      </group>
+    )
+  }
+  const legH = seatTop - seatT
+  const inset = Math.min(0.05, W * 0.12)
+  const corners: [number, number][] = [
+    [-W / 2 + inset, -D / 2 + inset],
+    [W / 2 - inset, -D / 2 + inset],
+    [-W / 2 + inset, D / 2 - inset],
+    [W / 2 - inset, D / 2 - inset],
+  ]
+  return (
+    <group>
+      {seat}
+      {corners.map(([x, z], i) => (
+        <Cyl key={i} rTop={0.013} rBottom={0.016} height={legH} pos={[x, legH / 2, z]} color={legColor} segments={10} roughness={0.45} metalness={0.2} />
+      ))}
+    </group>
+  )
+}
+
+function buildBench(W: number, D: number, H: number, color: string): JSX.Element {
+  // Bench: long seat slab on two end supports; backrest only when tall.
+  const supportColor = shade(color, 0.55)
+  const cushColor = shade(color, 1.12)
+  const hasBack = H > 0.6
+  const seatTop = hasBack ? Math.min(0.46, H * 0.5) : H
+  const seatT = Math.min(0.06, seatTop * 0.16)
+  const panelT = Math.min(0.05, W * 0.06)
+  const legH = seatTop - seatT
+  return (
+    <group>
+      {/* end supports */}
+      <Box size={[panelT, legH, D * 0.92]} pos={[-W / 2 + panelT / 2, legH / 2, 0]} color={supportColor} roughness={0.5} />
+      <Box size={[panelT, legH, D * 0.92]} pos={[W / 2 - panelT / 2, legH / 2, 0]} color={supportColor} roughness={0.5} />
+      {/* seat slab */}
+      <Box size={[W, seatT, D]} pos={[0, seatTop - seatT / 2, 0]} color={color} roughness={0.6} />
+      {/* thin cushion */}
+      <Box size={[W * 0.96, 0.03, D * 0.9]} pos={[0, seatTop + 0.015, 0]} color={cushColor} roughness={0.88} />
+      {/* backrest when tall */}
+      {hasBack && (
+        <Box size={[W, H - seatTop, Math.min(0.05, D * 0.12)]} pos={[0, seatTop + (H - seatTop) / 2, -D / 2 + Math.min(0.05, D * 0.12) / 2]} color={color} roughness={0.6} />
+      )}
+    </group>
+  )
+}
+
+function buildMirror(W: number, D: number, H: number, color: string): JSX.Element {
+  // Freestanding full-length mirror (also used for tall room dividers).
+  const frameT = Math.min(Math.max(D, 0.03), 0.06)
+  const frameW = Math.min(0.05, W * 0.1)
+  return (
+    <group>
+      {/* frame slab */}
+      <Box size={[W, H, frameT]} pos={[0, H / 2, 0]} color={color} roughness={0.5} />
+      {/* reflective panel on +z */}
+      <mesh position={[0, H / 2, frameT / 2 + 0.003]} castShadow receiveShadow>
+        <boxGeometry args={[W - frameW * 2, H - frameW * 2, 0.008]} />
+        <meshStandardMaterial color={'#ccd8de'} roughness={0.06} metalness={0.7} />
+      </mesh>
+      {/* back support strut (leans the mirror) */}
+      <mesh position={[0, H * 0.42, -frameT / 2 - 0.04]} rotation={[0.16, 0, 0]} castShadow>
+        <boxGeometry args={[W * 0.08, H * 0.7, 0.02]} />
+        <meshStandardMaterial color={shade(color, 0.5)} roughness={0.5} />
+      </mesh>
+    </group>
+  )
+}
+
 function buildBox(W: number, D: number, H: number, color: string): JSX.Element {
   const r = Math.min(W, D, H) * 0.06
   return (
@@ -622,6 +802,18 @@ export function FurnitureModel({
         return buildPlant(W, D, H, color)
       case 'box':
         return buildBox(W, D, H, color)
+      case 'tv':
+        return buildTv(W, D, H, color)
+      case 'desk':
+        return buildDesk(W, D, H, color)
+      case 'ottoman':
+        return buildOttoman(W, D, H, color)
+      case 'stool':
+        return buildStool(W, D, H, color)
+      case 'bench':
+        return buildBench(W, D, H, color)
+      case 'mirror':
+        return buildMirror(W, D, H, color)
       default:
         return buildBox(W, D, H, color)
     }

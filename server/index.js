@@ -10,6 +10,9 @@
 // -----------------------------------------------------------------------------
 
 import { randomUUID } from 'node:crypto'
+import { readFile, writeFile, rename } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 
@@ -26,8 +29,16 @@ import {
 
 const PORT = process.env.PORT || 5181
 
+// ESM has no __dirname; derive it from import.meta.url. repoRoot is one level up
+// from server/ — used to locate shared/requests and shared/results.
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.join(__dirname, '..')
+
 const app = express()
 app.use(express.json({ limit: '2mb' }))
+// Room photos arrive as base64 data URLs which blow past the 2mb default, so the
+// /api/detect POST gets its own larger JSON parser.
+app.use('/api/detect', express.json({ limit: '15mb' }))
 app.use(cookieParser())
 
 // --- Helpers ----------------------------------------------------------------
@@ -248,6 +259,91 @@ app.delete(
     ])
     // Idempotent: deleting a missing/unowned design still returns ok.
     res.json({ ok: true })
+  })
+)
+
+// --- Detection (scan a room photo) -------------------------------------------
+//
+// Suggestion-only furniture detection. Agent A POSTs a room photo; we drop the
+// bytes + a sidecar request file into shared/requests/ for Agent B's Python
+// watcher to pick up. The watcher writes shared/results/<id>.result.json, which
+// the client polls for via GET. These routes are intentionally unauthenticated.
+
+const REQUESTS_DIR = path.join(repoRoot, 'shared', 'requests')
+const RESULTS_DIR = path.join(repoRoot, 'shared', 'results')
+
+// Only simple, filesystem-safe ids — defends the GET against path traversal.
+const ID_RE = /^[A-Za-z0-9_-]+$/
+
+/** Strip an optional "data:image/...;base64," prefix and return the raw base64. */
+const stripDataUrlPrefix = (s) => s.replace(/^data:[^;,]*;base64,/, '').replace(/^data:[^,]*,/, '')
+
+// POST /api/detect — accept a room photo, queue it for detection, return its id.
+app.post(
+  '/api/detect',
+  wrap(async (req, res) => {
+    const { imageBase64 } = req.body || {}
+    if (typeof imageBase64 !== 'string' || imageBase64.trim() === '') {
+      return res.status(400).json({ error: 'imageBase64 required' })
+    }
+
+    const raw = stripDataUrlPrefix(imageBase64.trim())
+    let bytes
+    try {
+      bytes = Buffer.from(raw, 'base64')
+    } catch {
+      return res.status(400).json({ error: 'invalid base64 image' })
+    }
+    if (bytes.length === 0) {
+      return res.status(400).json({ error: 'invalid base64 image' })
+    }
+
+    const id = randomUUID()
+    const imageRel = `shared/requests/${id}.jpg`
+    const imagePath = path.join(REQUESTS_DIR, `${id}.jpg`)
+    const sidecarPath = path.join(REQUESTS_DIR, `${id}.request.json`)
+
+    // Write via tmp + rename so the watcher never observes a half-written file.
+    const imageTmp = `${imagePath}.tmp`
+    await writeFile(imageTmp, bytes)
+    await rename(imageTmp, imagePath)
+
+    const sidecarTmp = `${sidecarPath}.tmp`
+    await writeFile(
+      sidecarTmp,
+      JSON.stringify({ request_id: id, image_path: imageRel }),
+    )
+    await rename(sidecarTmp, sidecarPath)
+
+    res.json({ request_id: id })
+  })
+)
+
+// GET /api/detect/:id — poll for a detection result. Pending until the watcher
+// writes the result file; returns the result JSON verbatim once it exists.
+app.get(
+  '/api/detect/:id',
+  wrap(async (req, res) => {
+    const { id } = req.params
+    if (!ID_RE.test(id)) {
+      return res.status(400).json({ error: 'invalid id' })
+    }
+
+    const resultPath = path.join(RESULTS_DIR, `${id}.result.json`)
+    let text
+    try {
+      text = await readFile(resultPath, 'utf8')
+    } catch {
+      // No result file yet — detection still in progress (or never queued).
+      return res.json({ status: 'pending' })
+    }
+
+    try {
+      return res.json(JSON.parse(text))
+    } catch {
+      // File may be mid-write (watcher not using tmp+rename) — treat as pending.
+      return res.json({ status: 'pending' })
+    }
   })
 )
 
