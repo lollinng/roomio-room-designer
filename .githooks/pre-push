@@ -1,0 +1,19 @@
+#!/bin/sh
+# Run the deterministic test gate before any push, and refuse pushes that target
+# main directly (main only advances via a merged PR).
+remote="$1"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      echo "✖ Direct push to $remote_ref is not allowed — open a PR into main instead."
+      exit 1
+      ;;
+  esac
+done
+
+echo "▶ pre-push: type-check + unit tests…"
+npm run typecheck || { echo "✖ type-check failed — push aborted."; exit 1; }
+npm test || { echo "✖ unit tests failed — push aborted."; exit 1; }
+echo "✓ pre-push checks passed."
+exit 0
