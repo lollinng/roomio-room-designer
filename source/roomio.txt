@@ -372,3 +372,39 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   Until modeled, presets ship with closest-archetype/placeholder + this log entry, so nothing is blocked.
   @AGENT-B no action needed — my work doesn't touch detection-pipeline/ or shared/{requests,results}; the new
   shared/*_schema.json are additive and reuse the same archetype-id contract you already consume.
+
+# ───────────────────────── AGENT D (Coordinator) — cycle 1 ─────────────────────────
+[2026-06-30 03:30] [AGENT-D] CYCLE 1. main health: RUNNABLE (y). Integrated ALL THREE agents' committed
+  v3 work into main via PR (main is PR-gated; advances only through merged PRs + green CI):
+    - PR #3 (feature/v3-multi-room-connectors) → main 4ff2bab: Agent B flythrough C0–C6
+      (/camera-flythrough) + Agent C multi-room C0–C6 (/multi-room). Both isolated sub-packages.
+    - PR #4 (feature/v3-persona-rooms) → main 54828bc: Agent A 10 persona presets + suggestion engine
+      (front-end + data) + shared/persona_preset_schema.json + rule_schema.json.
+  VERIFIED (each ref snapshotted + built in an isolated git worktree; CI green on both PRs):
+    - Root app source is BYTE-IDENTICAL to the prior CI-passed main for the B/C merge — it only ADDS
+      isolated packages + hooks + additive shared schemas, so it cannot break the main app. Confirmed
+      root `npm run build` (tsc -b && vite build) succeeds on final main 54828bc.
+    - Tests: root 167 (incl. 64 persona + 16 engine) · /camera-flythrough 28 · /multi-room 38 — all green.
+    - No merge conflicts on either PR.
+  CONTRACTS VERIFIED (producer ↔ consumer agree): detection_schema v1.0 (LOCKED) · archetypes.json
+    (91 ids, single source of truth — C's essentials + A's presets reference only valid ids) ·
+    camera_path_schema v1.0 (world-meters, self-contained) · house_schema v1.0 (wraps RoomDesign verbatim,
+    backward-compat single-room) · persona_preset_schema + rule_schema v1.0 (additive). New shared/LEARNINGS.md
+    curated (Schemas / Scene-Rendering / Build-Tooling / Gotchas).
+  OPEN ITEMS (by owner — none blocking main):
+    - REQUEST -> AGENT-A (from B, still OPEN): wire the scene_contract sceneBus seam in A's src/three/
+      (src/three/sceneBus.ts mirroring cameraBus.ts + <SceneBridge/> inside RoomView's <Canvas> publishing
+      {scene,gl,camera,controls} + getColliders()). Until then the flythrough renders B's local harness scene,
+      not the live in-app room. Decoupled by design (zero build coupling) → no break, just not yet live.
+    - ISSUE -> AGENT-A & AGENT-C (contract overlap, please reconcile): two RoomType taxonomies —
+      A's interior RoomDesign.roomType (living|bedroom|studio|family|office|den) vs C's house-level
+      HouseRoom.type (…|kitchen|bathroom|dining|foyer|hallway). Both additive/optional (no build conflict),
+      but a C "kitchen" room's wrapped interior can't carry a meaningful roomType. Recommend C's house-level
+      taxonomy stays canonical for room CLASSIFICATION and A's roomType either aligns to a superset or is
+      explicitly scoped as an interior suggestion hint with a defined map. Recorded in LEARNINGS.md too.
+    - HOUSE-KEEPING -> AGENT-B: a stray nested `camera-flythrough/camera-flythrough/` dir appeared in the
+      working tree (untracked) — looks like a mis-rooted command; please remove. Not committed, harmless.
+    - NOTE: a new brief landed — source/Roomio_Lighting_TimeOfDay_Brief_AgentE.pdf (Agent E, lighting/
+      time-of-day). No shared contract from E yet; will integrate when E publishes + commits.
+  Branches feature/v3-multi-room-connectors + feature/v3-persona-rooms left intact on origin (agents are
+  still committing in-flight work on them). Next cycle: pick up new commits + E's first contract.
