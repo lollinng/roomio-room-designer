@@ -1,2 +1,4 @@
 keep working for next 4 hours
 make sure evrything is scalable in long term
+give locking option for the furniture when placed so that cursor doesnt by mistake change the position
+also make sure you build a whole login for the system using pg to keep session data

@@ -12,6 +12,7 @@ function OpeningIcon({ def }: { def: OpeningDef }) {
   const right = W - pad
   const leafW = (right - left) / def.leaves
   const leaves = Array.from({ length: def.leaves })
+  const pos = (v: number) => Math.max(0, v) // SVG rejects negative width/height
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%">
@@ -26,8 +27,8 @@ function OpeningIcon({ def }: { def: OpeningDef }) {
           const gAbove = gh * (1 - def.glass)
           return (
             <g key={i}>
-              <rect x={lx + gi} y={top + gi} width={leafW - gi * 2} height={bottom - top - gi * 2} fill="#f6f4ef" stroke="#c4bfb3" strokeWidth={1} />
-              <rect x={lx + gi + 2} y={gy + gAbove} width={leafW - gi * 2 - 4} height={gh - gAbove - 2} fill="#cfe3ea" stroke="#9fb6bd" strokeWidth={1} />
+              <rect x={lx + gi} y={top + gi} width={pos(leafW - gi * 2)} height={pos(bottom - top - gi * 2)} fill="#f6f4ef" stroke="#c4bfb3" strokeWidth={1} />
+              <rect x={lx + gi + 2} y={gy + gAbove} width={pos(leafW - gi * 2 - 4)} height={pos(gh - gAbove - 2)} fill="#cfe3ea" stroke="#9fb6bd" strokeWidth={1} />
               {/* muntin */}
               <line x1={lx + leafW / 2} y1={gy + gAbove} x2={lx + leafW / 2} y2={bottom - gi - 2} stroke="#9fb6bd" strokeWidth={0.8} />
             </g>
@@ -35,9 +36,9 @@ function OpeningIcon({ def }: { def: OpeningDef }) {
         }
         return (
           <g key={i}>
-            <rect x={lx + gi} y={top + gi} width={leafW - gi * 2} height={bottom - top - gi * 2} fill="#f6f4ef" stroke="#c4bfb3" strokeWidth={1} />
-            <rect x={lx + 6} y={top + 7} width={leafW - 12} height={(bottom - top) / 2 - 9} fill="#eceae3" stroke="#cfcabd" strokeWidth={0.8} />
-            <rect x={lx + 6} y={top + (bottom - top) / 2 + 2} width={leafW - 12} height={(bottom - top) / 2 - 9} fill="#eceae3" stroke="#cfcabd" strokeWidth={0.8} />
+            <rect x={lx + gi} y={top + gi} width={pos(leafW - gi * 2)} height={pos(bottom - top - gi * 2)} fill="#f6f4ef" stroke="#c4bfb3" strokeWidth={1} />
+            <rect x={lx + 6} y={top + 7} width={pos(leafW - 12)} height={pos((bottom - top) / 2 - 9)} fill="#eceae3" stroke="#cfcabd" strokeWidth={0.8} />
+            <rect x={lx + 6} y={top + (bottom - top) / 2 + 2} width={pos(leafW - 12)} height={pos((bottom - top) / 2 - 9)} fill="#eceae3" stroke="#cfcabd" strokeWidth={0.8} />
           </g>
         )
       })}
