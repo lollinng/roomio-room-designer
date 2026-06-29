@@ -575,3 +575,38 @@ button {
   color: var(--ink-2);
   margin: 0 0 30px;
 }
+
+/* ---------- thin custom scrollbar for panels ---------- */
+.panel-scroll::-webkit-scrollbar {
+  width: 9px;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: #dcd8d0;
+  border-radius: 8px;
+  border: 2px solid #fff;
+}
+.panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: #c7c2b8;
+}
+
+/* ---------- responsive: shrink panel on narrow screens ---------- */
+@media (max-width: 980px) {
+  :root {
+    --panel-w: 360px;
+  }
+  .panel-scroll {
+    padding: 28px 26px 20px;
+  }
+  .title {
+    font-size: 24px;
+  }
+}
+@media (max-width: 720px) {
+  :root {
+    --panel-w: 300px;
+  }
+  .preset-grid,
+  .catalog-grid {
+    grid-template-columns: 1fr;
+  }
+}

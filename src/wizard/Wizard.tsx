@@ -8,6 +8,14 @@ import { Step3Openings } from './Step3Openings'
 import { Step4Style } from './Step4Style'
 import { Furnish } from './Furnish'
 
+const HINTS: Record<Exclude<Stage, 'start'>, string> = {
+  step1: 'Drag to orbit · scroll to zoom',
+  step2: 'Drag a wall to resize, or type an exact length',
+  step3: 'Pick a style, then click a wall to place it',
+  step4: 'Choose a wall colour and floor finish',
+  furnish: 'Click a piece to add · drag to move · it snaps to walls',
+}
+
 const META: Record<Exclude<Stage, 'start'>, { eyebrow: string; title: string }> = {
   step1: { eyebrow: 'Step 1 of 4', title: 'Set the shape and size' },
   step2: { eyebrow: 'Step 2 of 4', title: 'Adjust your dimensions' },
@@ -103,6 +111,7 @@ export function Wizard() {
         <button className="home-btn" onClick={() => setStage('start')} title="Home">
           ⌂
         </button>
+        <div className="vp-hint">{HINTS[stage]}</div>
       </div>
     </>
   )

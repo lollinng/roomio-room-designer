@@ -327,6 +327,11 @@ function applyCorners(
   })
 }
 
+// expose the store for debugging / interaction tests in dev
+if (typeof window !== 'undefined' && import.meta.env?.DEV) {
+  ;(window as unknown as { __roomio?: typeof useStore }).__roomio = useStore
+}
+
 // convenience selectors
 export const useDesign = () => useStore((s) => s.design)
 export const useWalls = () => useStore((s) => s.walls)
