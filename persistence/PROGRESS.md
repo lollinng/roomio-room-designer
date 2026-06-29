@@ -16,8 +16,14 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
         (`src/envelope/factory.ts`), read-only scene mirrors + house coercion (`src/scene/`).
       - 8/8 vitest green (backward-compat for all 3 legacy shapes + round-trip + lighting
         pass-through + duplicate independence); typecheck clean.
-- [ ] **C2-1** — Autosave engine: debounced (~1–3 s) autosave, visible `Saving…`→`Saved <ts>`
-      status, optimistic UI, manual Save + Ctrl/Cmd-S checkpoint, unsaved-exit (beforeunload) warning.
+- [x] **C2-1** — Autosave engine: debounced autosave + visible status + optimistic UI + manual save + unsaved-exit.
+      - `src/autosave/engine.ts` (debounce, coalesce-mid-flight, retry-never-drop), `status.ts`,
+        `beforeUnload.ts`; `src/storage/{adapter,repository}.ts` (localStorage + in-memory fallback +
+        FlakyAdapter); `src/app/session.ts` (optimistic store, thumbnail-on-save, rev bump).
+      - UI: `SaveStatusIndicator` (spinner + live relative time + in-memory warning), `Floorplan`
+        canvas, demo Editor (rename, edit, ⌘/Ctrl-S, Save), baseline Library, App shell.
+      - 18/18 vitest + 10/10 headless browser checks green (Saving…→Saved, optimistic, rev advance,
+        reload-persists-with-thumbnail, reopen round-trip). Screenshots in `verify-out/`.
 - [ ] **C2-2** — Save-failure retry (never silently drop; keep in memory; backoff) + (stretch)
       lightweight version history / restore points.
 - [ ] **C2-3** — My Designs library: grid of cards (thumbnail + name + last-edited), open / inline
