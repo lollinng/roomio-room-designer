@@ -135,15 +135,20 @@ export function resolveWalk(
   let x = proposed.x
   let z = proposed.z
 
+  // Push out of furniture FIRST, then clamp to walls LAST each pass. Wall
+  // containment is the HARD constraint (never leave the room); furniture is
+  // softer (matches the app's own solver, where overlaps are warnings). So in
+  // a degenerate squeeze — e.g. a piece parked a body-width from a corner —
+  // the walker grazes the furniture rather than clipping through the wall.
   for (let pass = 0; pass < passes; pass++) {
-    const wall = clampToWalls(x, z, colliders.walls, margin)
-    x = wall.x
-    z = wall.z
     for (const obb of colliders.furniture) {
       const r = pushOutOfObb(x, z, obb, radius)
       x = r.x
       z = r.z
     }
+    const wall = clampToWalls(x, z, colliders.walls, margin)
+    x = wall.x
+    z = wall.z
   }
 
   // Safety net: if we somehow ended outside the polygon, fall back to prev.
