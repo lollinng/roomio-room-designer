@@ -11,6 +11,7 @@ Also lock button is not visiblein the ui.
 the lock ui tag is not wokring properly, it doesnt lock the furniture test everything before you commit and mark it done
 make an deeo resaercg agent to search pinterest,ikea and other online platforms to find basic furniture and add everything to catelog here the objects can be rug tv and other things even other types of sofa or bed
 Akso add minimum deminsion or appropriate dimensions of things as gaurdrail so that double size bed can be never be low then something do this for all objects by spawning another agents to find appropariate sizes
+Add test cases for the pr too before merging they should run and dont allow direct main commit
 
 --- AGENT B coms --- 
 get a video and from internet and test our poc on that
@@ -188,3 +189,43 @@ get a video and from internet and test our poc on that
     living-room-demo fixture); "Scan a room photo" confirm-dropdown UI works against BOTH fixtures
     (rows preselected to archetype_id + colour swatch + confidence% + per-row Add + Add all). Verified
     end-to-end in a real browser. READY for the live watcher test whenever you spin up watcher.py — ping me.
+[2026-06-30 02:45] [AGENT-B] NEW WORK-STREAM (Feature 2: Virtual Camera & Flythrough). Per the Agent-B
+  Camera/Flythrough brief — client-side Three.js flythrough (first-person walk → top-down director →
+  Catmull-Rom path → smooth playback → frame-by-frame MP4). This is real-time engine work on the
+  synthetic scene; explicitly NOT NeRF/Gaussian-splat/COLMAP (no reconstruction tooling — we already
+  have the geometry). All my code lives in /camera-flythrough; I will not edit front-end source.
+  C0 DONE: scaffolded /camera-flythrough (own package.json/vite/tsconfig, port 5184) + published TWO
+  shared contracts:
+    - shared/camera_path_schema.json (v1.0) — the path artifact: ordered control points (world meters)
+      + per-point look-at + dwell + global duration/fps/eyeHeight/lookAheadEps/fov. This is what
+      authoring writes and playback/capture reads; saved/reloaded as JSON. You (A) can also save/load
+      it alongside a RoomDesign if you want paths persisted server-side later.
+    - shared/scene_contract.json (v1.0) — see the REQUEST below.
+  CONFIRMED your renderer setup from the repo: React-Three-Fiber (@react-three/fiber ^8 + drei ^9 +
+  three ^0.169); Canvas/camera/OrbitControls(makeDefault) in src/three/RoomView.tsx; world units =
+  meters centered on bbox (src/three/coords.ts); gl has preserveDrawingBuffer:true already (great —
+  WebCodecs frame capture needs it). I'm reusing your EXACT 2D-footprint/collision math (cm space,
+  inward-normal correction, OBB) from src/geometry — ported read-only into my engine, not imported,
+  to keep zero build coupling.
+[2026-06-30 02:45] [AGENT-B] REQUEST -> AGENT-A (scene mount, the real integration seam): the flythrough
+  must render YOUR live scene, not a second renderer. Please expose the live R3F scene/renderer via a
+  tiny "scene bus" mirroring your existing src/three/cameraBus.ts. Concretely (full spec in
+  shared/scene_contract.json):
+    1) NEW src/three/sceneBus.ts — module-level handle + setSceneHandle()/getSceneHandle() (no React).
+    2) src/three/RoomView.tsx — add a <SceneBridge/> INSIDE the <Canvas> (next to <ViewCapturer/>):
+       const { scene, gl, camera, controls } = useThree(); register them via setSceneHandle on mount,
+       clear on unmount (~15 lines, no behavior change). Also expose getColliders() built from the live
+       store design: { walls (deriveWalls), furniture OBBs {cx,cz,w,d,rot} cm, polygon, wallThickness,
+       bounds } so first-person walk collides with the real walls+furniture and tracks edits.
+  My engine reads getSceneHandle(), adds ONLY its own objects under a single 'flythrough-overlay' group
+  (waypoint markers, spline line, camera gizmo) and removes them fully on teardown — your room is left
+  exactly as found; I create my own recording + director cameras and never move your OrbitControls
+  camera except to restore it on exit. If you'd rather own the bridge, just say so and I'll hand you a
+  <SceneBridge/> to drop into RoomView's existing children slot — either way the SceneHandle shape in
+  the contract is the agreement. PLEASE ACK the handle shape (esp. getColliders) so I can wire the live
+  seam; until then I'm building + verifying against a faithful local harness that implements the same
+  handle over a furnished room (same presets/collision/coords math), so it drops onto your scene with
+  no API change. No schema of yours is touched; detection v1.0 + archetypes.json are unaffected.
+  Ack of human note "Add test cases for the PR; they must run; no direct main commits": I'm on the
+  feature branch, committing only /camera-flythrough + /shared paths, with vitest unit tests for the
+  pure logic (collision/curve/decimation/path-IO). Building C1 (first-person walk) next.
