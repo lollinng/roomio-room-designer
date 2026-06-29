@@ -110,8 +110,20 @@ def parse_detections(data, width: int, height: int) -> list[Detection]:
     return out
 
 
-def detect(image_path: str, width: int, height: int, model: Optional[str] = None) -> tuple[list[Detection], str]:
-    """Run VLM detection. Returns (detections, model_used). model_used='' if no model."""
+def detect(image_path: str, width: int, height: int, model: Optional[str] = None,
+           backend: str = "vlm") -> tuple[list[Detection], str]:
+    """Run Stage-1 detection. Returns (detections, model_used). model_used='' if no detector.
+
+    backend='vlm' (default) uses the Ollama VLM. backend='yolo' tries the opt-in deterministic
+    YOLO detector and transparently falls back to the VLM path if it is unavailable/empty.
+    """
+    if backend == "yolo":
+        from detect_yolo import detect_yolo
+        ydets = detect_yolo(image_path, width, height)
+        if ydets:
+            return ydets, "yolo"
+        # unavailable or nothing found → fall through to the VLM path
+
     chosen = pick_model(model)
     if not chosen:
         return [], ""

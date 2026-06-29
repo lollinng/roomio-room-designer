@@ -57,6 +57,7 @@ def process(
     model: Optional[str] = None,
     refine: bool = False,
     validate: bool = True,
+    detector: str = "vlm",
 ) -> dict:
     """Photo path → schema-valid proposal dict. Degrades gracefully on every error."""
     request_id = request_id or Path(image_path).stem
@@ -67,7 +68,7 @@ def process(
             return _error_result(request_id, image_path, f"could not read image: {image_path}")
         H, W = image.shape[:2]
 
-        detections, model_used = detect(image_path, W, H, model=model)
+        detections, model_used = detect(image_path, W, H, model=model, backend=detector)
         if not model_used:
             res = _error_result(request_id, image_path,
                                 "no local vision model available — pull qwen2.5vl:7b or moondream via Ollama")
@@ -116,11 +117,14 @@ def main():
     ap.add_argument("--id", dest="request_id", default=None)
     ap.add_argument("--model", default=None, help="override Ollama model (default: auto-pick)")
     ap.add_argument("--refine", action="store_true", help="second VLM pass for ambiguous classes")
+    ap.add_argument("--detector", choices=("vlm", "yolo"), default="vlm",
+                    help="Stage-1 detector; 'yolo' is opt-in (AGPL) and falls back to VLM")
     ap.add_argument("--out", default=None, help="write result JSON here (default: stdout)")
     ap.add_argument("--save", action="store_true", help="write to shared/results/<id>.result.json")
     args = ap.parse_args()
 
-    result = process(args.image, request_id=args.request_id, model=args.model, refine=args.refine)
+    result = process(args.image, request_id=args.request_id, model=args.model,
+                     refine=args.refine, detector=args.detector)
     text = json.dumps(result, indent=2)
     if args.save:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)

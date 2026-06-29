@@ -75,11 +75,11 @@ def _pending_images(reprocess: bool) -> list[Path]:
     return out
 
 
-def handle_one(p: Path, model: Optional[str], refine: bool) -> dict:
+def handle_one(p: Path, model: Optional[str], refine: bool, detector: str = "vlm") -> dict:
     rid, image_path = _request_id_and_image(p)
     t0 = time.perf_counter()
     try:
-        result = process(image_path, request_id=rid, model=model, refine=refine)
+        result = process(image_path, request_id=rid, model=model, refine=refine, detector=detector)
     except Exception as e:  # process() shouldn't raise, but never let the loop die
         result = {
             "version": "1.0", "request_id": rid, "status": "error",
@@ -93,21 +93,21 @@ def handle_one(p: Path, model: Optional[str], refine: bool) -> dict:
     return result
 
 
-def run_once(model: Optional[str], refine: bool, reprocess: bool) -> int:
+def run_once(model: Optional[str], refine: bool, reprocess: bool, detector: str = "vlm") -> int:
     pending = _pending_images(reprocess)
     for p in pending:
-        handle_one(p, model, refine)
+        handle_one(p, model, refine, detector)
     return len(pending)
 
 
-def watch(interval: float, model: Optional[str], refine: bool, reprocess: bool) -> None:
+def watch(interval: float, model: Optional[str], refine: bool, reprocess: bool, detector: str = "vlm") -> None:
     REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[watcher] polling {REQUESTS_DIR} every {interval}s — drop an image to process. Ctrl-C to stop.")
     first = True
     while True:
         try:
-            n = run_once(model, refine, reprocess and first)
+            n = run_once(model, refine, reprocess and first, detector)
             first = False
             if n == 0:
                 time.sleep(interval)
@@ -125,13 +125,15 @@ def main():
     ap.add_argument("--interval", type=float, default=1.5, help="poll interval seconds")
     ap.add_argument("--model", default=None, help="override Ollama model")
     ap.add_argument("--refine", action="store_true", help="second VLM pass for ambiguous classes")
+    ap.add_argument("--detector", choices=("vlm", "yolo"), default="vlm",
+                    help="Stage-1 detector; 'yolo' is opt-in (AGPL) and falls back to VLM")
     ap.add_argument("--reprocess", action="store_true", help="ignore existing results")
     args = ap.parse_args()
     if args.once:
-        n = run_once(args.model, args.refine, args.reprocess)
+        n = run_once(args.model, args.refine, args.reprocess, args.detector)
         print(f"[watcher] processed {n} pending request(s).")
     else:
-        watch(args.interval, args.model, args.refine, args.reprocess)
+        watch(args.interval, args.model, args.refine, args.reprocess, args.detector)
 
 
 if __name__ == "__main__":

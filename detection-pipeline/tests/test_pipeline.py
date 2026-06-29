@@ -22,6 +22,7 @@ from classify import classify  # noqa: E402
 from color import dominant_color, nearest_name, crop_region, _hex_to_rgb  # noqa: E402
 from config import MIN_ARCHETYPE_CONFIDENCE  # noqa: E402
 from detect import Detection, _coerce_bbox, parse_detections  # noqa: E402
+from detect_yolo import detect_yolo, yolo_available  # noqa: E402
 from pipeline import process, validate_result  # noqa: E402
 
 
@@ -163,6 +164,15 @@ class TestPipelineContract(unittest.TestCase):
             out = classify(d)
             if out:
                 self.assertTrue(c.is_valid(out["archetype_id"]))
+
+
+class TestYoloOptional(unittest.TestCase):
+    def test_unavailable_degrades_to_empty(self):
+        # ultralytics is not a default dependency: the opt-in detector must return [] (never raise)
+        # so the pipeline can transparently fall back to the VLM path.
+        if yolo_available():
+            self.skipTest("ultralytics installed; fallback path not exercised")
+        self.assertEqual(detect_yolo("tests/fixtures/whatever.jpg", 100, 100), [])
 
 
 class TestWatcherAtomic(unittest.TestCase):
