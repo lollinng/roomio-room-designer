@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, type Stage } from '../store'
 import { RoomView } from '../three/RoomView'
-import { saveDesign } from '../persistence'
+import { saveDesign, storageMode } from '../repository'
 import { Step1Shape } from './Step1Shape'
 import { Step2Dimensions } from './Step2Dimensions'
 import { Step3Openings } from './Step3Openings'
@@ -50,10 +50,15 @@ export function Wizard() {
   const meta = META[stage]
   const [saved, setSaved] = useState(false)
 
-  const onSave = () => {
-    saveDesign(useStore.getState().design)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1600)
+  const onSave = async () => {
+    try {
+      await saveDesign(useStore.getState().design)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1600)
+    } catch {
+      setSaved(false)
+      alert('Could not save your design. Please try again.')
+    }
   }
 
   useEffect(() => {
@@ -114,7 +119,7 @@ export function Wizard() {
             </button>
           ) : (
             <button className="btn btn-primary" onClick={onSave}>
-              {saved ? 'Saved ✓' : 'Save design'}
+              {saved ? 'Saved ✓' : storageMode() === 'cloud' ? 'Save to account' : 'Save design'}
             </button>
           )}
         </div>

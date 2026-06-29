@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import { useStore, type Stage } from './store'
 import type { ShapeId } from './types'
+import { useAuth } from './auth'
 import { Wizard } from './wizard/Wizard'
 import { StartScreen } from './wizard/StartScreen'
+import { AuthScreen } from './wizard/AuthScreen'
 
 const STAGES: Stage[] = ['start', 'step1', 'step2', 'step3', 'step4', 'furnish']
 const SHAPES: ShapeId[] = ['rect', 'l', 't', 'u', 'cut', 'beveled']
@@ -10,6 +12,14 @@ const SHAPES: ShapeId[] = ['rect', 'l', 't', 'u', 'cut', 'beveled']
 export default function App() {
   const stage = useStore((s) => s.stage)
   const setStage = useStore((s) => s.setStage)
+  const authStatus = useAuth((s) => s.status)
+  const initAuth = useAuth((s) => s.init)
+
+  // Check the session once on boot.
+  useEffect(() => {
+    initAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Deep-link / verification helper: ?stage=step2 jumps straight to a stage.
   useEffect(() => {
@@ -45,6 +55,27 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ?stage deep-links bypass the auth gate (verification convenience).
+  const deepLinked = new URLSearchParams(window.location.search).get('stage')
+
+  if (authStatus === 'loading') {
+    return (
+      <div className="app">
+        <div className="start">
+          <div className="boot-spinner" />
+        </div>
+      </div>
+    )
+  }
+
+  if (authStatus === 'anon' && !deepLinked) {
+    return (
+      <div className="app">
+        <AuthScreen />
+      </div>
+    )
+  }
 
   return <div className="app">{stage === 'start' ? <StartScreen /> : <Wizard />}</div>
 }

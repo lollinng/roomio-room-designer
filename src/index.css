@@ -627,6 +627,100 @@ button {
   margin: 0 0 30px;
 }
 
+/* ---------- auth screen ---------- */
+.auth-input {
+  width: 100%;
+  border: 1.5px solid var(--line-2);
+  border-radius: 11px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+  margin-bottom: 12px;
+}
+.auth-input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+.auth-error {
+  background: #fdeceA;
+  background: #fbeae8;
+  color: #b0392f;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.auth-guest {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 18px;
+  border: none;
+  background: none;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px;
+}
+.auth-guest:hover {
+  color: var(--ink);
+}
+.guest-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: #f2f0ea;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+.boot-spinner {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 4px solid #dcd8d0;
+  border-top-color: var(--ink);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.saved-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e6e3dd;
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.saved-row:hover {
+  border-color: #b9b4a9;
+  background: #fbfaf7;
+}
+.saved-del {
+  flex: none;
+  border: 1px solid #e6e3dd;
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #b0392f;
+  cursor: pointer;
+}
+.saved-del:hover {
+  border-color: #b0392f;
+}
+
 /* ---------- thin custom scrollbar for panels ---------- */
 .panel-scroll::-webkit-scrollbar {
   width: 9px;
