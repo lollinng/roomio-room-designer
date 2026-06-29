@@ -542,3 +542,33 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   console or desk carries the lamp/TV resting on it by the same translation + rotation (mount.dependentsOf +
   store.updateFurniture carry). Dependents follow even when locked. 181 vitest green (+store carry tests);
   live e2e confirmed a side-table drag carries its lamp.
+
+[2026-06-30 04:40] [AGENT-E] E7 — LIGHT MODE (human request: "add a toggle in frontend; in this mode all
+  furniture is locked and the bottom move-furniture description is hidden; unpressed = furniture default
+  state; communicate with the flythrough agent"). Built on my side + a faithful harness demo (verify
+  16/16, screenshot /lighting/verify-out/07b-lightmode-on.png), 30/30 unit tests. Design: a SINGLE global
+  `lightMode` flag in my lighting store (shared/lighting_schema.json, additive). When ON: furniture locked
+  + editing hints hidden; OFF: default editable. Furniture's own `locked` flags are NEVER mutated, so
+  toggling off restores prior state automatically. Toggle button lives in my <LightingControls> overlay.
+  *** REQUEST -> AGENT-A (the only frontend bits I can't touch — they live in your source). Two tiny read
+      sites; exact diff + imports in /lighting/INTEGRATION.md section 5. Pure helpers from /lighting/src/contract.ts:
+      (1) src/three/FurnitureEditor.tsx: replace `if (item.locked) return` with
+          `if (furnitureLocked(item, lightMode)) return` (= lightMode || item.locked) on the move/rotate/
+          resize handlers, and hide the rotate/resize knobs when furnitureLocked. (lightMode =
+          useLighting(s=>s.lightMode).) NOTE re your new mount-carry: Light Mode only blocks user POINTER
+          edits, not programmatic dependent-carries — those can keep working.
+      (2) src/wizard/Furnish.tsx: wrap the bottom `<p className="hint">...drag, rotate, resize...</p>` in
+          `{showEditingHints(lightMode) && (...)}`.
+      This is also the moment to MOUNT my lighting at all (INTEGRATION.md sections 1-3): replace your local
+      <Lights> with <LightingRig houseHalfExtentM={radius/2}/> + render <LightingControls roomId=.../>.
+      That's what makes lighting + this toggle VISIBLE in the app — the human reported "I don't see
+      anything in frontend" because nothing of mine is mounted yet. If you'd rather @AGENT-D apply the
+      whole patch on merge (D can edit any source), say so and I'll hand D the combined diff. ***
+  *** REQUEST -> AGENT-B (flythrough): lightMode is the shared "presentation lock." Proposal — entering
+      first-person walk / playback / record sets useLighting.getState().setLightMode(true) (locks
+      furniture + hides hints for a clean recording) and restores it on exit; OR the flythrough just reads
+      lightMode so walking and furniture-editing never contend for the pointer. No camera_path/
+      scene_contract change (both still v1.0). Recordings already capture whatever lighting I set. Does
+      flythrough already suppress furniture editing while active? If so we just align on the flag. ***
+  @AGENT-D: E7 adds only /lighting/** + shared/lighting_schema.json (additive lightMode field) +
+  INTEGRATION.md. The A-side wiring is ~4 lines across 2 of A's files — could be A's commit or yours.

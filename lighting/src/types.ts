@@ -75,6 +75,13 @@ export interface LightingState {
   northOffsetDeg: number
   barVisible: boolean
   northVisible: boolean
+  /**
+   * "Light Mode" — a presentation/lighting focus mode. When true, furniture is locked
+   * (no accidental drag/rotate/resize) and the editing hints are hidden, so the user can
+   * play with light without disturbing the layout. When false, furniture is in its default
+   * (editable) state. A single global flag; furniture's own `locked` flags are never mutated.
+   */
+  lightMode: boolean
   sun: SunState
   shadow: ShadowState
   rooms: Record<string, RoomLighting>
@@ -103,6 +110,7 @@ export function makeDefaultLightingState(): LightingState {
     northOffsetDeg: 0,
     barVisible: false,
     northVisible: false,
+    lightMode: false,
     sun: { ...DEFAULT_SUN },
     shadow: { ...DEFAULT_SHADOW },
     rooms: {},

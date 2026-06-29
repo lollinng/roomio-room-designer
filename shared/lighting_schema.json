@@ -27,6 +27,11 @@
       "type": "boolean",
       "description": "Whether the north/compass indicator UI is shown. Toggles independently of barVisible."
     },
+    "lightMode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Presentation / lighting-focus mode. When TRUE: all furniture is locked (no drag/rotate/resize) and the furniture editing hints are hidden, so the user can play with light without disturbing the layout. When FALSE (default): furniture is in its normal editable state. A single GLOBAL flag — furniture's own `locked` flags are never mutated, so toggling off returns every piece to its prior state. See contracts.AGENT_A_lightmode."
+    },
 
     "sun": {
       "type": "object",
@@ -119,6 +124,8 @@
   "contracts": {
     "_comment": "Cross-agent agreements (informational; not JSON-Schema-validated).",
     "AGENT_A_layered_rule": "A's suggestion engine derives the 'light' role from FURNITURE with model==='lamp' (rules R1 'No light source', R-onlyone 'Only one light source'). Agent E proposes the engine ALSO treat a room as lit+layered when its LightingState satisfies E's predicate `roomLightingSatisfaction(roomId)` => { hasLight: bool (>=1 enabled non-shadow-only light), isLayered: bool (>=1 task AND an ambient fill) }. E exports this pure helper from /lighting/src/contract.ts. A's engine can import/mirror it so a room E lights passes R1 + the single-overhead rule out of the box. Pending A ack.",
+    "AGENT_A_lightmode": "Light Mode (lightMode flag). A reads it from E's lighting store and: (1) in FurnitureEditor, treat a piece as non-interactive when `furnitureLocked(item, lightMode)` (= lightMode || item.locked) — guard the move/rotate/resize handlers and hide the rotate/resize knobs; (2) in Furnish, render the bottom editing hint only when `showEditingHints(lightMode)` (= !lightMode). Both pure helpers are exported from /lighting/src/contract.ts. The Light Mode toggle button itself lives in E's <LightingControls> overlay. Exact diff in /lighting/INTEGRATION.md.",
+    "AGENT_B_lightmode": "Flythrough should honor the same presentation flag. Proposal: entering the flythrough (first-person walk / playback / record) implies lightMode=true (lock furniture + hide editing hints) for a clean recording, and restores it on exit; OR flythrough simply checks lightMode so editing and walking never fight over the same pointer. The shared 'presentation lock' = lightMode. No camera_path/scene_contract schema change.",
     "AGENT_C_multiroom": "Per-room lights keyed by House room_id; E reads rooms[].footprint {x,z,rotation,w,l} (cm) to place each room's ceiling light at the room center and to size the sun's shadow frustum to the whole house bounds. E needs window openings (kind:'window', sill, wallId, t) per room to aim accent/sun shafts; available via RoomDesign.openings (A) and C's worldWalls/openingsForRoom helpers.",
     "AGENT_B_camera": "Camera/flythrough records whatever lighting E sets; LightingState is part of the scene, no schema change to camera_path/scene_contract v1.0. If B wants deterministic lighting per recorded frame, read timeOfDay from LightingState (sun position is a pure function of timeOfDay + northOffsetDeg)."
   }

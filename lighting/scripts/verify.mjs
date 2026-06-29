@@ -158,7 +158,35 @@ try {
   ok(barGone, 'time bar hidden when toggled off')
   ok(hidden.mean > 80, `scene still renders with controls hidden (mean ${hidden.mean.toFixed(0)})`)
 
-  // 7) MULTI-ROOM — two rooms each lit, sun still the only shadow caster
+  // 7) LIGHT MODE — locks furniture (badges) + hides the bottom editing hint
+  await set({ barVisible: true, northVisible: false })
+  await sleep(300)
+  const hintBefore = await page.evaluate(() => !!document.querySelector('p.hint'))
+  ok(hintBefore, 'editing hint shown when Light Mode is off (default furniture state)')
+  await page.evaluate(() => window.__lighting.getState().toggleLightMode(true))
+  await sleep(500)
+  await shot('07b-lightmode-on.png')
+  const lm = await page.evaluate(() => ({
+    on: window.__lighting.getState().lightMode,
+    hint: !!document.querySelector('p.hint'),
+    badges: document.querySelectorAll('.furniture-lock-badge').length,
+    banner: !!Array.from(document.querySelectorAll('div')).find((d) => d.textContent?.includes('furniture locked')),
+  }))
+  ok(lm.on === true, 'Light Mode turns on')
+  ok(lm.hint === false, 'bottom editing hint HIDDEN in Light Mode')
+  ok(lm.badges >= 5, `furniture shows lock badges in Light Mode (${lm.badges} locked)`)
+  ok(lm.banner, 'Light Mode banner ("furniture locked") shown')
+  // turn it off -> furniture back to default (editable), hint returns
+  await page.evaluate(() => window.__lighting.getState().toggleLightMode(false))
+  await sleep(400)
+  const lmOff = await page.evaluate(() => ({
+    on: window.__lighting.getState().lightMode,
+    hint: !!document.querySelector('p.hint'),
+    badges: document.querySelectorAll('.furniture-lock-badge').length,
+  }))
+  ok(lmOff.on === false && lmOff.hint === true && lmOff.badges === 0, 'Light Mode off -> furniture default state, hint back, no lock badges')
+
+  // 8) MULTI-ROOM — two rooms each lit, sun still the only shadow caster
   await page.goto(APP_URL + '?multi=1', { waitUntil: 'networkidle0' })
   await page.waitForSelector('canvas', { timeout: 15000 })
   await page.waitForFunction(() => !!window.__lighting, { timeout: 10000 })

@@ -15,6 +15,9 @@ export interface LightingStore extends LightingState {
   reverseNorth: () => void
   toggleBar: (v?: boolean) => void
   toggleNorth: (v?: boolean) => void
+  // light mode (presentation: lock furniture + hide editing hints)
+  setLightMode: (v: boolean) => void
+  toggleLightMode: (v?: boolean) => void
   // sun
   setSunEnabled: (v: boolean) => void
   setMaxElevation: (deg: number) => void
@@ -38,6 +41,15 @@ export const useLighting = create<LightingStore>((set) => ({
   reverseNorth: () => set((s) => ({ northOffsetDeg: wrap(s.northOffsetDeg + 180) })),
   toggleBar: (v) => set((s) => ({ barVisible: v ?? !s.barVisible })),
   toggleNorth: (v) => set((s) => ({ northVisible: v ?? !s.northVisible })),
+
+  setLightMode: (v) => set({ lightMode: v }),
+  toggleLightMode: (v) =>
+    set((s) => {
+      const lightMode = v ?? !s.lightMode
+      // Entering light mode reveals the time bar so the lighting UI is right there;
+      // leaving it does not force any panel state (toggles remain independent / L-10).
+      return lightMode ? { lightMode, barVisible: true } : { lightMode }
+    }),
 
   setSunEnabled: (v) => set((s) => ({ sun: { ...s.sun, enabled: v } })),
   setMaxElevation: (deg) => set((s) => ({ sun: { ...s.sun, maxElevationDeg: deg } })),

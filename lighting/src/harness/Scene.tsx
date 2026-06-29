@@ -3,7 +3,9 @@
 // NOT app source — it stands in for A's <Room/> so the lighting library proves itself
 // end-to-end before A mounts <LightingRig/> in the real scene.
 
+import { Html } from '@react-three/drei'
 import { LightingRig } from '../r3f/LightingRig'
+import { useLighting } from '../store'
 
 // Room: 4m (x) x 5m (z), 2.7m walls, centered on origin (matches coords.ts convention).
 const RW = 4
@@ -24,8 +26,19 @@ function Box(props: {
   )
 }
 
+// Furniture defs: [x,y,z] center (m), [w,h,d] size (m), color.
+const FURNITURE: { pos: [number, number, number]; size: [number, number, number]; color: string }[] = [
+  { pos: [-1.0, 0.28, -1.4], size: [1.6, 0.55, 2.1], color: '#8a6f5a' }, // bed
+  { pos: [1.3, 1.0, -2.1], size: [1.0, 2.0, 0.55], color: '#5d4b3a' }, // wardrobe
+  { pos: [0.4, 0.37, 0.6], size: [1.2, 0.75, 0.8], color: '#7a5c43' }, // table
+  { pos: [-1.1, 0.4, 1.4], size: [1.9, 0.8, 0.85], color: '#9a9388' }, // sofa
+  { pos: [1.2, 0.23, 1.2], size: [0.4, 0.45, 0.4], color: '#b5793f' }, // stool
+]
+
 /** One furnished room's geometry, offset by [ox,oz] meters (for the multi-room layout). */
 function RoomGeo({ ox = 0, oz = 0 }: { ox?: number; oz?: number }) {
+  // In Light Mode all furniture is locked -> show a lock badge over each piece (demo of A's behavior).
+  const lightMode = useLighting((s) => s.lightMode)
   return (
     <group position={[ox, 0, oz]}>
       {/* floor */}
@@ -44,11 +57,29 @@ function RoomGeo({ ox = 0, oz = 0 }: { ox?: number; oz?: number }) {
         <meshStandardMaterial color="#ded8cc" roughness={1} />
       </mesh>
       {/* furniture — boxes sized in meters, all cast + receive shadow */}
-      <Box pos={[-1.0, 0.28, -1.4]} size={[1.6, 0.55, 2.1]} color="#8a6f5a" />
-      <Box pos={[1.3, 1.0, -2.1]} size={[1.0, 2.0, 0.55]} color="#5d4b3a" />
-      <Box pos={[0.4, 0.37, 0.6]} size={[1.2, 0.75, 0.8]} color="#7a5c43" />
-      <Box pos={[-1.1, 0.4, 1.4]} size={[1.9, 0.8, 0.85]} color="#9a9388" />
-      <Box pos={[1.2, 0.23, 1.2]} size={[0.4, 0.45, 0.4]} color="#b5793f" />
+      {FURNITURE.map((f, i) => (
+        <group key={i}>
+          <Box pos={f.pos} size={f.size} color={f.color} />
+          {lightMode && (
+            <Html position={[f.pos[0], f.pos[1] + f.size[1] / 2 + 0.25, f.pos[2]]} center distanceFactor={8}>
+              <div
+                className="furniture-lock-badge"
+                style={{
+                  background: 'rgba(20,22,26,0.85)',
+                  color: '#ffd9a0',
+                  borderRadius: 999,
+                  padding: '2px 6px',
+                  fontSize: 12,
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                }}
+              >
+                🔒
+              </div>
+            </Html>
+          )}
+        </group>
+      ))}
     </group>
   )
 }

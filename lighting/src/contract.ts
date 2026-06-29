@@ -36,3 +36,23 @@ export function roomLightingSatisfaction(lights: Light[] | undefined): LightingS
 
   return { hasLight, isLayered, isFullyLayered, layers }
 }
+
+// ---------------------------------------------------------------------------
+// Light Mode (presentation) <-> furniture editing (Agent E <-> Agent A / B).
+//
+// "Light Mode" is a global presentation flag (lighting store). While it's on, the user
+// is playing with light and must not accidentally move the layout: ALL furniture is
+// locked and the editing hints are hidden. Furniture's own `locked` flags are NOT
+// mutated, so turning Light Mode off returns every piece to its prior (default) state.
+
+/** A piece is non-interactive when it is pinned OR Light Mode is on. A reads this in
+ *  FurnitureEditor (`if (furnitureLocked(item, lightMode)) return` on drag/rotate/resize). */
+export function furnitureLocked(item: { locked?: boolean } | undefined, lightMode: boolean): boolean {
+  return lightMode || !!item?.locked
+}
+
+/** Whether the editing hints / move-furniture affordances should be shown. A reads this
+ *  in Furnish (`{showEditingHints(lightMode) && <p className="hint">…</p>}`). */
+export function showEditingHints(lightMode: boolean): boolean {
+  return !lightMode
+}

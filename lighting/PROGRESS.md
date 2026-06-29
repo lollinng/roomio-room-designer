@@ -35,6 +35,13 @@ per-room, framerate holds (1 shadow caster) ✓. **Verify: `node scripts/verify.
 `npx vitest run` (24/24).** Remaining cross-agent item: A wires `roomLightingSatisfaction` into
 the suggestion engine (E2 contract, requested in roomio.txt) + A mounts `<LightingRig>` in RoomView.
 
+- [x] **E7 — Light Mode toggle (human request).** DONE on E side + verified. Global `lightMode`
+  flag (store + schema + `furnitureLocked`/`showEditingHints` pure helpers in contract.ts). Toggle
+  in `<LightingControls>`; ON ⇒ furniture locked + lock badges + bottom editing hint hidden, OFF ⇒
+  default editable (furniture `locked` flags never mutated). Harness demo + verify 16/16, 30 unit
+  tests. **A wiring** = 4 lines across FurnitureEditor.tsx + Furnish.tsx (INTEGRATION.md §5);
+  **B coordination** = lightMode as shared presentation-lock (REQUEST in roomio.txt).
+
 ## Architecture decisions
 - Same seam pattern as Agent B/C: A owns `RoomView.tsx` and its `<Lights>`; I cannot edit it.
   So I build a **drop-in R3F lighting library** (`<LightingRig>` + UI overlays) + a **faithful

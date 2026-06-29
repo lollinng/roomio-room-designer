@@ -21,13 +21,22 @@ const chip = (active: boolean): React.CSSProperties => ({
 export function LightingControls({ roomId }: { roomId?: string }) {
   const barVisible = useLighting((s) => s.barVisible)
   const northVisible = useLighting((s) => s.northVisible)
+  const lightMode = useLighting((s) => s.lightMode)
   const toggleBar = useLighting((s) => s.toggleBar)
   const toggleNorth = useLighting((s) => s.toggleNorth)
+  const toggleLightMode = useLighting((s) => s.toggleLightMode)
 
   return (
     <>
       {/* top-left: independent toggles (always visible, so you can re-show panels) */}
       <div style={{ position: 'fixed', top: 12, left: 12, display: 'flex', gap: 8, zIndex: 10 }}>
+        <button
+          style={chip(lightMode)}
+          onClick={() => toggleLightMode()}
+          title="Lock furniture and hide editing hints so you can focus on lighting"
+        >
+          💡 Light Mode
+        </button>
         <button style={chip(barVisible)} onClick={() => toggleBar()}>
           Time bar
         </button>
@@ -35,6 +44,28 @@ export function LightingControls({ roomId }: { roomId?: string }) {
           North
         </button>
       </div>
+
+      {/* light-mode banner: furniture is locked */}
+      {lightMode && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            padding: '6px 14px',
+            borderRadius: 999,
+            background: 'rgba(20,22,26,0.78)',
+            color: '#ffd9a0',
+            backdropFilter: 'blur(6px)',
+            font: '12px ui-sans-serif, system-ui, sans-serif',
+            fontWeight: 600,
+          }}
+        >
+          🔒 Light Mode — furniture locked
+        </div>
+      )}
 
       {/* top-right: light editor for the active room */}
       {roomId && (

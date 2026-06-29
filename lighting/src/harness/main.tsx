@@ -36,7 +36,40 @@ function App() {
         <OrbitControls makeDefault target={target} enableDamping maxPolarAngle={Math.PI / 2.05} />
       </Canvas>
       <LightingControls roomId="r_demo" />
+      <EditingHint />
     </>
+  )
+}
+
+/**
+ * Stand-in for A's bottom "drag/rotate/resize" furniture hint (src/wizard/Furnish.tsx).
+ * Hidden in Light Mode — mirrors what A wires via showEditingHints(lightMode).
+ */
+function EditingHint() {
+  const lightMode = useLighting((s) => s.lightMode)
+  if (lightMode) return null
+  return (
+    <p
+      className="hint"
+      style={{
+        position: 'fixed',
+        bottom: 96,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        margin: 0,
+        padding: '8px 16px',
+        borderRadius: 10,
+        background: 'rgba(20,22,26,0.6)',
+        color: '#e8e3d8',
+        font: '13px ui-sans-serif, system-ui, sans-serif',
+        zIndex: 9,
+        maxWidth: 520,
+        textAlign: 'center',
+      }}
+    >
+      Click a piece to add it, then drag, rotate, resize and recolor it. Furniture snaps to walls
+      and won't pass through them.
+    </p>
   )
 }
 

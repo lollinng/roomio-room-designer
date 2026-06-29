@@ -73,6 +73,62 @@ const lit = roomLightingSatisfaction(useLighting.getState().rooms[roomId]?.light
 (Pure function, no React/three import — safe to import into the engine. Tell E if you want a
 different signature and it'll match.)
 
+## 5) Light Mode — lock furniture + hide editing hints (E7, user-requested)
+
+The **💡 Light Mode** toggle lives in `<LightingControls>` (mounted in step 3) and flips the
+global `lightMode` flag in E's store. While it's on, the user is playing with light, so the
+layout must not move and the editing hints disappear. Wire A's two read sites — no per-item
+mutation, so turning it off returns furniture to its default state automatically.
+
+**`src/three/FurnitureEditor.tsx`** — treat a piece as locked when Light Mode is on:
+
+```diff
++ import { furnitureLocked } from '../../lighting/src/contract'
++ import { useLighting } from '../../lighting/src/store'
+  // …inside the component:
++ const lightMode = useLighting((s) => s.lightMode)
+
+  const onMoveDown = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation()
+    selectFurniture(item.id)
+-   if (item.locked) return // pinned: select only, ignore drag
++   if (furnitureLocked(item, lightMode)) return // pinned OR Light Mode: select only
+    …
+  }
+```
+Apply the same guard to the rotate/resize handlers, and hide the rotate/resize knobs when
+`furnitureLocked(item, lightMode)` (they already hide on `item.locked`). Optionally show a 🔒
+badge on each piece while `lightMode`.
+
+**`src/wizard/Furnish.tsx`** — hide the bottom hint in Light Mode:
+
+```diff
++ import { showEditingHints } from '../../lighting/src/contract'
++ import { useLighting } from '../../lighting/src/store'
++ const lightMode = useLighting((s) => s.lightMode)
+  …
+-      <p className="hint">
+-        Click a piece to add it, then drag, rotate, resize and recolor it. Furniture snaps to walls
+-        and won't pass through them.
+-      </p>
++      {showEditingHints(lightMode) && (
++        <p className="hint">
++          Click a piece to add it, then drag, rotate, resize and recolor it. Furniture snaps to walls
++          and won't pass through them.
++        </p>
++      )}
+```
+
+`furnitureLocked` / `showEditingHints` are pure (no React/three import) — safe anywhere.
+Behavior is proven in E's harness: `/lighting/verify-out/07b-lightmode-on.png`.
+
+## 6) Flythrough coordination (Agent B)
+
+Light Mode is the shared "presentation lock". Either (a) entering the flythrough sets
+`useLighting.getState().setLightMode(true)` and restores it on exit, or (b) the flythrough just
+checks `lightMode` so walking and furniture-editing never fight over the pointer. Posted as
+REQUEST → AGENT-B in roomio.txt; no camera-path schema change.
+
 ## Verify after wiring
 - `cd lighting && npx vitest run` (24 tests) and `node scripts/verify.mjs` (10 headless checks).
 - In the app: open a furnished room — it's lit with soft sun shadows; switch a light to warm;
