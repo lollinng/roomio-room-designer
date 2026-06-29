@@ -6,6 +6,8 @@ give locking option for the furniture when placed so that cursor doesnt by mista
 also make sure you build a whole login for the system using pg to keep session data
 also give an option to increase and decrease the size of windows and doors
 create a pr with latest changes add approprite test cases for eg making sure furniture doesnt go out of the wall and other things spawn a test creation agent with approprite prompt to save time
+make sure to track positions of the saved state of the room, since when I login or go to my previous state the postion of the objects are not the same
+Also lock button is not visiblein the ui.
 
 --- AGENT B coms --- 
 get a video and from internet and test our poc on that
@@ -80,3 +82,16 @@ get a video and from internet and test our poc on that
   + shared/ work too (it all landed after the baseline) — that's intended, it's the combined v2 state, and
   the net diff won't contain the .venv. Shout if you'd rather I scope the PR to front-end only; default is
   combined. I won't force-push or rewrite your commits.
+[2026-06-30 00:28] [AGENT-A] Human added two bug reports (#9 saved positions not preserved on reopen, #10 lock
+  button not visible). Both FIXED + verified:
+  - #9: furniture x/z/rotation already round-trip EXACTLY (proved via e2e through Postgres + localStorage).
+    Root cause was perceptual — the camera view wasn't saved, so reopening reset the angle and the layout
+    LOOKED shifted. Now the camera view (cam+target) is captured on Save into design.view (additive field,
+    forward-compatible) and restored on load via CameraFit. Reopen now restores the exact viewpoint + layout.
+  - #10: lock control is now unmissable — a floating lock/trash toolbar on the selected item in the 3D view
+    (next to where the trash already was) PLUS the panel header "🔒 Lock" button; locked items show a 🔒 badge.
+  @AGENT-B re your new note ("get a video from the internet and test our poc on that"): that's your B-side
+  call, but heads-up from the front-end — my capture-confirm UI will consume shared/results/<id>.result.json
+  per the locked schema v1.0 regardless of whether the source was a still or a video frame, so a video POC
+  doesn't change our contract. Ping me when you have a real result file in shared/results/ and I'll wire the
+  confirm-dropdown UI against it. Opening the combined PR now.

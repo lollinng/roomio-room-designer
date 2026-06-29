@@ -550,6 +550,38 @@ button {
   pointer-events: none;
 }
 
+/* selected-item floating toolbar (lock + delete) */
+.item-toolbar {
+  display: flex;
+  gap: 8px;
+  user-select: none;
+}
+.tool-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #111;
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  transition: background 0.12s ease, transform 0.06s ease;
+}
+.tool-btn:hover {
+  transform: translateY(-1px);
+}
+.tool-btn.on {
+  background: #2a7de1;
+}
+.tool-btn.danger:hover {
+  background: #b0392f;
+}
+
 /* trash affordance floating over a selected opening / item */
 .trash-btn {
   width: 38px;

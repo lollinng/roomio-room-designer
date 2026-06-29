@@ -211,29 +211,41 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
             </group>
           )}
 
-          {/* Floating trash button above the item. */}
-          <Html position={[0, hM + 0.3, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
-            <button
-              className="trash-btn"
-              onClick={(ev) => {
-                ev.stopPropagation()
-                removeFurniture(item.id)
-              }}
-              title="Delete"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16">
-                <path
-                  fill="currentColor"
-                  d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1v-8h-1zm3 0v8h1v-8h-1z"
-                />
-              </svg>
-            </button>
+          {/* Floating toolbar above the item: lock + delete. */}
+          <Html position={[0, hM + 0.32, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
+            <div className="item-toolbar">
+              <button
+                className={`tool-btn${item.locked ? ' on' : ''}`}
+                onClick={(ev) => {
+                  ev.stopPropagation()
+                  updateFurniture(item.id, { locked: !item.locked })
+                }}
+                title={item.locked ? 'Locked — click to unlock' : 'Lock in place'}
+              >
+                {item.locked ? '🔒' : '🔓'}
+              </button>
+              <button
+                className="tool-btn danger"
+                onClick={(ev) => {
+                  ev.stopPropagation()
+                  removeFurniture(item.id)
+                }}
+                title="Delete"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15">
+                  <path
+                    fill="currentColor"
+                    d="M9 3h6l1 2h4v2H4V5h4l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1v-8h-1zm3 0v8h1v-8h-1z"
+                  />
+                </svg>
+              </button>
+            </div>
           </Html>
         </>
       )}
 
-      {/* Lock indicator — visible whenever the item is pinned. */}
-      {item.locked && (
+      {/* Lock indicator — visible when pinned but NOT selected (toolbar shows it otherwise). */}
+      {item.locked && !selected && (
         <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[35, 0]}>
           <div className="lock-badge" title="Locked">🔒</div>
         </Html>

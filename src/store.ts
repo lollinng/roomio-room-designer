@@ -431,6 +431,9 @@ export const useStore = create<DesignStore>((set, get) => ({
       past: [],
       future: [],
       interacting: false,
+      // refit the camera to the loaded room so the saved layout is framed
+      // exactly the same way every time it's reopened
+      fitNonce: get().fitNonce + 1,
     })
   },
   resetDesign: (shape = 'rect') => {

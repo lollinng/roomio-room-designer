@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, type Stage } from '../store'
 import { RoomView } from '../three/RoomView'
+import { captureView } from '../three/cameraBus'
 import { saveDesign, storageMode } from '../repository'
 import { Step1Shape } from './Step1Shape'
 import { Step2Dimensions } from './Step2Dimensions'
@@ -52,7 +53,13 @@ export function Wizard() {
 
   const onSave = async () => {
     try {
-      await saveDesign(useStore.getState().design)
+      // snapshot the live camera view so reopening restores the exact viewpoint
+      const view = captureView()
+      const design = view
+        ? { ...useStore.getState().design, view }
+        : useStore.getState().design
+      if (view) useStore.setState({ design })
+      await saveDesign(design)
       setSaved(true)
       setTimeout(() => setSaved(false), 1600)
     } catch {

@@ -47,8 +47,10 @@ export default function App() {
         const live = useStore.getState()
         if (q === 'step3') live.selectOpening(live.design.openings[0]?.id ?? null)
         if (q === 'furnish') {
-          const f = live.design.furniture[2]
-          if (f) live.updateFurniture(f.id, { locked: true })
+          const fl = live.design.furniture[2]
+          if (fl) live.updateFurniture(fl.id, { locked: true })
+          // select the sofa so the lock/delete toolbar is visible in screenshots
+          live.selectFurniture(live.design.furniture[0]?.id ?? null)
         }
       }
       setStage(q)

@@ -28,8 +28,9 @@ async function collectErrors(url, label) {
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message))
   await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 })
   await new Promise((r) => setTimeout(r, 2500)) // let R3F render a few frames
-  // filter noise (favicon etc.)
-  const real = errs.filter((e) => !/favicon|404/i.test(e))
+  // filter noise: favicon/404, and the expected /auth/me 401 when not logged in
+  // (the anon flow is caught by auth.init; browsers still log network 401s).
+  const real = errs.filter((e) => !/favicon|404|401|unauthorized/i.test(e))
   log(`\n[${label}] ${real.length ? '❌ ' + real.length + ' error(s)' : '✓ no console errors'}`)
   real.forEach((e) => log('   ', e.slice(0, 200)))
   totalErrors += real.length

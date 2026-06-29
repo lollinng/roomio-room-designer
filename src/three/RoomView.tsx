@@ -7,6 +7,8 @@ import { Room } from './Room'
 import { EditHandles } from './EditHandles'
 import { OpeningEditor } from './OpeningEditor'
 import { FurnitureEditor } from './FurnitureEditor'
+import { setViewCapturer } from './cameraBus'
+import type { CameraView } from '../types'
 
 function Lights() {
   return (
@@ -33,24 +35,60 @@ function Lights() {
   )
 }
 
-/** Refit the camera when the room shape changes (not on furniture/dimension edits). */
+type ControlsLike = {
+  target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
+  update: () => void
+} | null
+
+/**
+ * Refit the camera on shape change / fitNonce bump. If the loaded design carries
+ * a saved view (set when the user pressed Save), restore that exact viewpoint so
+ * reopening a previous state looks identical; otherwise frame the room by default.
+ */
 function CameraFit() {
   const shape = useStore((s) => s.design.shape)
   const fitNonce = useStore((s) => s.fitNonce)
   const { camera, controls } = useThree()
   useEffect(() => {
+    const c = controls as unknown as ControlsLike
+    const saved = useStore.getState().design.view
+    if (saved) {
+      camera.position.set(saved.cam[0], saved.cam[1], saved.cam[2])
+      camera.updateProjectionMatrix()
+      if (c?.target) {
+        c.target.set(saved.target[0], saved.target[1], saved.target[2])
+        c.update()
+      }
+      return
+    }
     const b = bbox(useStore.getState().design.corners)
     const r = Math.max(b.w, b.d, 300) / 100
     const dist = r * 1.45
     camera.position.set(dist * 0.62, dist * 0.72, dist * 0.8)
     camera.updateProjectionMatrix()
-    const c = controls as unknown as { target: { set: (x: number, y: number, z: number) => void }; update: () => void } | null
     if (c?.target) {
       c.target.set(0, 0.7, 0)
       c.update()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape, fitNonce])
+  return null
+}
+
+/** Registers a capturer so the UI can read the current camera view at save time. */
+function ViewCapturer() {
+  const { camera, controls } = useThree()
+  useEffect(() => {
+    setViewCapturer((): CameraView | null => {
+      const c = controls as unknown as ControlsLike
+      const t = c?.target?.toArray?.() ?? [0, 0.7, 0]
+      return {
+        cam: [camera.position.x, camera.position.y, camera.position.z],
+        target: [t[0], t[1], t[2]],
+      }
+    })
+    return () => setViewCapturer(() => null)
+  }, [camera, controls])
   return null
 }
 
@@ -102,6 +140,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
         dampingFactor={0.13}
       />
       <CameraFit />
+      <ViewCapturer />
     </Canvas>
   )
 }
