@@ -11,7 +11,7 @@ Milestones map to the brief (§9). Each is independently testable.
 | **C1** | F1 first-person walk + collision (PointerLockControls, WASD, ~1.6 m eye, wall+furniture footprint blocking) | ✅ done |
 | **C2** | F2 top-down director view + camera gizmo + one-tap POV toggle | ✅ done |
 | **C3** | F3 waypoint spline authoring (raycast floor, CatmullRomCurve3, draggable, per-point look-at + timing) | ✅ done |
-| **C4** | F5 playback along path (getPointAt + look-ahead, play/pause/scrub, previewable POV) | ⬜ todo |
+| **C4** | F5 playback along path (getPointAt + look-ahead, play/pause/scrub, previewable POV) | ✅ done |
 | **C5** | F6 frame-by-frame video export (canvas-record / WebCodecs, deterministic step loop, MP4 download) | ⬜ todo |
 | **C6** | F4 walk-and-record path + JSON save/reload + polish | ⬜ todo |
 

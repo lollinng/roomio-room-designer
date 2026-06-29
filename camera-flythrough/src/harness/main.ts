@@ -3,6 +3,7 @@ import { buildScene } from './buildScene'
 import { FirstPersonWalk } from '../engine/firstPersonWalk'
 import { DirectorView } from '../engine/directorView'
 import { WaypointPath } from '../engine/waypointPath'
+import { Playback } from '../engine/playback'
 
 /**
  * Dev-harness entry. Wires the flythrough engine to a faithful furnished-room
@@ -18,6 +19,9 @@ const { handle, startLoop } = buildScene(app)
 const walk = new FirstPersonWalk(handle, { eyeHeight: 1.6 })
 const director = new DirectorView(handle)
 const path = new WaypointPath(handle, { eyeHeight: 1.6 })
+const playback = new Playback()
+
+const pathMeta = { name: 'Flythrough', duration: 8, fps: 30, fov: 60 }
 
 type Mode = 'orbit' | 'walk' | 'director'
 let mode: Mode = 'director'
@@ -53,6 +57,20 @@ const banner = document.createElement('div')
 banner.id = 'banner'
 document.body.appendChild(banner)
 
+const transport = document.createElement('div')
+transport.id = 'transport'
+transport.innerHTML = `
+  <button id="tp-play">▶ Play</button>
+  <input id="tp-scrub" type="range" min="0" max="1" step="0.001" value="0" />
+  <span class="time" id="tp-time">0.0 / 0.0s</span>
+  <label>dur <input id="tp-dur" type="number" min="1" step="1" value="8" />s</label>
+`
+document.body.appendChild(transport)
+const tpPlay = transport.querySelector<HTMLButtonElement>('#tp-play')!
+const tpScrub = transport.querySelector<HTMLInputElement>('#tp-scrub')!
+const tpTime = transport.querySelector<HTMLSpanElement>('#tp-time')!
+const tpDur = transport.querySelector<HTMLInputElement>('#tp-dur')!
+
 const btnOrbit = hud.querySelector<HTMLButtonElement>('#btn-orbit')!
 const btnWalk = hud.querySelector<HTMLButtonElement>('#btn-walk')!
 const btnDirector = hud.querySelector<HTMLButtonElement>('#btn-director')!
@@ -72,7 +90,21 @@ function setBanner(html: string) {
 }
 
 function pathEditable() {
-  return mode === 'director' && !director.isPov()
+  return mode === 'director' && !director.isPov() && !playback.isPlaying()
+}
+
+function syncPlaybackFromPath() {
+  if (path.hasCurve()) playback.setPath(path.toCameraPath(pathMeta))
+}
+
+function updateTransport() {
+  const show = mode === 'director' && playback.hasPath()
+  transport.classList.toggle('show', show)
+  tpPlay.textContent = playback.isPlaying() ? '❚❚ Pause' : '▶ Play'
+  const total = playback.getTotalTime()
+  const cur = playback.progress01() * total
+  tpTime.textContent = `${cur.toFixed(1)} / ${total.toFixed(1)}s`
+  if (document.activeElement !== tpScrub) tpScrub.value = String(playback.progress01())
 }
 
 function updatePathEditing() {
@@ -99,7 +131,30 @@ function refreshHud() {
   if (info) inDwell.value = String(info.dwell)
 }
 
-path.onChange(() => refreshHud())
+path.onChange(() => {
+  syncPlaybackFromPath()
+  refreshHud()
+  updateTransport()
+})
+
+// ---- transport listeners ----
+tpPlay.addEventListener('click', () => {
+  playback.toggle()
+  updatePathEditing()
+  refreshHud()
+  updateTransport()
+})
+tpScrub.addEventListener('input', () => {
+  playback.pause()
+  playback.seek(parseFloat(tpScrub.value))
+  if (playback.hasPath()) playback.applyToCamera(director.recordingCamera)
+  updateTransport()
+})
+tpDur.addEventListener('change', () => {
+  pathMeta.duration = Math.max(1, parseFloat(tpDur.value) || 8)
+  syncPlaybackFromPath()
+  updateTransport()
+})
 
 function setMode(next: Mode) {
   if (next === mode) return
@@ -117,6 +172,7 @@ function setMode(next: Mode) {
   }
   updatePathEditing()
   refreshHud()
+  updateTransport()
 }
 
 btnOrbit.addEventListener('click', () => setMode('orbit'))
@@ -159,6 +215,17 @@ refreshHud()
 startLoop((dt): THREE.Camera | null => {
   if (mode === 'walk') return walk.update(dt)
   if (mode === 'director') {
+    if (playback.hasPath()) {
+      if (playback.isPlaying()) {
+        playback.update(dt)
+        updateTransport()
+        if (!playback.isPlaying()) {
+          updatePathEditing()
+          refreshHud()
+        }
+      }
+      playback.applyToCamera(director.recordingCamera)
+    }
     director.syncGizmo()
     return director.activeCamera()
   }
@@ -211,4 +278,17 @@ startLoop((dt): THREE.Camera | null => {
     const c = path.getCurve()
     return c ? c.getPoints(n).map((p) => p.toArray()) : null
   },
+  // playback
+  play: () => { playback.play(); updatePathEditing(); refreshHud(); updateTransport() },
+  pause: () => { playback.pause(); updatePathEditing(); refreshHud(); updateTransport() },
+  isPlaying: () => playback.isPlaying(),
+  seek: (p: number) => { playback.seek(p); if (playback.hasPath()) playback.applyToCamera(director.recordingCamera); updateTransport() },
+  progress01: () => playback.progress01(),
+  totalTime: () => playback.getTotalTime(),
+  setDuration: (s: number) => { pathMeta.duration = s; syncPlaybackFromPath(); updateTransport() },
+  poseAt: (p: number) => {
+    const pose = playback.sampleAt(p * playback.getTotalTime())
+    return pose ? { position: pose.position.toArray(), target: pose.target.toArray(), u: pose.u } : null
+  },
+  recCamPos: () => director.recordingCamera.position.toArray(),
 }
