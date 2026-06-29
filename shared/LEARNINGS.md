@@ -55,10 +55,35 @@ Code in `/lighting`. Contract: `shared/lighting_schema.json` (v1.0). Schema unit
 - warm ≈ 2700K (`#ffd6aa`-ish tint), neutral ≈ 4000K, cool ≈ 5000K (`#dce6ff`-ish).
 - "Warm feels cozier" acceptance: warm ceiling + warmthShift sun at low angle.
 
-### Gotchas confirmed
-- DirectionalLight aims `position → target`; rotating it does nothing. `sun.target` must be
-  added to the scene (in R3F: render the target object or set `.target.position` + update).
-- Sun position from time: `elev = sin(time·π)·maxElev`, `az = (time·π) − π/2 + northOffset`;
-  `pos = r·[cos(elev)·sin(az), sin(elev), cos(elev)·cos(az)]`. Pure fn — see `/lighting/src/sun.ts`.
+### VERIFIED working values (furnished 4×5 m room, headless swiftshader, 2026-06-30)
+These produce a lit room with clean soft shadows, **no acne, no peter-panning** at room scale
+(screenshots: `/lighting/verify-out/`). Tune up for big houses (see notes).
+| Param | Verified value |
+|---|---|
+| sun base intensity (noon) | **1.35** (legacy units) × `max(0,sin(time·π))` × intensityScale |
+| hemisphere fill | sky `#ffffff` / ground `#cfcbc2`, intensity **0.7** |
+| scene ambient fill | **0.22** (so shadowed faces aren't black) |
+| ceiling task (per room) | **0.8**, warm `#ffd6aa` (2700K) |
+| shadow.mapSize | **2048** (room scale; bump to 4096 for multi-room house) |
+| shadow.bias | **-0.0004** |
+| shadow.normalBias | **0.02** |
+| shadow ortho half-extent | **max(houseHalfW, houseHalfD) + 3 m** margin |
+| shadow.camera.far | **domeRadius + half·2 + 5** (encloses sun→house) |
+| sun.domeRadiusM | **30** |
 
-_(Append tuned values here as they're measured against real furnished rooms.)_
+### Gotchas confirmed
+- DirectionalLight aims `position → target`; rotating it does nothing. The default target is at
+  the origin (0,0,0) = room/house center, so aiming the sun = just setting `position`; no target
+  object needed as long as everything is centered on the bbox (it is, per coords.ts).
+- **R3F shadow-camera gotcha:** changing `shadow-camera-left/right/top/bottom`/`far` via JSX props
+  does NOT auto-call `updateProjectionMatrix()`. Set them imperatively in a `useEffect` (grab the
+  light ref, mutate `light.shadow.camera.*`, call `cam.updateProjectionMatrix()`, set
+  `light.shadow.needsUpdate = true`). See `/lighting/src/r3f/Sun.tsx`.
+- Sun position from time: `elev = sin(time·π)·maxElevRad`, `az = (time·π) − π/2 + northOffset`;
+  `pos = r·[cos(elev)·sin(az), sin(elev), cos(elev)·cos(az)]`. maxElevation is stored in DEGREES
+  (`maxElevationDeg`) and converted to radians internally. Pure fn — `/lighting/src/sun.ts`.
+- **Performance:** the sun is the ONLY shadow-casting light; per-room ceiling/accent lights are
+  `castShadow=false`. Ambient is ONE global hemisphere (not stacked per-room) so an N-room house
+  doesn't over-brighten or pay for N hemisphere lights. `<LightingRig>` enforces this.
+- Background `#cdccc9` is bright (~luma 203); a "dark box" failure shows as low mean luminance.
+  The default rig yields mean ~163 at noon (lit) with ~7–8% dark pixels (shadows present).

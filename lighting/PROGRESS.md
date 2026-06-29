@@ -5,21 +5,26 @@ Renderer: **R3F** (three 0.169). World units: **meters**. Sun driven by the time
 
 ## Milestones
 
-- [~] **E0 — Onboard & scaffold.** Read brief + roomio.txt + LEARNINGS; post onboarding;
-  scaffold `/lighting`; publish `shared/lighting_schema.json`; bootstrap `shared/LEARNINGS.md`;
-  confirm renderer (R3F ✓); ping A (layered-rule contract + seam), C (per-room + windows), B (camera).
-  - DoD: onboarded; schema in /shared; A/C pinged. **(in progress)**
-- [ ] **E1 — Default room lights.** Auto ceiling (task) + ambient/hemisphere fill per room;
-  editable (move/recolor/intensity/delete/swap); warm/cool color-temperature. No dark box.
-- [ ] **E2 — Layered lighting.** ambient + task + accent; satisfies A's "needs layered lighting"
-  rule on a default room (via `roomLightingSatisfaction` predicate, pending A wiring).
-- [ ] **E3 — Sun + soft shadows.** One DirectionalLight; PCFSoft; ortho frustum encloses house;
-  bias/normalBias tuned against a furnished room; values logged to LEARNINGS.md.
-- [ ] **E4 — Time bar.** Toggleable bar drives sun arc + intensity/warmth shift; shadows sweep.
-- [ ] **E5 — North indicator.** Rotate offsets azimuth; reverse flips 180°; bar + sign toggle
-  independently; pleasant default angle on load.
-- [ ] **E6 — Multi-room + performance.** House-wide per-room lighting; sun = primary shadow caster;
-  framerate holds; cleanup.
+- [x] **E0 — Onboard & scaffold.** DONE. Onboarded; schema in /shared; LEARNINGS bootstrapped;
+  renderer confirmed (R3F); A/C/B pinged. 19 pure unit tests green.
+- [x] **E1 — Default room lights.** DONE + verified. `createDefaultRoomLights` auto-adds ambient
+  hemisphere fill + warm ceiling task light per room (`store.ensureRoom`). Editable via
+  `LightEditor` (intensity/enable/delete/add-accent) + warm/neutral/cool swatches. No dark box
+  (harness mean luma 163 at noon). Screenshots: verify-out/01-noon.png.
+- [x] **E2 — Layered lighting.** DONE on E side. ambient + task (+accent) layers; `contract.ts`
+  `roomLightingSatisfaction()` predicate ⇒ default room is `{hasLight:true, isLayered:true}`
+  (defaults.test.ts). **Pending A** wiring the predicate into the suggestion engine (requested).
+- [x] **E3 — Sun + soft shadows.** DONE + verified. `Sun.tsx` = one DirectionalLight, PCFSoft
+  (Canvas `shadows`), ortho frustum sized to house + 3 m, bias -0.0004 / normalBias 0.02; clean
+  soft shadows, no acne/peter-panning. Tuned values logged in LEARNINGS.md.
+- [x] **E4 — Time bar.** DONE + verified. `TimeBar` scrubs `timeOfDay`; sun arcs, shadows sweep
+  (25% pixels change 0.25→0.75), warms+dims toward night (dawn mean < noon).
+- [x] **E5 — North indicator.** DONE + verified. `NorthIndicator` rotate (±15°/slider) offsets
+  azimuth (36% change at 90°), Reverse flips 180° (20% change). Bar + sign toggle independently
+  (`LightingControls`); hiding both still renders (mean 163). Default state bar/north off in app.
+- [~] **E6 — Multi-room + performance.** Architecture in place: `<LightingRig>` iterates rooms[],
+  ONE global hemisphere + ONE sun (only shadow caster), room lights `castShadow=false`. Verifying
+  a 2-room scenario + perf assertion next.
 
 ## Architecture decisions
 - Same seam pattern as Agent B/C: A owns `RoomView.tsx` and its `<Lights>`; I cannot edit it.
