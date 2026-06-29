@@ -2,9 +2,10 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useStore } from '../store'
-import { bbox } from '../geometry/walls'
+import { bbox, buildWallParts, pointOnWall } from '../geometry/walls'
 import { makeFrame } from './coords'
 import { getFloorTexture } from './textures'
+import { OpeningMesh } from './Openings3D'
 import type { Wall } from '../types'
 
 function FloorMesh() {
@@ -22,7 +23,7 @@ function FloorMesh() {
     const uvs: number[] = []
     const normals: number[] = []
     const { texture, areaCm } = getFloorTexture(floorId)
-    const repeat = areaCm / 100 // meters per texture tile
+    const repeat = areaCm / 100
     for (const tri of tris) {
       for (const idx of tri) {
         const v = pts[idx]
@@ -40,61 +41,120 @@ function FloorMesh() {
 
   return (
     <mesh geometry={geom.g} receiveShadow position={[0, 0, 0]}>
-      <meshStandardMaterial
-        map={geom.texture}
-        roughness={0.82}
-        metalness={0}
-        side={THREE.DoubleSide}
-      />
+      <meshStandardMaterial map={geom.texture} roughness={0.82} metalness={0} side={THREE.DoubleSide} />
     </mesh>
+  )
+}
+
+function WallGroup({ wall, frame }: { wall: Wall; frame: ReturnType<typeof makeFrame> }) {
+  const height = useStore((s) => s.design.wallHeight)
+  const thickness = useStore((s) => s.design.wallThickness)
+  const wallColor = useStore((s) => s.design.materials.wallColor)
+  const openings = useStore((s) => s.design.openings)
+
+  const tM = thickness / 100
+  const angleY = Math.atan2(-wall.dirZ, wall.dirX)
+
+  const parts = useMemo(
+    () => buildWallParts(wall, openings.filter((o) => o.wallId === wall.id), height, thickness),
+    [wall, openings, height, thickness],
+  )
+
+  return (
+    <group>
+      {parts.map((p, i) => {
+        const base = pointOnWall(wall, p.uCenter / wall.length)
+        const [x, z] = frame.toWorld(base.x, base.z)
+        return (
+          <mesh
+            key={i}
+            position={[x, p.vCenter / 100, z]}
+            rotation={[0, angleY, 0]}
+            castShadow
+            receiveShadow
+          >
+            <boxGeometry args={[p.lenU / 100, p.lenV / 100, tM]} />
+            <meshStandardMaterial color={wallColor} roughness={0.95} metalness={0} />
+          </mesh>
+        )
+      })}
+    </group>
   )
 }
 
 function WallsMesh() {
   const corners = useStore((s) => s.design.corners)
   const walls = useStore((s) => s.walls)
-  const height = useStore((s) => s.design.wallHeight)
-  const thickness = useStore((s) => s.design.wallThickness)
-  const wallColor = useStore((s) => s.design.materials.wallColor)
-
   const frame = useMemo(() => makeFrame(corners), [corners])
   const groupRef = useRef<THREE.Group>(null)
 
-  // Hide walls whose interior face points away from the camera (open-dollhouse).
+  // Open-dollhouse: hide walls whose interior face points away from the camera.
   useFrame((state) => {
     const g = groupRef.current
     if (!g) return
-    const cam = state.camera
-    // horizontal view direction (into scene)
     const vx = state.camera.position.x
     const vz = state.camera.position.z
     g.children.forEach((child, i) => {
       const w = walls[i]
       if (!w) return
       const [mx, mz] = frame.toWorld(w.midX, w.midZ)
-      // vector from wall to camera
-      const toCamX = vx - mx
-      const toCamZ = vz - mz
-      // keep wall if its interior face (inward normal) points toward camera
-      const dot = w.nx * toCamX + w.nz * toCamZ
+      const dot = w.nx * (vx - mx) + w.nz * (vz - mz)
       child.visible = dot > -0.05
     })
   })
 
-  const hM = height / 100
-  const tM = thickness / 100
+  return (
+    <group ref={groupRef}>
+      {walls.map((w) => (
+        <WallGroup key={w.id} wall={w} frame={frame} />
+      ))}
+    </group>
+  )
+}
+
+function OpeningsLayer() {
+  const corners = useStore((s) => s.design.corners)
+  const walls = useStore((s) => s.walls)
+  const openings = useStore((s) => s.design.openings)
+  const height = useStore((s) => s.design.wallHeight)
+  const thickness = useStore((s) => s.design.wallThickness)
+  const frame = useMemo(() => makeFrame(corners), [corners])
+  const groupRef = useRef<THREE.Group>(null)
+
+  // Match the wall cull: hide an opening when its wall faces away from the camera.
+  useFrame((state) => {
+    const g = groupRef.current
+    if (!g) return
+    const vx = state.camera.position.x
+    const vz = state.camera.position.z
+    g.children.forEach((child, i) => {
+      const o = openings[i]
+      const w = o && walls.find((ww) => ww.id === o.wallId)
+      if (!w) {
+        child.visible = true
+        return
+      }
+      const [mx, mz] = frame.toWorld(w.midX, w.midZ)
+      child.visible = w.nx * (vx - mx) + w.nz * (vz - mz) > -0.05
+    })
+  })
 
   return (
     <group ref={groupRef}>
-      {walls.map((w: Wall) => {
-        const [mx, mz] = frame.toWorld(w.midX, w.midZ)
-        const lenM = w.length / 100 + tM
-        const angleY = Math.atan2(-w.dirZ, w.dirX)
+      {openings.map((o) => {
+        const wall = walls.find((w) => w.id === o.wallId)
         return (
-          <mesh key={w.id} position={[mx, hM / 2, mz]} rotation={[0, angleY, 0]} castShadow receiveShadow>
-            <boxGeometry args={[lenM, hM, tM]} />
-            <meshStandardMaterial color={wallColor} roughness={0.95} metalness={0} />
-          </mesh>
+          <group key={o.id}>
+            {wall && (
+              <OpeningMesh
+                opening={o}
+                wall={wall}
+                frame={frame}
+                wallHeight={height}
+                wallThickness={thickness}
+              />
+            )}
+          </group>
         )
       })}
     </group>
@@ -106,6 +166,7 @@ export function Room() {
     <group>
       <FloorMesh />
       <WallsMesh />
+      <OpeningsLayer />
     </group>
   )
 }

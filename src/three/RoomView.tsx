@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { bbox } from '../geometry/walls'
 import { Room } from './Room'
 import { EditHandles } from './EditHandles'
+import { OpeningEditor } from './OpeningEditor'
 
 function Lights() {
   return (
@@ -54,6 +55,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       <Suspense fallback={null}>
         <Room />
         {stage === 'step2' && <EditHandles />}
+        {stage === 'step3' && <OpeningEditor />}
         {children}
         <ContactShadows
           position={[0, 0.001, 0]}

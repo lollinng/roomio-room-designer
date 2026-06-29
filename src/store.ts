@@ -51,6 +51,8 @@ interface DesignStore {
   walls: Wall[]
   selectedOpeningId: string | null
   selectedFurnitureId: string | null
+  /** the door/window style armed for placement (Step 3) */
+  placingStyle: OpeningStyle | null
   /** transient: id of furniture currently flagged as overlapping another */
   overlapIds: string[]
 
@@ -69,6 +71,7 @@ interface DesignStore {
   setWallHeight: (cm: number) => void
 
   // ---- step 3 / openings ----
+  setPlacingStyle: (style: OpeningStyle | null) => void
   addOpening: (style: OpeningStyle, wallId: string, t: number) => void
   moveOpening: (id: string, wallId: string, t: number) => void
   removeOpening: (id: string) => void
@@ -101,6 +104,7 @@ export const useStore = create<DesignStore>((set, get) => ({
   walls: deriveWalls(presetCorners('rect')),
   selectedOpeningId: null,
   selectedFurnitureId: null,
+  placingStyle: null,
   overlapIds: [],
 
   setStage: (s) => set({ stage: s }),
@@ -189,6 +193,7 @@ export const useStore = create<DesignStore>((set, get) => ({
   setWallHeight: (cm) =>
     set({ design: touch({ ...get().design, wallHeight: Math.max(180, Math.min(400, cm)) }) }),
 
+  setPlacingStyle: (style) => set({ placingStyle: style }),
   addOpening: (style, wallId, t) => {
     const def = OPENING_MAP[style]
     if (!def) return

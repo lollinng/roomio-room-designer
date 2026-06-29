@@ -400,8 +400,77 @@ button {
 .opening-thumb {
   aspect-ratio: 3 / 4;
   border-radius: 10px;
-  background: #f0eee9;
+  background: #f7f5f0;
   border: 2px solid transparent;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.opening-card:hover .opening-thumb {
+  border-color: #c8c2b5;
+}
+
+.place-hint {
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1.5;
+  margin: 18px 0 0;
+}
+.place-hint.armed {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.placed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.placed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.placed-row.active {
+  border-color: var(--ink);
+  background: #fbfaf7;
+}
+.placed-del {
+  border: none;
+  background: none;
+  color: #b0392f;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.placed-del:hover {
+  text-decoration: underline;
+}
+
+/* trash affordance floating over a selected opening / item */
+.trash-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #111;
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.trash-btn:hover {
+  background: #b0392f;
 }
 
 /* ---------- Furnish: catalog ---------- */

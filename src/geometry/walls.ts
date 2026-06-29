@@ -1,4 +1,4 @@
-import type { Vec2, Wall } from '../types'
+import type { Vec2, Wall, Opening } from '../types'
 
 export function polygonCentroid(corners: Vec2[]): Vec2 {
   let x = 0
@@ -119,6 +119,83 @@ export function isRectilinear(walls: Wall[]): boolean {
   return walls.every(
     (w) => Math.abs(w.dirX) < 1e-3 || Math.abs(w.dirZ) < 1e-3,
   )
+}
+
+/**
+ * A solid piece of a wall after openings are subtracted. Coordinates are along
+ * the wall (u, from a→b, cm) and vertical (v, cm above floor).
+ */
+export interface WallPart {
+  uCenter: number
+  vCenter: number
+  lenU: number
+  lenV: number
+}
+
+/**
+ * Decompose a wall into solid boxes, leaving rectangular holes for each opening.
+ * Produces full-height strips between openings, plus a header above each opening
+ * and a sill piece below windows. End strips are extended by half-thickness so
+ * adjacent walls meet cleanly at corners.
+ */
+export function buildWallParts(
+  wall: Wall,
+  openings: Opening[],
+  wallHeight: number,
+  thickness: number,
+): WallPart[] {
+  const L = wall.length
+  const ext = thickness / 2
+  const parts: WallPart[] = []
+
+  // opening intervals along u, clamped to the wall
+  const ivs = openings
+    .map((o) => {
+      const u = o.t * L
+      const half = o.width / 2
+      return {
+        uMin: Math.max(0, u - half),
+        uMax: Math.min(L, u + half),
+        vBottom: Math.max(0, o.sill),
+        vTop: Math.min(wallHeight, o.sill + o.height),
+      }
+    })
+    .filter((i) => i.uMax > i.uMin)
+    .sort((a, b) => a.uMin - b.uMin)
+
+  // merged covered u-intervals → gaps become full-height strips
+  const merged: { uMin: number; uMax: number }[] = []
+  for (const i of ivs) {
+    const last = merged[merged.length - 1]
+    if (last && i.uMin <= last.uMax + 0.1) last.uMax = Math.max(last.uMax, i.uMax)
+    else merged.push({ uMin: i.uMin, uMax: i.uMax })
+  }
+
+  let cursor = 0
+  const pushStrip = (a: number, b: number) => {
+    if (b - a < 0.1) return
+    const start = a <= 0.1 ? -ext : a
+    const end = b >= L - 0.1 ? L + ext : b
+    parts.push({ uCenter: (start + end) / 2, lenU: end - start, vCenter: wallHeight / 2, lenV: wallHeight })
+  }
+  for (const m of merged) {
+    pushStrip(cursor, m.uMin)
+    cursor = m.uMax
+  }
+  pushStrip(cursor, L)
+
+  // header above + sill below each opening
+  for (const i of ivs) {
+    const w = i.uMax - i.uMin
+    const uc = (i.uMin + i.uMax) / 2
+    if (wallHeight - i.vTop > 0.1) {
+      parts.push({ uCenter: uc, lenU: w, vCenter: (i.vTop + wallHeight) / 2, lenV: wallHeight - i.vTop })
+    }
+    if (i.vBottom > 0.1) {
+      parts.push({ uCenter: uc, lenU: w, vCenter: i.vBottom / 2, lenV: i.vBottom })
+    }
+  }
+  return parts
 }
 
 /** Point-in-polygon test (ray casting), point & corners in cm. */
