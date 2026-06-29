@@ -11,6 +11,7 @@ import type {
 import type { Unit } from './units'
 import { presetCorners } from './geometry/presets'
 import { deriveWalls, bbox, signedArea, safeInteriorPoint } from './geometry/walls'
+import { resolveFurniture } from './geometry/collision'
 import { OPENING_MAP } from './data/openings'
 import { ARCHETYPE_MAP } from './data/archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR } from './data/materials'
@@ -241,7 +242,7 @@ export const useStore = create<DesignStore>((set, get) => ({
   addFurniture: (archetypeId, x, z) => {
     const a = ARCHETYPE_MAP[archetypeId]
     if (!a) return ''
-    const item: FurnitureItem = {
+    const base: FurnitureItem = {
       id: uid('f'),
       archetype: a.id,
       category: a.category,
@@ -254,15 +255,27 @@ export const useStore = create<DesignStore>((set, get) => ({
       h: a.h,
       color: a.color,
     }
+    const st = get()
+    // clamp the placement inside the walls using the verified §7 solver
+    const r = resolveFurniture(base, { x, z }, st.walls, st.design.furniture, st.design.corners, {
+      wallThickness: st.design.wallThickness,
+    })
+    const item = { ...base, x: r.x, z: r.z, rotation: r.rotation }
     set({
-      design: touch({ ...get().design, furniture: [...get().design.furniture, item] }),
+      design: touch({ ...st.design, furniture: [...st.design.furniture, item] }),
       selectedFurnitureId: item.id,
     })
     return item.id
   },
   addFurnitureCentered: (archetypeId) => {
-    const p = safeInteriorPoint(get().design.corners)
-    return get().addFurniture(archetypeId, p.x, p.z)
+    const corners = get().design.corners
+    const p = safeInteriorPoint(corners)
+    // stagger successive additions so they don't perfectly stack
+    const n = get().design.furniture.length
+    const off = 40
+    const px = p.x + ((n % 3) - 1) * off
+    const pz = p.z + ((Math.floor(n / 3) % 3) - 1) * off
+    return get().addFurniture(archetypeId, px, pz)
   },
   updateFurniture: (id, patch) =>
     set({

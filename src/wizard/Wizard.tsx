@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore, type Stage } from '../store'
 import { RoomView } from '../three/RoomView'
 import { saveDesign } from '../persistence'
@@ -43,6 +43,29 @@ export function Wizard() {
     setSaved(true)
     setTimeout(() => setSaved(false), 1600)
   }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const st = useStore.getState()
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (st.selectedFurnitureId) {
+          st.removeFurniture(st.selectedFurnitureId)
+          e.preventDefault()
+        } else if (st.selectedOpeningId) {
+          st.removeOpening(st.selectedOpeningId)
+          e.preventDefault()
+        }
+      } else if (e.key === 'Escape') {
+        st.selectFurniture(null)
+        st.selectOpening(null)
+        st.setPlacingStyle(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <>

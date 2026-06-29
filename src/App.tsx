@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
 import { useStore, type Stage } from './store'
+import type { ShapeId } from './types'
 import { Wizard } from './wizard/Wizard'
 import { StartScreen } from './wizard/StartScreen'
 
 const STAGES: Stage[] = ['start', 'step1', 'step2', 'step3', 'step4', 'furnish']
+const SHAPES: ShapeId[] = ['rect', 'l', 't', 'u', 'cut', 'beveled']
 
 export default function App() {
   const stage = useStore((s) => s.stage)
@@ -14,7 +16,9 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     const q = params.get('stage') as Stage | null
     if (q && STAGES.includes(q) && q !== 'start') {
-      useStore.getState().resetDesign('rect')
+      const shapeParam = params.get('shape') as ShapeId | null
+      const shape = shapeParam && SHAPES.includes(shapeParam) ? shapeParam : 'rect'
+      useStore.getState().resetDesign(shape)
       if (params.get('seed')) {
         const st = useStore.getState()
         const w = st.walls
