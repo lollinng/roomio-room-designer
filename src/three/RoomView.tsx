@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, ContactShadows } from '@react-three/drei'
 import { useStore } from '../store'
@@ -8,6 +8,8 @@ import { EditHandles } from './EditHandles'
 import { OpeningEditor } from './OpeningEditor'
 import { FurnitureEditor } from './FurnitureEditor'
 import { setViewCapturer } from './cameraBus'
+import { SceneBridge, FlythroughHud } from './Flythrough'
+import type { FlythroughController } from '../../camera-flythrough/src/engine/FlythroughController'
 import type { CameraView } from '../types'
 
 function Lights() {
@@ -95,6 +97,7 @@ function ViewCapturer() {
 export function RoomView({ children }: { children?: ReactNode }) {
   const corners = useStore((s) => s.design.corners)
   const stage = useStore((s) => s.stage)
+  const [flyController, setFlyController] = useState<FlythroughController | null>(null)
   const { camPos, radius } = useMemo(() => {
     const b = bbox(corners)
     const r = Math.max(b.w, b.d, 300) / 100
@@ -105,6 +108,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
   }, [corners])
 
   return (
+    <>
     <Canvas
       shadows
       flat
@@ -141,6 +145,9 @@ export function RoomView({ children }: { children?: ReactNode }) {
       />
       <CameraFit />
       <ViewCapturer />
+      <SceneBridge onController={setFlyController} />
     </Canvas>
+    <FlythroughHud controller={flyController} />
+    </>
   )
 }
