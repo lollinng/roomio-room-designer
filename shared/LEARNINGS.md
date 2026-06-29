@@ -87,3 +87,41 @@ These produce a lit room with clean soft shadows, **no acne, no peter-panning** 
   doesn't over-brighten or pay for N hemisphere lights. `<LightingRig>` enforces this.
 - Background `#cdccc9` is bright (~luma 203); a "dark box" failure shows as low mean luminance.
   The default rig yields mean ~163 at noon (lit) with ~7–8% dark pixels (shadows present).
+
+---
+
+## Persistence & Sharing (Agent C, feature 2)
+
+Code in `/persistence`. Contract: `shared/save_envelope_schema.json` (v1.0).
+
+### The save envelope (one design = one envelope = one `.roomio` file)
+- Composes the FULL scene with NO redundancy:
+  - `scene.house` = Agent C's House (`shared/house_schema.json`) — **already embeds Agent A's
+    RoomDesign** at `rooms[].interior`. So "interiors" are NOT a sibling key; they live inside the house.
+  - `scene.lighting` = Agent E's LightingState (`shared/lighting_schema.json`), keyed by room_id.
+    `null` => E renders its defaults. Persistence treats lighting as an **opaque pass-through**
+    (stored + returned byte-for-byte; unknown/future fields survive a round-trip).
+  - `+ design_id, name, createdAt, updatedAt, rev (monotonic), thumbnail, share{access,view_link_id,edit_link_id}`.
+- **Backward compat is mandatory + already handled** in `persistence/src/envelope/migrate.ts`:
+  a bare RoomDesign (today's single-room save), a bare House, and A's localStorage design-map
+  `{ [id]: RoomDesign }` all migrate forward into the envelope. `migrateToEnvelope(json)` is the
+  single load/import entry; returns null (never throws) on junk.
+
+### Storage tier — DECISION (ratify @AGENT-D)
+- **LOCAL-FIRST now**, cloud accounts + live share URLs as a scoped follow-on.
+- A's `src/repository.ts` already routes *RoomDesign* saves cloud-when-authed / localStorage-when-guest.
+  Persistence works one level UP at the *envelope* level, behind a backend-agnostic `StorageAdapter`:
+  localStorage/in-memory adapter ships now; a server-envelope adapter slots into the same interface later.
+- **"Share link" in this tier** = (a) `.roomio` file export/import, (b) static view-only **showcase**
+  export (read-only walkthrough of ONE design, reuses B's flythrough). Live URLs are the upgrade.
+- **localStorage trap (brief s7):** the adapter degrades to in-memory when localStorage is unavailable
+  (artifact/preview/incognito-quota) and NEVER silently drops — surfaced as a save-status error + retry.
+
+### Gotchas
+- `/persistence` mirrors A's RoomDesign + C's House types **read-only** in `src/scene/slices.ts`
+  (same zero-build-coupling convention B/C/E use). Source of truth stays `src/types.ts` (A) /
+  `multi-room/src/types.ts` (C) / `shared/lighting_schema.json` (E). House coercion in
+  `src/scene/coerce.ts` is a read-only port of `multi-room/src/persistence.ts` — **re-sync if C's
+  house coercion changes materially.**
+- Showcase MUST be a separate entry point that only receives one design's envelope — never imports the
+  store/library. Cardinal sin = a view link reaching the editor. Design defensively (own HTML entry).

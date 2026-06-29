@@ -453,3 +453,74 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   Canvas; I'll hand you the exact diff. @AGENT-C: still want your footprint/window-helper signatures to
   point per-room lights + sun frustum at the real house bounds (see my earlier REQUEST). @AGENT-D: new
   paths = /lighting/** + shared/lighting_schema.json + shared/LEARNINGS.md (bootstrapped, please curate).
+
+# ───────────────────────── AGENT C — Feature 2: Persistence & Sharing ─────────────────────────
+[2026-06-30 03:48] [AGENT-C] ONBOARDING (2nd feature). I'm back as the persistence owner — natural fit since I own
+  the multi-room House model, and save/load/share are fundamentally about serializing the whole scene I designed.
+  Read end-to-end: my brief (source/Roomio_Persistence_Sharing_Brief_AgentC.pdf), this whole log, LEARNINGS.md, and
+  the live shapes I compose: A's RoomDesign (src/types.ts), my House (multi-room/src/types.ts), E's LightingState
+  (shared/lighting_schema.json). ISOLATION: all my code lives in /persistence; I also write /shared + this log +
+  LEARNINGS.md only. I will NOT edit A/B/E source; commit only my own paths on my branch — Agent D merges.
+[2026-06-30 03:48] [AGENT-C] DECISION (storage tier — @AGENT-D please log/confirm). Shipping LOCAL-FIRST per the
+  brief's recommendation: designs persist on-device + `.roomio` file export/import NOW (no new backend/accounts work
+  required from me). Cloud accounts + LIVE share URLs are a clearly-scoped FOLLOW-ON. How it composes with A's work:
+   - A already built a Postgres server (:5181) + src/repository.ts that routes RoomDesign saves to cloud-when-authed,
+     localStorage-when-guest. My persistence operates one level UP, at the ENVELOPE level (whole scene), so I define a
+     backend-agnostic StorageAdapter: a localStorage/in-memory adapter ships now; a server-envelope adapter is the
+     follow-on that slots into the SAME interface (mirrors A's single swap point). No duplicate storage logic.
+   - What "share link" means in this tier: NOT a live URL yet. It is (a) a `.roomio` file export/import, and (b) a
+     static, self-contained view-only SHOWCASE export (read-only walkthrough of ONE design, reusing B's flythrough).
+     Live URLs are the upgrade once a backend resolves tokens. The showcase is a SEPARATE entry point (showcase.html)
+     that only ever receives one design's envelope — structurally cannot reach the editor/library (defends the
+     cardinal sin: a view link leaking into the editor).
+   - localStorage trap (brief §7): my adapter degrades to in-memory if localStorage is unavailable (artifact/preview
+     contexts) and NEVER silently drops — surfaced as a save-status error + retry. Recorded in LEARNINGS.md.
+[2026-06-30 03:48] [AGENT-C] C2-0 DONE — ENVELOPE SCHEMA PUBLISHED: shared/save_envelope_schema.json (v1.0). ONE design
+  = one envelope = the content of a `.roomio` file. It composes the FULL scene (no redundancy):
+     scene.house    -> my House (shared/house_schema.json v1.0) — ALREADY embeds A's RoomDesign verbatim at
+                       rooms[].interior, so "interiors" are NOT a sibling key; they live inside the house.
+     scene.lighting -> E's LightingState (shared/lighting_schema.json v1.0), keyed by room_id; null => E's defaults.
+                       Persistence treats lighting as an OPAQUE pass-through (stored + returned byte-for-byte).
+     + design_id/name/createdAt/updatedAt/rev (monotonic, drives history)/thumbnail/share{access,view_link_id,edit_link_id}.
+  VERSIONED + forward-compatible: a bare RoomDesign (today's single-room save), a bare House, AND A's localStorage
+  design-map all MIGRATE FORWARD into this envelope (persistence/src/envelope/migrate.ts). Unknown fields preserved on
+  round-trip. Verified: 8/8 vitest green (backward-compat for all 3 legacy shapes + export/import round-trip + lighting
+  pass-through incl. unknown future fields + duplicate independence) + typecheck clean. Scaffolded /persistence
+  (own pkg/vite/tsconfig, port 5187; two entries index.html=demo, showcase.html=view-only).
+[2026-06-30 03:48] [AGENT-C] REQUEST -> AGENT-A: please CONFIRM your interior slice round-trips. The envelope stores
+  your RoomDesign verbatim at scene.house.rooms[].interior (I do not fork or reshape it). Two asks: (1) confirm
+  RoomDesign (incl. the additive view/roomType/personaGenre fields you added) is the complete interior state to
+  persist — anything NOT on RoomDesign that must survive a save? (2) Is RoomDesign.personaGenre the canonical
+  "preset id" to serialize (the brief asks me to capture preset id), or is there another field? No change needed on
+  your side if RoomDesign is the full interior state; I'm just locking the contract.
+[2026-06-30 03:48] [AGENT-C] REQUEST -> AGENT-E: please CONFIRM your lighting slice round-trips. The envelope carries
+  your entire LightingState at scene.lighting (opaque pass-through, keyed by room_id, null => your defaults). Asks:
+  (1) confirm LightingState (shared/lighting_schema.json v1.0) is the COMPLETE state to persist (time/north/sun/shadow
+  + per-room lights) — anything ephemeral I should NOT save, or anything missing? (2) when I save, should I snapshot the
+  current LightingState from your store as-is, or is there a `serializeLighting()`/selector you'd prefer I call so I
+  don't capture transient UI state (e.g. an in-progress drag)? I'll match whatever shape/selector you expose. (And re:
+  YOUR open request to me below — answered next.)
+[2026-06-30 03:48] [AGENT-C] @AGENT-E re your geometry request (footprint + window helpers): YES, confirmed.
+   - Per-room placement + sun frustum: read rooms[].footprint {x,z,rotation,w,l} (cm) — x,z = world cm of the room's
+     local origin, rotation = radians in the house plane, w/l = interior bbox (cm). House bounds = union of all rooms'
+     world-space footprints; size your ortho half-extent to that + margin (you already do +3 m). Helpers in
+     multi-room/src/index.ts (consume read-only, like B did): `toWorld(footprint, localPt)`, `worldCorners(room)`,
+     `worldWalls(room)` (each wall as world-space a/b + normal), and `connectorWorldPoint(...)`.
+   - Window rects per room: YES — RoomDesign.openings with kind:'window' carry {wallId, t (0..1 along wall), width,
+     height, sill}. Map a window to world space via the wall it sits on: `worldWalls(room)` gives each wall's world
+     a→b + length; the window center = a + dir*(t*length), spans `width` centered there, vertical extent [sill, sill+height].
+     `openingsForRoom(house, roomId)` enumerates a room's openings (incl. connector-derived ones) if you want those too.
+     All cm; convert to meters with coords.ts toWorld (÷100, recenter) exactly as your rig already does. No coupling, no
+     schema change — house_schema/lighting_schema v1.0 both untouched.
+[2026-06-30 03:48] [AGENT-C] REQUEST -> AGENT-B: the view-only SHOWCASE needs your flythrough in READ-ONLY mode, and the
+  share panel offers a flythrough VIDEO export. I will NOT rebuild either. Asks: (1) for the showcase, can I mount your
+  playback (F5) against a scene I hydrate from one envelope, with authoring/recording UI hidden — i.e. a "present"/
+  read-only flag on your FlythroughController, or a minimal playback-only entry I can embed? The showcase receives
+  exactly ONE design (house+lighting) and no store/library access. (2) for the video export, I'd hand you the hydrated
+  scene + a camera path and call your frame-by-frame MP4 exporter (F6) — what's the entry signature (path + scene
+  handle?) so I can trigger it from the share panel? I'll consume camera_path_schema v1.0 for the path. No schema
+  change implied on your side.
+[2026-06-30 03:48] [AGENT-C] @AGENT-D heads-up for your merge: new paths are /persistence/** + shared/save_envelope_schema.json
+  + this log + a LEARNINGS.md append. No edits to A/B/E source. Treat ISSUE -> AGENT-C as high priority. The storage-tier
+  decision above (local-first now, cloud/live-URLs follow-on) is the one cross-cutting call I'd like you to ratify since
+  it touches how A's server (:5181) and my envelope adapter relate.
