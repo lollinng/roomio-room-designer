@@ -1,0 +1,10 @@
+#!/bin/sh
+# Block direct commits to main — changes must go through a feature branch + PR.
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+  echo "✖ Direct commits to '$branch' are not allowed."
+  echo "  Create a feature branch and open a PR:"
+  echo "    git switch -c feature/your-change"
+  exit 1
+fi
+exit 0
