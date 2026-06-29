@@ -13,7 +13,7 @@ import { presetCorners } from './geometry/presets'
 import { deriveWalls, bbox, signedArea, safeInteriorPoint } from './geometry/walls'
 import { resolveFurniture } from './geometry/collision'
 import { OPENING_MAP } from './data/openings'
-import { ARCHETYPE_MAP } from './data/archetypes'
+import { ARCHETYPE_MAP, isMounted } from './data/archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR } from './data/materials'
 import { toRoomDesign, type PersonaPreset } from './data/personas'
 
@@ -109,6 +109,8 @@ interface DesignStore {
   removeFurniture: (id: string) => void
   selectFurniture: (id: string | null) => void
   setOverlaps: (ids: string[]) => void
+  /** snap an item flush against the nearest wall (used by the wall-attach warning) */
+  snapToWall: (id: string) => void
 
   // ---- suggestion engine ----
   dismissSuggestion: (ruleId: string) => void
@@ -378,8 +380,13 @@ export const useStore = create<DesignStore>((set, get) => ({
       color: a.color,
     }
     const st = get()
+    // wall/surface-mounted pieces sit above floor furniture, so they're exempt
+    // from footprint collision (and floor pieces ignore them too).
+    const others = isMounted(a.id)
+      ? []
+      : st.design.furniture.filter((f) => !isMounted(f.archetype))
     // clamp the placement inside the walls using the verified §7 solver
-    const r = resolveFurniture(base, { x, z }, st.walls, st.design.furniture, st.design.corners, {
+    const r = resolveFurniture(base, { x, z }, st.walls, others, st.design.corners, {
       wallThickness: st.design.wallThickness,
     })
     const item = { ...base, x: r.x, z: r.z, rotation: r.rotation }
@@ -426,6 +433,49 @@ export const useStore = create<DesignStore>((set, get) => ({
   },
   selectFurniture: (id) => set({ selectedFurnitureId: id }),
   setOverlaps: (ids) => set({ overlapIds: ids }),
+  snapToWall: (id) => {
+    const st = get()
+    const item = st.design.furniture.find((f) => f.id === id)
+    const walls = st.walls
+    if (!item || !walls.length) return
+    // find the nearest wall to the item's center
+    let best = walls[0]
+    let bestDist = Infinity
+    for (const w of walls) {
+      const bx = w.a.x + w.dirX * w.length
+      const bz = w.a.z + w.dirZ * w.length
+      const len2 = (bx - w.a.x) ** 2 + (bz - w.a.z) ** 2 || 1
+      let t = ((item.x - w.a.x) * (bx - w.a.x) + (item.z - w.a.z) * (bz - w.a.z)) / len2
+      t = Math.max(0, Math.min(1, t))
+      const cx = w.a.x + t * (bx - w.a.x)
+      const cz = w.a.z + t * (bz - w.a.z)
+      const d = Math.hypot(item.x - cx, item.z - cz)
+      if (d < bestDist) {
+        bestDist = d
+        best = w
+      }
+    }
+    // project center along the wall, then offset inward so the back sits flush
+    const tang = (item.x - best.a.x) * best.dirX + (item.z - best.a.z) * best.dirZ
+    const tClamped = Math.max(item.w / 2, Math.min(best.length - item.w / 2, tang))
+    const px = best.a.x + best.dirX * tClamped
+    const pz = best.a.z + best.dirZ * tClamped
+    const inset = st.design.wallThickness / 2 + item.d / 2 + 1
+    const proposed = { x: px + best.nx * inset, z: pz + best.nz * inset }
+    const rotation = Math.atan2(best.nx, best.nz) // front faces inward
+    get().pushHistory()
+    const r = resolveFurniture({ ...item, rotation }, proposed, walls, [], st.design.corners, {
+      wallThickness: st.design.wallThickness,
+    })
+    set({
+      design: touch({
+        ...get().design,
+        furniture: get().design.furniture.map((f) =>
+          f.id === id ? { ...f, x: r.x, z: r.z, rotation: r.rotation } : f,
+        ),
+      }),
+    })
+  },
 
   dismissSuggestion: (ruleId) =>
     set((s) =>

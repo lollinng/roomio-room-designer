@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { evaluate, hasNecessityGap, RULES } from './engine'
+import { evaluate, hasNecessityGap, placementWarnings, RULES } from './engine'
 import type { RoomDesign, FurnitureItem, RoomType } from '../types'
 import { ARCHETYPE_MAP } from '../data/archetypes'
 import { toRoomDesign } from '../data/personas'
@@ -125,6 +125,25 @@ describe('genre-aware rules', () => {
   })
 })
 
+describe('placement warnings (wall pieces)', () => {
+  it('a TV floating mid-room with nothing beneath it warns', () => {
+    const tv = place('decor-tv', 250, 200) // center of a 500x400 room
+    const warns = placementWarnings(room([tv]))
+    expect(warns.some((w) => w.itemId === tv.id)).toBe(true)
+  })
+
+  it('a TV against the back wall does not warn', () => {
+    const tv = place('decor-tv', 250, 20)
+    expect(placementWarnings(room([tv]))).toEqual([])
+  })
+
+  it('a TV resting on a console mid-room does NOT warn', () => {
+    const console = place('storage-media', 250, 200)
+    const tv = place('decor-tv', 250, 200)
+    expect(placementWarnings(room([console, tv]))).toEqual([])
+  })
+})
+
 describe('all suggestions carry a valid one-tap Add (or are advisory-only)', () => {
   it('every suggest_archetype is a real corpus id or empty', () => {
     for (const r of RULES) {
@@ -149,6 +168,13 @@ describe('acceptance scenarios (brief §8)', () => {
     expect(sugg.some((s) => s.rule_id === 'R3' && s.tier === 'necessity')).toBe(true)
     // necessity ranks first
     expect(sugg[0].tier).toBe('necessity')
+  })
+
+  it('all 10 presets load with NO placement warnings (wall pieces are on walls / consoles)', () => {
+    for (const id of Object.keys(PERSONA_MAP)) {
+      const d = toRoomDesign(PERSONA_MAP[id])
+      expect(placementWarnings(d), `${id} has placement warnings`).toEqual([])
+    }
   })
 
   it('Family with Kids: delete the rug → polish; delete lights → necessity', () => {

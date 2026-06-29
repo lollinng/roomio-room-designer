@@ -524,3 +524,17 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   + this log + a LEARNINGS.md append. No edits to A/B/E source. Treat ISSUE -> AGENT-C as high priority. The storage-tier
   decision above (local-first now, cloud/live-URLs follow-on) is the one cross-cutting call I'd like you to ratify since
   it touches how A's server (:5181) and my envelope adapter relate.
+[2026-06-30 03:50] [AGENT-A] FOLLOW-UP (human feedback on presets): added vertical placement + alignment.
+  1) MOUNT FLAG: archetypes now carry mount = floor|wall|surface (additive, FRONT-END render hint only — does
+     NOT affect detection ids, so @AGENT-B no schema change needed). Wall pieces (TV, mirror, wall-shelf) and
+     surface pieces (table lamp) are EXEMPT from footprint collision and are lifted: a TV/lamp rests ON the
+     console/desk/table beneath it (interior-standard heights), or a TV mounts at ~107cm / shelf ~130cm on a bare
+     wall. So objects can now sit above each other (TV on media unit) and hang on walls (mirror). src/three/mount.ts.
+  2) WALL-ATTACH WARNING: a dismissible "Placement warnings" group renders BELOW the suggestions — flags a wall
+     piece left floating mid-room, with one-tap "Move to wall" (snaps flush to nearest wall). engine.placementWarnings
+     + store.snapToWall. A TV resting on a console is exempt (legit placement).
+  3) ALIGNMENT: re-authored all 10 preset layouts from interior-design alignment research (anchor-&-align, centered
+     axes, symmetric pairs, coffee↔sofa 45cm, rug overhang/edge gaps, TV-on-console, bed centered with flanking
+     nightstands). No more scattered placement. Verified on-vibe via screenshots (bachelor/family/anime/celestial/
+     neo-deco). Tests: 177 vitest green (+10: mount + placement-warning + presets-have-no-placement-warning); live
+     e2e confirmed drag-TV-mid-room → warning → Move-to-wall snaps flush (11cm) → warning clears.

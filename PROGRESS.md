@@ -66,6 +66,18 @@ Two linked features, both grounded in REAL Pinterest pins (frequency = the signa
       §8 acceptance scenarios (anime/family delete-rug→polish, delete-lights→necessity).
 - Verify deep-links: `/?preset=<genre_id>` loads a persona straight into furnish (e.g. ?preset=anime_otaku).
 
+### Follow-up (human feedback): vertical placement + alignment
+- ✅ **Mount system** (`src/three/mount.ts`, `archetypes.mount`): pieces are floor | wall | surface. Wall pieces
+      (TV, mirror, wall-shelf) and surface pieces (table lamp) are exempt from footprint collision and lifted —
+      a TV/lamp rests ON the console/desk beneath it, or a TV mounts at ~107cm / shelf ~130cm on a bare wall.
+      So objects can stack (TV on media unit) and hang on walls (mirror). Additive front-end render hint; detection
+      ids unaffected.
+- ✅ **Wall-attach warnings**: dismissible "Placement warnings" group below the suggestions; flags a wall piece left
+      floating mid-room with one-tap "Move to wall" (`store.snapToWall`). A TV resting on a console is exempt.
+- ✅ **Alignment**: all 10 preset layouts re-authored from interior-design alignment research (anchor-&-align,
+      centered axes, symmetric pairs, coffee↔sofa 45cm, rug overhang, TV-on-console, bed centered + flanking
+      nightstands) — no more scattered placement. 177 vitest green; live e2e verified the warning + move-to-wall flow.
+
 ## Milestones
 - ✅ **M0** Scaffold, scene-graph store, 6 shape presets, 3D viewport (walls+floor), dev server up
 - ✅ **M1** Step 1 shape picker · Step 2 dims: typed lengths + ft/cm toggle + live 3D drag handles + dim labels

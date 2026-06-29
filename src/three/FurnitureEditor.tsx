@@ -6,8 +6,9 @@ import { useStore } from '../store'
 import { makeFrame } from './coords'
 import { useFloorRay, useControlsToggle } from './interaction'
 import { resolveFurniture } from '../geometry/collision'
-import { ARCHETYPE_MAP } from '../data/archetypes'
+import { ARCHETYPE_MAP, isMounted } from '../data/archetypes'
 import { FurnitureModel } from './Furniture3D'
+import { elevationCm } from './mount'
 import type { FurnitureItem } from '../types'
 
 // Snap rotation to the nearest 15° increment (kept simple per spec).
@@ -49,6 +50,11 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
 
   const [wx, wz] = frame.toWorld(item.x, item.z)
   const archetype = ARCHETYPE_MAP[item.archetype]
+  const mounted = isMounted(item.archetype)
+
+  // Vertical lift: wall-hung / on-a-surface pieces float above the floor (and
+  // above whatever sits beneath them). Recomputed when the scene changes.
+  const elevM = elevationCm(item, furniture) / 100
 
   // World meters of the footprint / height.
   const wM = item.w / 100
@@ -61,9 +67,15 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
     [wM, hM, dM],
   )
 
+  // Wall/surface-mounted pieces are exempt from footprint collision (they sit
+  // above floor furniture), and floor pieces never collide with mounted ones.
+  const collisionOthers = mounted
+    ? []
+    : furniture.filter((f) => f.id !== item.id && !isMounted(f.archetype))
+
   // ---- shared resolve helper: applies collision + snapping for a proposed center.
   const resolveMove = (cx: number, cz: number) => {
-    const others = furniture.filter((f) => f.id !== item.id)
+    const others = collisionOthers
     const r = resolveFurniture(
       item,
       { x: cx, z: cz },
@@ -137,7 +149,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
     const angle = snapAngle(Math.atan2(dx, dz))
     // Push through resolveFurniture so any wall snap / inside-constraint that the
     // new rotation triggers stays legal. We feed the current center as proposed.
-    const others = furniture.filter((f) => f.id !== item.id)
+    const others = collisionOthers
     const r = resolveFurniture(
       { ...item, rotation: angle },
       { x: item.x, z: item.z },
@@ -159,7 +171,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   }
 
   return (
-    <group position={[wx, 0, wz]} rotation={[0, item.rotation, 0]}>
+    <group position={[wx, elevM, wz]} rotation={[0, item.rotation, 0]}>
       {/* The furniture itself (rendered in local space). */}
       <FurnitureModel
         model={archetype.model}

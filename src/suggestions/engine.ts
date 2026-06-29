@@ -1,6 +1,7 @@
 import type { RoomDesign, FurnitureItem, Vec2, RoomType } from '../types'
-import { ARCHETYPE_MAP } from '../data/archetypes'
+import { ARCHETYPE_MAP, mountOf } from '../data/archetypes'
 import { rolesOf, countRole, hasRole, type Role } from './roles'
+import { restsOnSurface } from '../three/mount'
 import rawRules from '../data/rules.json'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -231,4 +232,40 @@ export function evaluate(design: RoomDesign): Suggestion[] {
 /** True if the room has any unmet *necessity* gap (used to validate presets). */
 export function hasNecessityGap(design: RoomDesign): boolean {
   return evaluate(design).some((s) => s.tier === 'necessity')
+}
+
+// ── placement warnings (per-item) ────────────────────────────────────────────
+
+export interface PlacementWarning {
+  /** stable key for dismissal */
+  key: string
+  itemId: string
+  name: string
+  message: string
+}
+
+/** cm — a wall-mounted piece whose center is farther than this from any wall is "floating". */
+const WALL_ATTACH_THRESHOLD = 70
+
+/**
+ * Per-item placement warnings, shown below the design suggestions. Currently:
+ * wall-mounted pieces (TV, mirror, floating shelf) that aren't against a wall —
+ * dismissible, with a one-tap "Move to wall".
+ */
+export function placementWarnings(design: RoomDesign): PlacementWarning[] {
+  const out: PlacementWarning[] = []
+  for (const f of design.furniture) {
+    if (mountOf(f.archetype) !== 'wall') continue
+    // a TV/mirror resting on a console or desk is legitimately placed, even mid-room
+    if (restsOnSurface(f, design.furniture)) continue
+    if (distToNearestWall(f, design.corners) > WALL_ATTACH_THRESHOLD) {
+      out.push({
+        key: `wall-${f.id}`,
+        itemId: f.id,
+        name: f.name,
+        message: `“${f.name}” isn’t against a wall — wall pieces look best mounted on one.`,
+      })
+    }
+  }
+  return out
 }
