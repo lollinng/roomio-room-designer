@@ -18,7 +18,14 @@ const chip = (active: boolean): React.CSSProperties => ({
   backdropFilter: 'blur(6px)',
 })
 
-export function LightingControls({ roomId }: { roomId?: string }) {
+export function LightingControls({
+  roomId,
+  anchorLeftPx = 12,
+}: {
+  roomId?: string
+  /** left offset (px) for the toggle cluster, so it can clear an app side-panel. */
+  anchorLeftPx?: number
+}) {
   const barVisible = useLighting((s) => s.barVisible)
   const northVisible = useLighting((s) => s.northVisible)
   const lightMode = useLighting((s) => s.lightMode)
@@ -29,7 +36,7 @@ export function LightingControls({ roomId }: { roomId?: string }) {
   return (
     <>
       {/* top-left: independent toggles (always visible, so you can re-show panels) */}
-      <div style={{ position: 'fixed', top: 12, left: 12, display: 'flex', gap: 8, zIndex: 10 }}>
+      <div style={{ position: 'fixed', top: 12, left: anchorLeftPx, display: 'flex', gap: 8, zIndex: 10 }}>
         <button
           style={chip(lightMode)}
           onClick={() => toggleLightMode()}

@@ -11,31 +11,11 @@ import { setViewCapturer } from './cameraBus'
 import { SceneBridge, FlythroughHud } from './Flythrough'
 import type { FlythroughController } from '../../camera-flythrough/src/engine/FlythroughController'
 import type { CameraView } from '../types'
-
-function Lights() {
-  return (
-    <>
-      <hemisphereLight args={['#ffffff', '#cfcbc2', 1.05]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight
-        position={[7, 13, 8]}
-        intensity={1.35}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
-        shadow-camera-near={0.5}
-        shadow-camera-far={48}
-        shadow-bias={-0.0004}
-      />
-      <directionalLight position={[-9, 7, -7]} intensity={0.45} />
-      <directionalLight position={[0, 6, -12]} intensity={0.25} />
-    </>
-  )
-}
+// Agent E lighting (drop-in): layered default room lights + directional sun + soft shadows,
+// driven by the time bar / north controls. Replaces the old local <Lights>.
+import { LightingRig } from '../../lighting/src/r3f/LightingRig'
+import { LightingControls } from '../../lighting/src/ui/LightingControls'
+import { useLighting } from '../../lighting/src/store'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
@@ -97,7 +77,19 @@ function ViewCapturer() {
 export function RoomView({ children }: { children?: ReactNode }) {
   const corners = useStore((s) => s.design.corners)
   const stage = useStore((s) => s.stage)
+  const designId = useStore((s) => s.design.id)
   const [flyController, setFlyController] = useState<FlythroughController | null>(null)
+
+  // Every room gets sensible default lights the moment it exists (Pillar 1: never a dark box).
+  useEffect(() => {
+    const d = useStore.getState().design
+    useLighting.getState().ensureRoom({
+      id: d.id,
+      centerM: [0, 0], // room is centered on its bbox center (coords.ts)
+      wallHeightM: d.wallHeight / 100,
+    })
+  }, [designId])
+
   const { camPos, radius } = useMemo(() => {
     const b = bbox(corners)
     const r = Math.max(b.w, b.d, 300) / 100
@@ -117,7 +109,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       camera={{ position: camPos, fov: 40, near: 0.1, far: 200 }}
     >
       <color attach="background" args={['#cdccc9']} />
-      <Lights />
+      <LightingRig houseHalfExtentM={radius / 2} />
       <Suspense fallback={null}>
         <Room />
         {stage === 'step2' && <EditHandles />}
@@ -148,6 +140,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       <SceneBridge onController={setFlyController} />
     </Canvas>
     <FlythroughHud controller={flyController} />
+    <LightingControls roomId={designId} anchorLeftPx={440} />
     </>
   )
 }

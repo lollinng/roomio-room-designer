@@ -10,6 +10,9 @@ import { ARCHETYPE_MAP, isMounted } from '../data/archetypes'
 import { FurnitureModel } from './Furniture3D'
 import { elevationCm } from './mount'
 import type { FurnitureItem } from '../types'
+// Agent E — Light Mode: when on, ALL furniture is locked (pointer edits blocked) + hints hidden.
+import { furnitureLocked } from '../../lighting/src/contract'
+import { useLighting } from '../../lighting/src/store'
 
 // Snap rotation to the nearest 15° increment (kept simple per spec).
 const ROT_SNAP = (15 * Math.PI) / 180
@@ -35,6 +38,9 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const setOverlaps = useStore((s) => s.setOverlaps)
   const beginGesture = useStore((s) => s.beginGesture)
   const endGesture = useStore((s) => s.endGesture)
+  // Light Mode (presentation): locks every piece regardless of its own locked flag.
+  const lightMode = useLighting((s) => s.lightMode)
+  const locked = furnitureLocked(item, lightMode)
 
   const floorRay = useFloorRay()
   const toggleControls = useControlsToggle()
@@ -92,7 +98,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const onMoveDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
     selectFurniture(item.id)
-    if (item.locked) return // pinned: select only, ignore drag
+    if (locked) return // pinned or Light Mode: select only, ignore drag
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
     moving.current = true
     beginGesture()
@@ -108,7 +114,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   }
 
   const onMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!moving.current || item.locked) return
+    if (!moving.current || locked) return
     e.stopPropagation()
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
@@ -128,7 +134,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const onRotDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
     selectFurniture(item.id)
-    if (item.locked) return // pinned: ignore rotation too
+    if (locked) return // pinned or Light Mode: ignore rotation too
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
     rotating.current = true
     beginGesture()
@@ -136,7 +142,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   }
 
   const onRotMove = (e: ThreeEvent<PointerEvent>) => {
-    if (!rotating.current || item.locked) return
+    if (!rotating.current || locked) return
     e.stopPropagation()
     const hit = floorRay(e.clientX, e.clientY)
     if (!hit) return
@@ -210,7 +216,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
           </lineSegments>
 
           {/* Rotate handle: a grabbable knob in front of the item (+z). Hidden when locked. */}
-          {!item.locked && (
+          {!locked && (
             <group position={[0, 0.02, dM / 2 + 0.35]}>
               <mesh onPointerDown={onRotDown} onPointerMove={onRotMove} onPointerUp={onRotUp}>
                 <sphereGeometry args={[0.075, 20, 16]} />
@@ -258,7 +264,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
       )}
 
       {/* Lock indicator — visible when pinned but NOT selected (toolbar shows it otherwise). */}
-      {item.locked && !selected && (
+      {locked && !selected && (
         <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[35, 0]}>
           <div className="lock-badge" title="Locked">🔒</div>
         </Html>
