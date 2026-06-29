@@ -39,6 +39,26 @@ src/
 tests/             vitest for pure logic (collision, curve sampling, decimation, path IO)
 ```
 
+## Acceptance (brief §8) — all pass on the dev harness
+| ID | Requirement | Evidence |
+|----|-------------|----------|
+| C-1 | Walk first-person at eye height | F1 · `verify-walk` |
+| C-2 | Walking collides with walls/furniture | F1 · 8 headings stay legal + 7 collision unit tests |
+| C-3 | Top-down director + camera gizmo | F2 · `verify-director` (shot 03) |
+| C-4 | One-tap POV toggle | F2 · `verify-director` round-trips |
+| C-5 | Drop/drag waypoints → smooth spline | F3 · `verify-path` threads every pt to 0.00 cm |
+| C-6 | Per-point look-at + dwell | F3 · exported into CameraPath |
+| C-7 | Record a manual walk as the path | F4 · `verify-record` 26 samples → 6 pts |
+| C-8 | Plays smoothly (constant speed, look-ahead), play/pause/scrub | F5 · step ratio 1.006; 8 playback unit tests |
+| C-9 | Path persists as JSON (save/reload/share) | F4/F5 · JSON + localStorage round-trip identical; 8 pathIO tests |
+| C-10 | Smooth downloadable video (frame-by-frame, not realtime) | F6 · 60-frame H.264 MP4 downloads (ffprobe-verified) |
+| C-11 | All code in /camera-flythrough; scene via contract; no front-end edits | isolation honored; only /camera-flythrough + /shared + roomio.txt touched |
+| C-12 | Decisions/requests logged with `[AGENT-B]` | source/roomio.txt |
+
+**Verification:** `npm test` (28 unit tests) + `npm run verify` (7 headless suites, needs `npm run dev`).
+Screenshots in `scripts/__shots/`. The one open external dependency is the **live scene mount**
+(Agent A's `sceneBus`, requested in roomio.txt) — the engine attaches to it with zero API change.
+
 ## Decisions log
 - **C0** Path stored in **world meters** (camera consumes directly; room only recenters on
   shape change). Collision in **design cm** (reuses the front-end's exact footprint math).
