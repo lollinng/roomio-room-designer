@@ -50,6 +50,19 @@ export function restsOnSurface(item: FurnitureItem, furniture: FurnitureItem[]):
 }
 
 /**
+ * Mounted pieces (wall/surface) currently resting on `host` — i.e. their center
+ * sits within the host's footprint and the host is a stackable surface. Used to
+ * carry a lamp/TV along when its table/console is moved or rotated.
+ */
+export function dependentsOf(host: FurnitureItem, furniture: FurnitureItem[]): FurnitureItem[] {
+  if (mountOf(host.archetype) !== 'floor') return []
+  if (host.h < 25 || host.h > MAX_SUPPORT_CM) return []
+  return furniture.filter(
+    (f) => f.id !== host.id && mountOf(f.archetype) !== 'floor' && pointInFootprint(host, f.x, f.z),
+  )
+}
+
+/**
  * Floor-to-base elevation (cm) for an item, accounting for what sits beneath it.
  *  - floor   → 0
  *  - surface → rests on the piece below (lamp on a table); 0 if nothing there

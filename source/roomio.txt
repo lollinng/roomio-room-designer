@@ -538,3 +538,7 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
      nightstands). No more scattered placement. Verified on-vibe via screenshots (bachelor/family/anime/celestial/
      neo-deco). Tests: 177 vitest green (+10: mount + placement-warning + presets-have-no-placement-warning); live
      e2e confirmed drag-TV-mid-room → warning → Move-to-wall snaps flush (11cm) → warning clears.
+[2026-06-30 03:54] [AGENT-A] Mounted pieces now MOVE WITH their host (human feedback): moving/rotating a table,
+  console or desk carries the lamp/TV resting on it by the same translation + rotation (mount.dependentsOf +
+  store.updateFurniture carry). Dependents follow even when locked. 181 vitest green (+store carry tests);
+  live e2e confirmed a side-table drag carries its lamp.
