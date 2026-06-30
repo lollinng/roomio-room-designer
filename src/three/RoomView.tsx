@@ -19,6 +19,12 @@ import { Ceiling } from '../../lighting/src/r3f/Ceiling'
 import { LightingControls } from '../../lighting/src/ui/LightingControls'
 import { useLighting } from '../../lighting/src/store'
 import { makeFrame } from './coords'
+// Agent E multi-room "whole house" overview: render all session rooms together,
+// interconnected, instead of editing one at a time. Toggle via useHouseView.
+import { useHouse } from './houseSession'
+import { useHouseView } from './houseViewMode'
+import { HouseView } from './HouseView'
+import { layoutHouse, houseBoundsCm } from './houseLayout'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
@@ -113,6 +119,20 @@ export function RoomView({ children }: { children?: ReactNode }) {
     }
   }, [corners])
 
+  // Whole-house overview mode: lay out all session rooms interconnected.
+  const viewMode = useHouseView((s) => s.mode)
+  const houseRooms = useHouse((s) => s.rooms)
+  const activeId = useHouse((s) => s.activeId)
+  const liveDesign = useStore((s) => s.design)
+  const houseMode = viewMode === 'house' && houseRooms.length > 1
+  const { placed, houseBounds } = useMemo(() => {
+    if (!houseMode) return { placed: [], houseBounds: { w: 0, d: 0, cx: 0, cz: 0 } }
+    const designs = houseRooms.map((r) => (r.id === activeId ? liveDesign : r.design))
+    const p = layoutHouse(designs)
+    return { placed: p, houseBounds: houseBoundsCm(p) }
+  }, [houseMode, houseRooms, activeId, liveDesign])
+  const viewRadius = houseMode ? Math.max(houseBounds.w, houseBounds.d, 300) / 100 : radius
+
   return (
     <>
     <Canvas
@@ -124,35 +144,44 @@ export function RoomView({ children }: { children?: ReactNode }) {
       onCreated={(s) => setOrigCam(s.camera)}
     >
       <color attach="background" args={['#cdccc9']} />
-      <LightingRig houseHalfExtentM={radius / 2} activeRoomId={designId} />
-      <Suspense fallback={null}>
-        <Room />
-        <Ceiling cornersWorld={ceilingCorners} heightM={wallHeight / 100} />
-        {stage === 'step2' && <EditHandles />}
-        {stage === 'step3' && <OpeningEditor />}
-        {stage === 'furnish' && <FurnitureEditor />}
-        {children}
-        <ContactShadows
-          position={[0, 0.002, 0]}
-          scale={radius * 4.2}
-          resolution={1024}
-          blur={2.6}
-          opacity={0.38}
-          far={6}
-        />
-      </Suspense>
+      {houseMode ? (
+        <Suspense fallback={null}>
+          <HouseView placed={placed} bounds={houseBounds} />
+          {children}
+        </Suspense>
+      ) : (
+        <>
+          <LightingRig houseHalfExtentM={radius / 2} activeRoomId={designId} />
+          <Suspense fallback={null}>
+            <Room />
+            <Ceiling cornersWorld={ceilingCorners} heightM={wallHeight / 100} />
+            {stage === 'step2' && <EditHandles />}
+            {stage === 'step3' && <OpeningEditor />}
+            {stage === 'furnish' && <FurnitureEditor />}
+            {children}
+            <ContactShadows
+              position={[0, 0.002, 0]}
+              scale={radius * 4.2}
+              resolution={1024}
+              blur={2.6}
+              opacity={0.38}
+              far={6}
+            />
+          </Suspense>
+          <CameraFit />
+        </>
+      )}
       <OrbitControls
         makeDefault
         camera={origCam ?? undefined}
         target={[0, 0.7, 0]}
         enablePan
-        minDistance={radius * 0.45}
-        maxDistance={radius * 4.5}
+        minDistance={viewRadius * 0.4}
+        maxDistance={viewRadius * 5}
         maxPolarAngle={Math.PI / 2.05}
         enableDamping
         dampingFactor={0.13}
       />
-      <CameraFit />
       <ViewCapturer />
       <SceneBridge onController={setFlyController} />
     </Canvas>
@@ -160,6 +189,31 @@ export function RoomView({ children }: { children?: ReactNode }) {
     {/* anchorRightPx clears the .vp-tools view toolbar (right:18px + 40px wide ⇒ 58px)
         so the "💡 Light Mode" launcher/panel doesn't overlap the undo/redo/fit/home buttons. */}
     <LightingControls roomId={designId} hasWindows={hasWindows} anchorRightPx={66} />
+    {/* Whole-house / single-room toggle (only meaningful with 2+ rooms). */}
+    {houseRooms.length > 1 && (
+      <button
+        onClick={() => useHouseView.getState().toggle()}
+        title={houseMode ? 'Back to editing one room' : 'See all rooms together as a connected house'}
+        style={{
+          position: 'fixed',
+          top: 14,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          padding: '8px 16px',
+          borderRadius: 999,
+          border: '1px solid rgba(0,0,0,0.12)',
+          background: houseMode ? '#111' : '#fff',
+          color: houseMode ? '#fff' : '#23211e',
+          font: '13px ui-sans-serif, system-ui, sans-serif',
+          fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+        }}
+      >
+        {houseMode ? '🚪 Edit a room' : '🏠 View whole house'}
+      </button>
+    )}
     </>
   )
 }

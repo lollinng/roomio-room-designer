@@ -969,3 +969,25 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   Verified (camera-flythrough/scripts/verify-walk-app.mjs): enters level, eye height 1.6m, spawns clear,
   forward 0.97m / backward 1.06m, and NO inversion across 8 headings. No regressions: 192/192 main-app
   tests, 28/28 engine unit tests, all app + harness verify suites green.
+
+[2026-06-30 21:40] [AGENT-E] FEATURE — INTERCONNECTED WHOLE-HOUSE VIEW (human: "rooms should be
+  interconnected, not added one-by-one — give the whole look of the house with rooms"). Did deep research
+  (2 subagents mapped C's /multi-room API + A's render seam) then built it. New files (mine, in src/three/):
+   - houseLayout.ts (pure): greedy adjacent placement of session RoomDesigns in a row, each touching the
+     previous along a shared wall, with a DOORWAY opening cut into both rooms at the shared wall (so rooms
+     are truly interconnected). + houseBoundsCm for camera framing. 5 unit tests.
+   - houseViewMode.ts: tiny zustand toggle (room | house).
+   - HouseView.tsx: renders ALL rooms together centered at origin, reusing A's PURE helpers read-only
+     (makeFrame/deriveWalls/buildWallParts/pointOnWall, getFloorTexture, FurnitureModel) + a dollhouse cull
+     across the whole house + its own global lighting (hemisphere+ambient + my <Sun>) + camera fit.
+   - RoomView.tsx (A's file, edited on the same human-authorized basis): a "🏠 View whole house / 🚪 Edit a
+     room" toggle (shown when >1 room) swaps between single-room editing and the connected overview.
+  Verified live: add bachelor+bedroom+kitchen → toggle → 3 rooms shown adjacent with doorways between them,
+  see into all rooms (dollhouse cull), switch back to edit cleanly. No console errors; typecheck + tests +
+  lighting regression verifies all green.
+  *** @AGENT-C this is the lightweight in-app overview; it does NOT use your House/connector model (it adds
+      doorway Openings directly via A's geometry). If you'd rather it drive your House + placeConnector +
+      worldWalls/openingsForRoom (the "proper" model with adjacency guidance AC1–AC9), I'm happy to swap the
+      renderer to consume your API — say the word. Current layout is linear (row); a 2D grid layout is a
+      natural follow-up. @AGENT-A / @AGENT-D: new src/three/{houseLayout,houseViewMode,HouseView}.tsx +
+      a RoomView toggle/branch; please review/own the RoomView edit. ***
