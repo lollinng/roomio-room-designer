@@ -13,6 +13,7 @@
 import * as THREE from 'three'
 import { selectSlotMeshes, type MeshDesc, type SlotSelectOptions } from './slot'
 import { applyPbrMaps, type TextureSet } from './material'
+import { applyTriplanar, needsTriplanar } from './triplanar'
 import { dominantFaceCm, repeatFor } from '../pipeline/tiling'
 import type { Slot } from '../contract'
 
@@ -29,10 +30,15 @@ export interface ApplyTextureOptions {
   maps: TextureSet
   normalScale?: number
   slotOpts?: SlotSelectOptions
+  /** 'auto' (default): triplanar only meshes with strongly non-uniform world scale (tub/cone).
+   *  true: force triplanar on all slot meshes. false: never. */
+  triplanar?: boolean | 'auto'
 }
 
 export interface AppliedHandle {
   targeted: number
+  /** how many of the targeted meshes used the triplanar fallback. */
+  triplanarCount: number
   repeat: { x: number; y: number }
   restore: () => void
 }
@@ -75,18 +81,26 @@ export function applyTextureToGroup(root: THREE.Object3D, o: ApplyTextureOptions
   const meshes = collectStandardMeshes(root)
   const idxs = selectSlotMeshes(meshes.map(meshDescriptor), o.slot, o.itemColorHex, o.slotOpts)
 
+  const triMode = o.triplanar ?? 'auto'
   const records: { mesh: THREE.Mesh; orig: THREE.MeshStandardMaterial; applied: THREE.MeshStandardMaterial }[] = []
+  let triplanarCount = 0
   for (const i of idxs) {
     const mesh = meshes[i]
     const orig = mesh.material as THREE.MeshStandardMaterial
     const applied = orig.clone()
     applyPbrMaps(applied, o.maps, tiling)
+    const useTri = triMode === true || (triMode === 'auto' && needsTriplanar(mesh))
+    if (useTri) {
+      applyTriplanar(applied, o.repeatCm)
+      triplanarCount++
+    }
     mesh.material = applied
     records.push({ mesh, orig, applied })
   }
 
   return {
     targeted: records.length,
+    triplanarCount,
     repeat: { x: repeatX, y: repeatY },
     restore: () => {
       for (const r of records) {

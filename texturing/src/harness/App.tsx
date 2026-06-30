@@ -7,7 +7,7 @@
 import { useEffect, type CSSProperties } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { Sofa, Table } from './Furniture'
+import { Sofa, Table, Tub } from './Furniture'
 import { useTextureStore } from './textureStore'
 
 function Lights() {
@@ -53,9 +53,10 @@ function Scene() {
       <color attach="background" args={['#cdccc9']} />
       <Lights />
       <Floor />
-      <Sofa position={[-1.25, 0, 0]} />
-      <Table position={[1.5, 0, -0.2]} />
-      <OrbitControls makeDefault target={[0, 0.5, 0]} />
+      <Sofa position={[-1.45, 0, -0.3]} />
+      <Table position={[1.7, 0, -0.5]} />
+      <Tub position={[0.4, 0, 1.7]} />
+      <OrbitControls makeDefault target={[0, 0.4, 0.3]} />
     </Canvas>
   )
 }
@@ -91,6 +92,7 @@ function Panel() {
           targeted: st.lastTargeted,
           repeatCm: st.repeatCm,
           repeatX: st.lastRepeatX,
+          triplanar: st.lastTriplanar,
         }
       },
     }
@@ -114,9 +116,10 @@ function Panel() {
       <div style={{ color: '#666', fontSize: 12, marginBottom: 10 }}>Agent H · suggestion → preview → accept → revert</div>
 
       <div style={{ fontSize: 12, color: '#444', marginBottom: 4 }}>Piece</div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         <button style={btn(s.target === 'sofa')} onClick={() => s.setTarget('sofa')}>3-seater sofa</button>
         <button style={btn(s.target === 'table')} onClick={() => s.setTarget('table')}>Table</button>
+        <button style={btn(s.target === 'tub')} onClick={() => s.setTarget('tub')}>Tub (triplanar)</button>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>

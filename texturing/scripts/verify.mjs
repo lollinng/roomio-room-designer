@@ -49,7 +49,16 @@ try {
   })
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 800 })
-  page.on('pageerror', (e) => console.log('  [pageerror]', e.message))
+  const shaderErrors = []
+  const isShaderErr = (t) => /shader|glsl|compile|program|webgl/i.test(t)
+  page.on('pageerror', (e) => {
+    console.log('  [pageerror]', e.message)
+    if (isShaderErr(e.message)) shaderErrors.push(e.message)
+  })
+  page.on('console', (m) => {
+    const t = m.text()
+    if (m.type() === 'error' && isShaderErr(t)) shaderErrors.push(t)
+  })
   await page.goto(APP_URL, { waitUntil: 'networkidle0' })
   await page.waitForFunction('document.querySelector("canvas") && window.__tex', { timeout: 30000 })
   await sleep(1800) // let the first frames render under swiftshader
@@ -155,6 +164,19 @@ try {
   await page.screenshot({ path: OUT + '05-wood-table.png' })
   ok(st3.targeted >= 1, `wood textured the table top (targeted=${st3.targeted})`)
   ok(tableAfter.detail > tableBefore.detail * 1.3, `table gained wood grain (detail ${tableBefore.detail.toFixed(2)} → ${tableAfter.detail.toFixed(2)})`)
+
+  // TRIPLANAR FALLBACK on the anisotropic tub (H1 safety net) — must compile + texture, no stretch
+  await page.evaluate(() => window.__tex.setTarget('tub'))
+  const sigPreTub = await page.evaluate(() => window.__frameSig())
+  await page.evaluate(() => window.__tex.apply('fabric'))
+  await sleep(800)
+  const st4 = await page.evaluate(() => window.__tex.state())
+  const sigPostTub = await page.evaluate(() => window.__frameSig())
+  await page.screenshot({ path: OUT + '06-tub-triplanar.png' })
+  ok(st4.targeted >= 1, `tub body textured (targeted=${st4.targeted})`)
+  ok(st4.triplanar >= 1, `tub used the TRIPLANAR fallback (triplanarCount=${st4.triplanar})`)
+  ok(sigPostTub !== sigPreTub, 'triplanar texturing re-rendered the tub (shader compiled + drew)')
+  ok(shaderErrors.length === 0, `no shader/WebGL compile errors (${shaderErrors.length})`)
 
   console.log(failures ? `\n${failures} FAIL` : '\nALL OK')
 } catch (e) {

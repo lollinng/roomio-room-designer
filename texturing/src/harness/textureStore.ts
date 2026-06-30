@@ -12,7 +12,7 @@ import { composedToTextureSet } from '../r3f/createTexture'
 import { applyTextureToGroup, type AppliedHandle } from '../r3f/applyTexture'
 import { type TextureSet } from '../r3f/material'
 
-export type Target = 'sofa' | 'table'
+export type Target = 'sofa' | 'table' | 'tub'
 export type Mode = 'default' | 'preview' | 'accepted'
 
 /** Faithful model dims (cm) + body color (must match the meshes in Furniture.tsx). */
@@ -20,12 +20,13 @@ export const ITEM_COLOR = '#9a7b5c'
 export const DIMS: Record<Target, { w: number; d: number; h: number }> = {
   sofa: { w: 210, d: 95, h: 85 },
   table: { w: 120, d: 60, h: 45 },
+  tub: { w: 160, d: 75, h: 58 },
 }
 
 // non-reactive registries
-const groups: Record<Target, THREE.Group | null> = { sofa: null, table: null }
-const handles: Record<Target, AppliedHandle | null> = { sofa: null, table: null }
-const lastMaps: Record<Target, TextureSet | null> = { sofa: null, table: null }
+const groups: Record<Target, THREE.Group | null> = { sofa: null, table: null, tub: null }
+const handles: Record<Target, AppliedHandle | null> = { sofa: null, table: null, tub: null }
+const lastMaps: Record<Target, TextureSet | null> = { sofa: null, table: null, tub: null }
 
 interface TexStore {
   target: Target
@@ -34,6 +35,7 @@ interface TexStore {
   mode: Record<Target, Mode>
   lastTargeted: number
   lastRepeatX: number
+  lastTriplanar: number
   setTarget: (t: Target) => void
   setRepeatCm: (n: number) => void
   setRotationDeg: (n: number) => void
@@ -64,9 +66,10 @@ export const useTextureStore = create<TexStore>((set, get) => ({
   target: 'sofa',
   repeatCm: 40,
   rotationDeg: 0,
-  mode: { sofa: 'default', table: 'default' },
+  mode: { sofa: 'default', table: 'default', tub: 'default' },
   lastTargeted: 0,
   lastRepeatX: 0,
+  lastTriplanar: 0,
 
   setTarget: (target) => set({ target }),
 
@@ -109,7 +112,12 @@ export const useTextureStore = create<TexStore>((set, get) => ({
       maps: lastMaps[t]!,
     })
     handles[t] = h
-    set((s) => ({ mode: { ...s.mode, [t]: 'preview' }, lastTargeted: h.targeted, lastRepeatX: h.repeat.x }))
+    set((s) => ({
+      mode: { ...s.mode, [t]: 'preview' },
+      lastTargeted: h.targeted,
+      lastRepeatX: h.repeat.x,
+      lastTriplanar: h.triplanarCount,
+    }))
   },
 
   accept: () =>

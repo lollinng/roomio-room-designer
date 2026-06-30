@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { selectSlotMeshes, isPrimaryBody, lightnessRatio, type MeshDesc } from './slot'
 import { applyPbrMaps, tuneTexture, snapshotMaterial, restoreMaterial } from './material'
 import { applyTextureToGroup, collectStandardMeshes } from './applyTexture'
+import { applyTriplanar, needsTriplanar } from './triplanar'
 
 // Faithful replica of A's shade(hex, factor): perturb HSL lightness via THREE.Color.
 function shade(hex: string, factor: number): string {
@@ -165,5 +166,60 @@ describe('apply to a furniture group + revert', () => {
     handle.restore()
     expect(((sofa.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial).map).toBeNull()
     expect(((sofa.children[1] as THREE.Mesh).material as THREE.MeshStandardMaterial).map).toBeNull()
+  })
+})
+
+describe('triplanar fallback (H1 safety net)', () => {
+  it('needsTriplanar flags strongly non-uniform scale + an explicit userData flag, not uniform boxes', () => {
+    const uniform = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial())
+    uniform.updateWorldMatrix(true, false)
+    expect(needsTriplanar(uniform)).toBe(false)
+
+    const tub = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16), new THREE.MeshStandardMaterial())
+    tub.scale.set(3, 1, 1.2) // anisotropic ellipse fake (like buildTubFreestanding)
+    tub.updateWorldMatrix(true, false)
+    expect(needsTriplanar(tub)).toBe(true)
+
+    const flagged = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial())
+    flagged.userData.triplanar = true
+    expect(needsTriplanar(flagged)).toBe(true)
+  })
+
+  it('applyTriplanar injects world-space sampling into the shader (mock compile)', () => {
+    const mat = new THREE.MeshStandardMaterial()
+    applyTriplanar(mat, 40)
+    const shader = {
+      uniforms: {} as Record<string, { value: number }>,
+      vertexShader: 'void main(){\n#include <begin_vertex>\n}',
+      fragmentShader: 'void main(){\n#include <map_fragment>\n#include <roughnessmap_fragment>\n}',
+    }
+    mat.onBeforeCompile!(shader as unknown as THREE.WebGLProgramParametersWithUniforms, undefined as never)
+    expect(shader.fragmentShader).toContain('triSample(map)')
+    expect(shader.fragmentShader).not.toContain('#include <map_fragment>')
+    expect(shader.vertexShader).toContain('vTriPos')
+    expect(shader.uniforms.uTriScale.value).toBeCloseTo(100 / 40)
+    expect(typeof mat.customProgramCacheKey!()).toBe('string')
+  })
+
+  it('applyTextureToGroup auto-triplanars an anisotropic mesh, not the flat sofa boxes', () => {
+    const g = new THREE.Group()
+    const tub = new THREE.Mesh(
+      new THREE.CylinderGeometry(1, 1, 1, 16),
+      new THREE.MeshStandardMaterial({ color: ITEM, roughness: 0.6, metalness: 0 }),
+    )
+    tub.scale.set(2.4, 1, 1) // anisotropic
+    g.add(tub)
+    const handle = applyTextureToGroup(g, {
+      slot: 'body',
+      itemColorHex: ITEM,
+      itemDimsCm: { w: 160, d: 70, h: 55 },
+      repeatCm: 40,
+      rotationDeg: 0,
+      maps: { map: dataTex(), roughnessMap: dataTex() },
+    })
+    expect(handle.targeted).toBe(1)
+    expect(handle.triplanarCount).toBe(1) // the tub got triplanar
+    expect((tub.material as THREE.MeshStandardMaterial).onBeforeCompile).toBeTruthy()
+    handle.restore()
   })
 })

@@ -77,6 +77,23 @@ export function Sofa({ position = [0, 0, 0] as [number, number, number] }) {
   )
 }
 
+/** A freestanding tub: a cylinder scaled non-uniformly to an ellipse (like A's
+ *  buildTubFreestanding) — its DEFAULT UVs stretch, so this is the triplanar fallback case. */
+export function Tub({ position = [0, 0, 0] as [number, number, number] }) {
+  const ref = useRegister('tub')
+  const W = cm(160)
+  const D = cm(75)
+  const H = cm(58)
+  return (
+    <group ref={ref} position={position}>
+      <mesh position={[0, H / 2, 0]} scale={[W / 2, 1, D / 2]} castShadow receiveShadow>
+        <cylinderGeometry args={[1, 0.86, H, 36]} />
+        <meshStandardMaterial color={ITEM_COLOR} roughness={0.5} metalness={0} />
+      </mesh>
+    </group>
+  )
+}
+
 export function Table({ position = [0, 0, 0] as [number, number, number] }) {
   const ref = useRegister('table')
   const W = cm(120)

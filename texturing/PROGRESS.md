@@ -36,7 +36,7 @@ Re-read `roomio.txt` + `shared/LEARNINGS.md` each cycle; update this file; appen
    precedent; **triplanar/box-projection** is the safety net for the anisotropically-scaled
    freestanding tub + open-ended lamp cone.
 
-### H1 — UV audit + triplanar fallback so every asset can take a texture · 🟡 world-space tiling DONE; triplanar pending
+### H1 — UV audit + triplanar fallback so every asset can take a texture · ✅ DONE (world-space tiling + triplanar fallback, harness-verified)
 - Catalogue the per-`ModelKind` UV reality (done in roomio.txt; formalize as a table/test).
 - World-space tiling helper: `texture.repeat = worldDimCm / repeat_cm` (mirror floor).
 - Triplanar/box-projection fallback (onBeforeCompile or a small shader) for non-uniform meshes.
