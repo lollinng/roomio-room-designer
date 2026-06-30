@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useStore, type Stage } from './store'
+import { useHouse } from './three/houseSession'
 import type { ShapeId } from './types'
 import { useAuth } from './auth'
 import { Wizard } from './wizard/Wizard'
@@ -8,6 +9,28 @@ import { AuthScreen } from './wizard/AuthScreen'
 
 const STAGES: Stage[] = ['start', 'step1', 'step2', 'step3', 'step4', 'furnish']
 const SHAPES: ShapeId[] = ['rect', 'l', 't', 'u', 'cut', 'beveled']
+
+// Whether the FIRST load was a deep-link (?stage / ?preset). Captured ONCE so that
+// ordinary in-app navigation — which now writes ?stage into the URL — doesn't
+// retroactively bypass the auth gate.
+const INITIAL_DEEP_LINK =
+  typeof window !== 'undefined' &&
+  Boolean(
+    new URLSearchParams(window.location.search).get('stage') ||
+      new URLSearchParams(window.location.search).get('preset'),
+  )
+
+/** The canonical URL for the current screen: each stage (+ active room) is its own URL. */
+function canonicalUrl(): string {
+  const stage = useStore.getState().stage
+  const p = new URLSearchParams()
+  p.set('stage', stage)
+  if (stage === 'furnish') {
+    const room = useHouse.getState().activeId
+    if (room) p.set('room', room)
+  }
+  return `${window.location.pathname}?${p.toString()}`
+}
 
 export default function App() {
   const stage = useStore((s) => s.stage)
@@ -67,9 +90,60 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // URL routing: give every screen (and the active room) its own URL, and make the
+  // browser back/forward buttons move between them. Navigation pushes history;
+  // popstate restores the stage/room WITHOUT resetting the design.
+  useEffect(() => {
+    let restoring = false
+    // canonicalize the current screen's URL on boot (after any deep-link applied)
+    try {
+      window.history.replaceState(null, '', canonicalUrl())
+    } catch {
+      /* ignore (non-DOM) */
+    }
+    const sync = (mode: 'push' | 'replace' = 'push') => {
+      if (restoring) return
+      const url = canonicalUrl()
+      if (url === window.location.pathname + window.location.search) return
+      if (mode === 'replace') window.history.replaceState(null, '', url)
+      else window.history.pushState(null, '', url)
+    }
+    const unsubStage = useStore.subscribe((s, prev) => {
+      if (s.stage !== prev.stage) sync('push')
+    })
+    const unsubRoom = useHouse.subscribe((s, prev) => {
+      if (s.activeId === prev.activeId) return
+      // First room init (null → id) just completes the furnish URL — REPLACE so it
+      // doesn't add a phantom history entry. A real room switch PUSHES so back/
+      // forward navigates between rooms.
+      sync(prev.activeId == null ? 'replace' : 'push')
+    })
+    const onPop = () => {
+      restoring = true
+      try {
+        const p = new URLSearchParams(window.location.search)
+        const st = (p.get('stage') as Stage) || 'start'
+        const room = p.get('room')
+        if (room) {
+          const h = useHouse.getState()
+          if (h.activeId !== room && h.rooms.some((r) => r.id === room)) h.switchRoom(room)
+        }
+        useStore.getState().setStage(STAGES.includes(st) ? st : 'start')
+      } finally {
+        restoring = false
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      unsubStage()
+      unsubRoom()
+      window.removeEventListener('popstate', onPop)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // ?stage / ?preset deep-links bypass the auth gate (verification convenience).
-  const params = new URLSearchParams(window.location.search)
-  const deepLinked = params.get('stage') || params.get('preset')
+  const deepLinked = INITIAL_DEEP_LINK
 
   if (authStatus === 'loading') {
     return (

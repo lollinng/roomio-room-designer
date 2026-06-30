@@ -797,3 +797,54 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   when packages integrate (same single-design input, no schema change). OPEN (non-blocking, sensible defaults
   in use): confirm slices round-trip — A (RoomDesign is full interior state; personaGenre = preset id?),
   E (LightingState complete / preferred serialize selector?), B (playback-only mount + F6 MP4 entry signature).
+
+[2026-06-30 20:10] [AGENT-F] BUGFIX (human-directed): "Scan a room photo" silently failed for an iPhone HEIC
+  upload (IMG_3650.HEIC, 2.2 MB, 4284x5712). Debugged end-to-end and fixed across A's + B's domains; verified by
+  driving the REAL server + watcher with the actual file: POST 200 -> watcher -> server GET status=ok, 4 proposals.
+  THREE layered causes (all fixed):
+   (1) [A · server/index.js] PRIMARY upload failure: the global `express.json({limit:'2mb'})` was registered
+       BEFORE the `/api/detect` 15mb override, so it rejected any photo >2 MB with 500 PayloadTooLargeError — the
+       15mb override was dead. Fix: register the /api/detect parser FIRST (body-parser skips an already-parsed
+       body, so other routes keep 2mb). This hit ANY phone photo >~1.5 MB, HEIC or JPEG.
+   (2) [B · detection-pipeline] HEIC undecodable + too large: PIL (no pillow-heif) + cv2 both returned None ->
+       "could not read image"; and the 24 MP image overflowed Ollama's 4096-token ctx. Fixes: `pip install
+       pillow-heif` + register_heif_opener (color.py); downscale the working image to MAX_VLM_IMAGE_DIM=1536 and
+       re-encode HEIC/HEIF/WEBP to a temp JPEG for the VLM by CONTENT (color uses the decoded array); bump
+       VLM_NUM_CTX=8192; add .heic/.heif to IMAGE_EXTS. Also fixed a STALE cross-agent test
+       (tests/test_pipeline.py asserted corpus==23; A grew it to 91 — now asserts a >=23 floor). 29/29 green.
+   (3) [A · server/index.js + front-end] format honesty + UX: server now sniffs magic bytes and names the request
+       file by true content (.heic/.png/.webp/… not always .jpg) with a matching sidecar; ScanRoom.tsx surfaces a
+       real "couldn't read that photo — try JPEG/PNG" on status=error (was a generic empty msg) and raised the poll
+       budget 60s->120s (cold-model first scan measured 67s).
+  NOTICE -> AGENT-A: edited server/index.js (body-parser order + format sniff) + src/wizard/ScanRoom.tsx (error msg
+    + MAX_POLLS). NOTICE -> AGENT-B: edited detection-pipeline color.py/config.py/pipeline.py/vlm.py + a stale test;
+    added pillow-heif to the venv (add to your requirements). NOTICE -> AGENT-D: 7 files for merge; root 192 +
+    pipeline 29 green; verified live on :5199. Orthogonal (NOT fixed): VLM maps "Potted Plant"->Cube Shelf
+    occasionally — a classify/resolve_label quality quirk, user-correctable via the dropdown; flagging for B.
+
+[2026-06-30 20:10] [AGENT-C] [USER -> AGENT-C] DELIVERED: multi-room "Add room" is now usable IN THE APP, +
+  per-screen URLs with working browser Back/Forward. (Human asked twice: the /multi-room code existed but was
+  never mounted; and each screen should have its own URL navigable with the browser buttons.)
+  WHAT I BUILT (minimal, additive — same human-authorized in-app-delivery basis B/E used):
+   - src/three/houseSession.ts (MINE): an additive house-session store ON TOP of A's single-`design` store.
+     The editor still edits ONE active room; this owns the room LIST and swaps which design is loaded via A's
+     public loadDesign(), snapshotting the active room first. Reuses /multi-room ROOM_TYPE_INFO/ROOM_TYPE_LIST.
+   - src/three/RoomsBar.tsx (MINE): the in-app Rooms UI at the top of the Furnish panel — room chips (switch),
+     "+ Add room" with a room-type picker (bedroom/living/kitchen/bath/dining/office/foyer/hallway), safe remove.
+     Each room is a full RoomDesign, so the existing wizard steps edit whichever room is active.
+   - URL ROUTING in src/App.tsx: every screen + active room has its own URL (?stage=<stage>[&room=<id>]).
+     Navigation pushes history; popstate restores stage/room WITHOUT resetting the design; first room-init
+     REPLACES (no phantom entry) while real room switches PUSH (so Back/Forward navigates rooms too). The
+     auth-gate deep-link bypass is now captured ONCE at load so in-app ?stage navigation can't bypass auth.
+  *** @AGENT-A / @AGENT-D — I edited TWO of A's source files (human-authorized in-app delivery; same basis as
+     B's RoomView wiring + E's FurnitureEditor/Furnish wiring): src/App.tsx (+URL routing, ~+76 lines) and
+     src/wizard/Furnish.tsx (+2 lines: import + <RoomsBar/> at top of the panel). No behavior change to existing
+     flows; A's 192 tests still green. Please review/own these two edits. All heavy logic is in MY files
+     (src/three/houseSession.ts + RoomsBar.tsx). If you'd rather own the mount, I'll hand you the 2-line diff. ***
+  VERIFIED in the REAL app (multi-room/scripts/verify-app.mjs, 16/16): deep-link → Next through step2→3→4→
+  furnish with the URL stage param changing each step; browser Back → step4, Forward → furnish; Add room →
+  2 chips + a new room URL; switch rooms updates the URL; browser Back navigates between rooms. typecheck +
+  `vite build` clean; A's full vitest suite 192/192 green. Screenshots in multi-room/verify-out/.
+  FOLLOW-ON (not blocking): connectors/adjacency/kitchen-bath guidance from /multi-room aren't surfaced yet
+  (rooms are independent for now); and the house isn't yet fed into my persistence envelope's scene.house —
+  both are clean next steps now that the house session exists in-app.

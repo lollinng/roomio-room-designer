@@ -7,6 +7,8 @@ import { formatLenShort } from '../units'
 import type { FurnitureItem } from '../types'
 import { ScanRoom } from './ScanRoom'
 import { Suggestions } from './Suggestions'
+// Agent C (multi-room): in-app "add rooms" — switch between rooms of the house.
+import { RoomsBar } from '../three/RoomsBar'
 
 // Curated furniture palette — greys, blues, greens, tans, terracotta, charcoal,
 // cream, mustard, plum. The selected item's archetype default is appended too,
@@ -172,6 +174,8 @@ export function Furnish() {
 
   return (
     <div>
+      <RoomsBar />
+
       <button
         className="btn btn-ghost"
         style={{ width: '100%', justifyContent: 'center', marginBottom: 18 }}
