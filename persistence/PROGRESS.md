@@ -56,8 +56,13 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
       - 38/38 vitest + **36/36 headless checks** incl. the cardinal-sin guard: showcase opened in a FRESH
         incognito context (no localStorage) renders the room read-only with **no editor chrome / no edit
         controls / no link back to the editor**. Screenshots `verify-out/c2-4-{share,showcase}.png`.
-- [ ] **C2-5** — Exports: image snapshot, furniture shopping list, floor-plan PDF (top-down, room
-      labels + dims from house data); flythrough video via B.
+- [x] **C2-5** — Exports (all produce REAL downloadable artifacts):
+      - Image snapshot → PNG (high-res top-down render). Shopping list → CSV (`src/export/shoppingList.ts`,
+        aggregated by type+colour+size with qty + rooms) + copy-text. Floor-plan PDF → dependency-free
+        single-page PDF embedding the plan + title/dimensions (`src/export/pdf.ts`, JPEG via DCTDecode).
+      - Flythrough VIDEO is Agent B's (camera_path + F6 MP4) — surfaced as a hand-off, not rebuilt.
+      - 43/43 vitest + 39/39 headless checks; PDF verified valid + openable (`file` → "PDF 1.4, 1 page";
+        Quartz rendered it). Screenshots/artifacts in `verify-out/`.
 - [ ] **C2-6** — Backward-compat migration hardening + polish + match Roomio's clean panel UI; cleanup.
 
 ## Architecture notes

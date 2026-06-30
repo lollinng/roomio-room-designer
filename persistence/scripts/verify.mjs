@@ -7,7 +7,7 @@
 // Screenshots land in verify-out/. Exits non-zero on any failed assertion.
 
 import { spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import puppeteer from 'puppeteer-core'
 
@@ -75,6 +75,12 @@ try {
   })
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 860 })
+  // capture downloads (export artifacts) into a clean folder
+  const DL = `${OUT}downloads/`
+  try { rmSync(DL, { recursive: true, force: true }) } catch {}
+  mkdirSync(DL, { recursive: true })
+  const cdp = await page.target().createCDPSession()
+  await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DL })
   await page.goto(APP_URL, { waitUntil: 'networkidle0' })
 
   // Start clean so the run is deterministic.
@@ -270,6 +276,27 @@ try {
   ok(!leak.linksToEditor, 'showcase has NO link back into the editor (index.html)')
   await viewer.screenshot({ path: `${OUT}c2-4-showcase.png` })
   await ctx.close()
+
+  // 9) C2-5 EXPORTS — each button produces a real downloaded file.
+  // (the Share panel is still open on the main page)
+  const clickTestId = (id) =>
+    page.evaluate((sel) => document.querySelector(`[data-testid="${sel}"]`)?.click(), id)
+  const waitForFile = async (re, timeoutMs = 6000) => {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const f = readdirSync(DL).filter((n) => re.test(n) && !n.endsWith('.crdownload'))
+      if (f.length) return f[0]
+      await sleep(150)
+    }
+    return null
+  }
+  await clickTestId('export-image')
+  ok(!!(await waitForFile(/\.png$/)), 'export image → a .png file downloads')
+  await clickTestId('export-shopping')
+  ok(!!(await waitForFile(/\.csv$/)), 'export shopping list → a .csv file downloads')
+  await clickTestId('export-pdf')
+  const pdfName = await waitForFile(/\.pdf$/)
+  ok(!!pdfName, 'export floor-plan → a .pdf file downloads')
 } catch (err) {
   console.error(err)
   failures++
