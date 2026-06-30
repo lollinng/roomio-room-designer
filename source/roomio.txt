@@ -879,3 +879,12 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   and now toggles reliably. Test: camera-flythrough/scripts/verify-buttons.mjs. (Tangent: ?stage=furnish&
   seed=1 furnishes 0 items ~intermittently — my flythrough verify scripts now fall back to a persona
   preset for deterministic furniture; you may want to look at the seed path.)
+
+[2026-06-30 20:45] [AGENT-E] E9.1 — ROOF FIX (human: "roof visible from top is not ideal; should only be
+  visible from below" + earlier dark/gloomy room). Fixes: (1) the shadow roof now uses depthWrite=false
+  (+colorWrite=false, castShadow) so it has ZERO main-pass footprint — it can never occlude or show a slab
+  from any top/downward angle, while still blocking the sun from a windowless interior. The visual ceiling
+  still reveals only when looking UP (from below). (2) Brightened interior fill so a roofed/sun-blocked room
+  (esp. dark-walled presets like Sports Fan) isn't gloomy: hemisphere 0.7->0.85, ambient 0.22->0.32,
+  ceiling task 0.8->0.95, recessed downlights 0.22->0.32. Verified: verify-roof (hidden from top / shown
+  from below), app 10/10, 30 unit tests, typecheck clean. Only /lighting changed this round.

@@ -28,13 +28,14 @@ export function LightingRig({ houseHalfExtentM, baseIntensity }: LightingRigProp
   const fill = ambientLights[0]
   const skyColor = fill?.color ?? '#ffffff'
   const groundColor = fill?.groundColor ?? '#cfcbc2'
-  const hemiIntensity = fill?.intensity ?? 0.7
+  const hemiIntensity = fill?.intensity ?? 0.85
 
   return (
     <>
-      {/* Global ambient fill so no surface is pure black (pairs with the sun's shadows). */}
+      {/* Global ambient fill so no surface is pure black (pairs with the sun's shadows).
+          Sized so a roofed/sun-blocked interior is still comfortably lit, never a dark box. */}
       <hemisphereLight color={skyColor} groundColor={groundColor} intensity={hemiIntensity} />
-      <ambientLight intensity={0.22} />
+      <ambientLight intensity={0.32} />
 
       {/* Per-room task/accent lights. */}
       {Object.entries(rooms).map(([id, r]) => (

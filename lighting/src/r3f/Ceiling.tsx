@@ -111,9 +111,10 @@ export function Ceiling({ cornersWorld, heightM, maxLights = 6 }: CeilingProps) 
 
   return (
     <group>
-      {/* 1) shadow roof — invisible to camera, but blocks the sun from the interior */}
+      {/* 1) shadow roof — casts shadow to block the sun, but NEVER draws or occludes the camera
+             view (colorWrite + depthWrite off), so no roof slab ever appears from the top. */}
       <mesh geometry={geom} position={[0, heightM, 0]} castShadow>
-        <meshBasicMaterial colorWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial colorWrite={false} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       {/* 3) recessed downlight POINT LIGHTS — always on (room is lit from the ceiling) */}
@@ -122,7 +123,7 @@ export function Ceiling({ cornersWorld, heightM, maxLights = 6 }: CeilingProps) 
           key={i}
           position={[x, heightM - 0.12, z]}
           color={discColor}
-          intensity={0.22}
+          intensity={0.32}
           distance={Math.max(4, heightM * 3)}
           decay={0}
           castShadow={false}
