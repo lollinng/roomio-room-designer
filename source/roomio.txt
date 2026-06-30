@@ -1211,3 +1211,68 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   Milestone tracker = /texturing/PROGRESS.md (H0 done; H1 next = world-space tiling + triplanar fallback).
   Treat ISSUE -> AGENT-H as high priority. The one cross-cutting call I'd like ratified: the additive
   FurnitureItem.texture field + the roomio.asset.<hash> store namespace (touches A's type + C's adapter).
+
+# ───────────────────────── AGENT G joins (Realistic Rendering) ─────────────────────────
+[2026-07-01 00:46] [AGENT-G] ONBOARDING + REALISTIC RENDERING G0–G4. New instance; domain = realistic
+  rendering — the "ray tracing" ask delivered the way real-time WebGL actually does it: PBR + image-based
+  lighting + ACESFilmic tone mapping + ambient occlusion + emissive bulbs/bloom, layered ON TOP of E's
+  lighting. NOT a real-time ray tracer (true per-pixel RT isn't feasible live in a browser). Read end-to-end:
+  my brief, this whole log, LEARNINGS.md, the render seam (src/three/RoomView.tsx <Canvas>) + E's rig
+  (lighting/src/r3f/{LightingRig,Sun,RoomLights,Ceiling}). ISOLATION: all code in /rendering (own pkg/vite/
+  tsconfig/vitest, port 5188); I also write /shared + this log + LEARNINGS.md only. NOT editing anyone's
+  source; Agent D merges. Published contract shared/render_schema.json (v1.0).
+
+  *** REQUEST -> AGENT-E (THE SEAM — please confirm; designed to NOT collide with you). You own the LIGHTS;
+      I own how they LOOK. Concretely:
+      - <Canvas shadows flat> stays UNCHANGED. `shadows` (PCFSoftShadowMap) is YOURS (sun = your caster).
+        `flat` (NoToneMapping) I KEEP — my post EffectComposer owns ACESFilmic tone mapping + sRGB. We must
+        NOT both tone-map: please never remove `flat` / set gl.toneMapping, or ACES applies TWICE (washed/clipped).
+      - I add ONLY <Canvas> CHILDREN via one <RealismLayer/> = IBL (scene.environment) + a runtime material
+        enhancer + EffectComposer (N8AO + bloom + exposure + ACES). Zero Canvas-prop changes; one mount covers
+        single-room AND your HouseView (same, only, Canvas).
+      - I do NOT touch your light intensities/units. ACES shifts apparent brightness; I compensate with my own
+        tone-mapping `exposure` (a pre-ACES multiply), never your lights.
+      - ONE real interaction (please decide): scene.environment (IBL) ADDS ambient on top of your
+        hemisphere(0.85)+ambient(0.32). I ship CONSERVATIVE by default (environmentIntensity 0.55 = reflections
+        + subtle bounce, NO change needed from you). The IDEAL (brief's "lean on IBL for ambient") = you cut the
+        flat fill (hemisphere ~0.25, ambient ~0.08) and I raise IBL to ~1.0 so IBL is the primary ambient.
+        Willing? Either way nothing regresses. Minor FYI: your meshBasic sun-gizmo/ceiling-disc
+        `toneMapped={false}` becomes a no-op under a POST tone-map (they get tone-mapped + may bloom) — net
+        positive (the sun glows); flag if you dislike and I'll exclude them. ***
+
+  BUILT + VERIFIED (G0–G4, all in /rendering; standalone harness + headless SwiftShader verify 9/9 green,
+  typecheck clean, 13 unit tests): IBL (procedural drei Environment+Lightformers, NO CDN — works offline/
+  headless/in-app), runtime MaterialEnhancer (envMapIntensity + emissive boost — upgrades existing
+  MeshStandard materials WITHOUT editing A's source), ExposureEffect (custom pre-ACES), RealismPost
+  (EffectComposer: N8AO -> Bloom -> Exposure -> ACES), RealismLayer (the drop-in), RenderControls
+  (quality/exposure/IBL panel), quality presets high/medium/low. VISUALLY CONFIRMED vs the flat baseline
+  (rendering/verify-out/ screenshots): chrome/metal now REFLECT the room (flat = dead-black blob), walls
+  filmic-rolled-off, soft contact AO in corners/under furniture, lamp + ceiling bulb GLOW with a soft bloom
+  halo — clearly more photographic. "low" quality holds the cheap IBL+ACES foundation while dropping AO/MSAA.
+  Tuned values + dep pins recorded in LEARNINGS.md (Agent G section).
+
+  *** REQUEST -> AGENT-A: your furniture/Room materials are already MeshStandard with sensible roughness/
+      metalness — IBL + tone mapping enhance them with ZERO changes from you (my enhancer sets envMapIntensity
+      at runtime; scene.environment auto-applies as the envMap). OPTIONAL upgrades when convenient: (1) switch a
+      few archetypes to MeshPhysical for clearcoat/sheen/transmission (glass, velvet, polished wood); (2) a uv2
+      set on geometry would enable baked-aoMap, but is NOT required (I use screen-space N8AO). No action needed to ship. ***
+  *** REQUEST -> AGENT-H: our work composes cleanly — your photo-derived textures land on MeshStandard `.map`
+      and my IBL/tone-mapping/AO light them for free (no flat decals). Two asks so they read as PBR: (1) keep the
+      albedo `.map` in sRGB, but author any DATA maps (normalMap/roughnessMap/aoMap) in LINEAR (colorSpace =
+      NoColorSpace) or they render wrong; (2) aoMap needs a `uv2` set — if you bake AO into a map, coordinate uv2
+      with A; otherwise my N8AO covers contact AO. Your FurnitureItem.texture `maps{}` slots already fit — just
+      tell me which maps you emit and I'll tune envMapIntensity per surface. ***
+  *** REQUEST -> AGENT-B: (G5, optional) the static-camera path-traced "hero still" reuses your frame-capture
+      path — preserveDrawingBuffer is already on, so a converged still exports via canvas readback; I'll expose a
+      heroActive flag + a "render beauty shot" trigger and never run it during motion. FYI my EffectComposer takes
+      over the render loop (renderPriority 1) and reads the active camera, so your camera swap composes fine — but
+      N8AO+bloom cost FPS during a walk. Proposal: entering flythrough calls useRender.getState().setQuality('low')
+      and restores on exit (low keeps IBL+tonemap, drops heavy AO). No schema change on either side. ***
+
+  @AGENT-D MERGE: new paths = /rendering/** + shared/render_schema.json + shared/LEARNINGS.md (G section) +
+  this log. NO edits to anyone's source. The app MOUNT is a drop-in (rendering/INTEGRATION.md): add
+  <RealismLayer/> as a <Canvas> child in src/three/RoomView.tsx + <RenderControls/> outside it + add EXACT
+  `@react-three/postprocessing@2.19.1` + `postprocessing@6.37.8` to ROOT package.json (like B's canvas-record;
+  n8ao is vendored, not a separate dep). I did NOT edit RoomView (staying in my sandbox) — apply the
+  1-component diff on merge, or tell me to wire it on the human-authorized in-app basis B/C/E used. Treat
+  ISSUE -> AGENT-G as high priority.
