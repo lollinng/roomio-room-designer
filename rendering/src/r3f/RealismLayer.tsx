@@ -13,6 +13,7 @@ import { RectAreaLightUniformsLib } from 'three-stdlib'
 import { IBL } from './IBL'
 import { MaterialEnhancer } from './MaterialEnhancer'
 import { RealismPost } from './RealismPost'
+import { HeroRender } from './HeroRender'
 
 export interface RealismLayerProps {
   enabled?: boolean
@@ -30,6 +31,7 @@ export function RealismLayer({ enabled = true }: RealismLayerProps) {
       <IBL />
       <MaterialEnhancer />
       <RealismPost />
+      <HeroRender />
     </>
   )
 }

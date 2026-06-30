@@ -30,8 +30,14 @@ shift is compensated by G's tone-mapping `exposure` (co-tuned with E, recorded i
 | **G2** | Ambient occlusion (N8AO) + soft-shadow integration (with E) | ✅ done (harness) |
 | **G3** | Emissive bulbs + bloom + correct falloff + area lights | 🟡 bulbs+bloom done; area lights (window/panel RectAreaLight) pending |
 | **G4** | Quality toggle (high/medium/low) + RenderControls panel | ✅ done (harness) |
-| **G5** | Optional: progressive path-traced hero render + export hook (with B/C) | ⬜ |
+| **G5** | Optional: progressive path-traced hero render + export hook (with B/C) | ✅ done (graceful raster fallback; converges on a real GPU) |
 | **GA** | App mount (RealismLayer into RoomView) — handed to D/A via INTEGRATION.md | ⬜ awaiting D/E |
+
+### Adversarial review (2026-07-01) — 3/18 confirmed, all fixed
+A fan-out review (4 dimensions × find→verify) confirmed 3 high/med perf-lifecycle defects (15 refuted). All fixed in `RealismPost`:
+- **Exposure churn:** exposure was a React prop → `wrapEffect` re-instantiated the effect + recompiled the EffectPass on every slider tick. Now driven **imperatively** (callback ref seeds + store subscription updates the uniform); RealismPost selects only *structural* fields so it never re-renders on exposure.
+- **Composer VRAM leak:** the @react-three/postprocessing v2 wrapper recreates the composer on `multisampling` change but never disposes the old one. Now disposed via a composer ref + `useEffect` cleanup keyed on `multisampling` (+ unmount).
+- **Hero hang:** a GPU reporting WebGL2 but unable to drive the tracer's float targets left "Rendering… 0/256" forever. Added a 5s watchdog → graceful unsupported fallback (verified headless in SwiftShader).
 
 ### Tuned working values (furnished harness, SwiftShader headless, 2026-07-01)
 | Param | Value | Notes |

@@ -6,6 +6,7 @@
 
 import { useState, type CSSProperties } from 'react'
 import { useRender } from '../store'
+import { getHeroExporter } from '../r3f/heroBus'
 import type { RenderQuality } from '../types'
 
 export interface RenderControlsProps {
@@ -36,6 +37,21 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
   const setQuality = useRender((s) => s.setQuality)
   const setExposure = useRender((s) => s.setExposure)
   const setEnvIntensity = useRender((s) => s.setEnvIntensity)
+  const heroActive = useRender((s) => s.heroActive)
+  const heroSamples = useRender((s) => s.heroSamples)
+  const heroSupported = useRender((s) => s.heroSupported)
+  const heroTarget = useRender((s) => s.settings.heroRender.samples)
+  const setHeroActive = useRender((s) => s.setHeroActive)
+
+  const converged = heroActive && heroSamples >= heroTarget
+  const downloadHero = () => {
+    const url = getHeroExporter()?.()
+    if (!url) return
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'roomio-hero.png'
+    a.click()
+  }
 
   return (
     <div
@@ -120,6 +136,35 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
               style={{ width: '100%' }}
             />
           </label>
+
+          {/* Hero render (G5) — progressive path-traced still while the camera is static. */}
+          <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 10 }}>
+            <div style={{ opacity: 0.65, marginBottom: 5 }}>Beauty shot (path-traced)</div>
+            {!heroSupported ? (
+              <div style={{ opacity: 0.6, fontSize: 11 }}>Needs a WebGL2 GPU — not available here.</div>
+            ) : !heroActive ? (
+              <button style={pill(false)} onClick={() => setHeroActive(true)}>
+                🎥 Render beauty shot
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {converged ? '✓ Converged' : 'Rendering…'} {Math.min(heroSamples, heroTarget)}/{heroTarget} samples
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {converged && (
+                    <button style={pill(true)} onClick={downloadHero}>
+                      ⬇ Download PNG
+                    </button>
+                  )}
+                  <button style={pill(false)} onClick={() => setHeroActive(false)}>
+                    {converged ? 'Back to live' : 'Cancel'}
+                  </button>
+                </div>
+                <div style={{ opacity: 0.55, fontSize: 10 }}>Moving the camera returns to the live view.</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

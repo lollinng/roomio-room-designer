@@ -16,6 +16,10 @@ export interface RenderStore {
   settings: RenderSettings
   /** True while a path-traced hero still is accumulating — suspends the raster post pipeline. */
   heroActive: boolean
+  /** Accumulated path-trace samples (0..settings.heroRender.samples) — drives the progress UI. */
+  heroSamples: number
+  /** Whether the hero path tracer can run here (WebGL2 + float targets). Set by HeroRender. */
+  heroSupported: boolean
 
   setQuality: (q: RenderQuality) => void
   setExposure: (e: number) => void
@@ -25,6 +29,8 @@ export interface RenderStore {
   setAO: (patch: Partial<AOSettings>) => void
   setHeroEnabled: (b: boolean) => void
   setHeroActive: (b: boolean) => void
+  setHeroSamples: (n: number) => void
+  setHeroSupported: (b: boolean) => void
   /** Forward-compatible bulk patch (e.g. hydrating from a saved RenderSettings subset). */
   patch: (p: PartialRenderSettings) => void
 }
@@ -32,6 +38,8 @@ export interface RenderStore {
 export const useRender = create<RenderStore>((set) => ({
   settings: DEFAULT_RENDER_SETTINGS,
   heroActive: false,
+  heroSamples: 0,
+  heroSupported: true,
 
   setQuality: (q) =>
     set((s) => {
@@ -60,7 +68,9 @@ export const useRender = create<RenderStore>((set) => ({
   setHeroEnabled: (b) =>
     set((s) => ({ settings: { ...s.settings, heroRender: { ...s.settings.heroRender, enabled: b } } })),
 
-  setHeroActive: (b) => set({ heroActive: b }),
+  setHeroActive: (b) => set(b ? { heroActive: true, heroSamples: 0 } : { heroActive: false }),
+  setHeroSamples: (n) => set({ heroSamples: n }),
+  setHeroSupported: (b) => set({ heroSupported: b }),
 
   patch: (p) => set((s) => ({ settings: withOverrides(s.settings, p) })),
 }))
