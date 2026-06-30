@@ -59,15 +59,49 @@ export function Sun({ houseHalfExtentM, baseIntensity = 1.35, marginM = 3 }: Sun
 
   const intensity = baseIntensity * sample.intensityFactor * sun.intensityScale
 
+  // Visible sun body, co-located along the sun ray so it reads as the actual light source
+  // (a DirectionalLight is infinitely far, so any point on the ray gives identical lighting).
+  // Placed at a comfortable viewing distance + scaled so it's on-screen at room scale.
+  const len = Math.hypot(...sample.position) || 1
+  const vizDist = Math.min(Math.max(houseHalfExtentM * 3, 10), 18)
+  const gizmoPos: [number, number, number] = [
+    (sample.position[0] / len) * vizDist,
+    (sample.position[1] / len) * vizDist,
+    (sample.position[2] / len) * vizDist,
+  ]
+  const sunSize = vizDist * 0.075
+
   return (
-    <directionalLight
-      ref={ref}
-      position={sample.position}
-      intensity={intensity}
-      color={sample.color}
-      castShadow
-      shadow-mapSize-width={shadow.mapSize}
-      shadow-mapSize-height={shadow.mapSize}
-    />
+    <>
+      <directionalLight
+        ref={ref}
+        position={sample.position}
+        intensity={intensity}
+        color={sample.color}
+        castShadow
+        shadow-mapSize-width={shadow.mapSize}
+        shadow-mapSize-height={shadow.mapSize}
+      />
+      {/* Visible sun body — moves along its arc as the time bar is scrubbed. */}
+      <group position={gizmoPos}>
+        {/* bright core (unlit so it always glows) */}
+        <mesh>
+          <sphereGeometry args={[sunSize, 24, 24]} />
+          <meshBasicMaterial color={sample.color} toneMapped={false} />
+        </mesh>
+        {/* soft halo */}
+        <mesh>
+          <sphereGeometry args={[sunSize * 2.4, 24, 24]} />
+          <meshBasicMaterial
+            color={sample.color}
+            transparent
+            opacity={0.16 + 0.14 * sample.intensityFactor}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
+    </>
   )
 }

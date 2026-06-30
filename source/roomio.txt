@@ -630,3 +630,100 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   their lock. No new A-source files; the only A-file remains src/three/RoomView.tsx (unchanged this round).
   Verified: 17/17 edit-mode checks + 12/12 full app checks + 28/28 engine unit tests green
   (camera-flythrough/scripts/verify-edit.mjs covers fresh / during-path-mode / edit-mode / after-close).
+
+# ───────────────────────── AGENT F joins (QA / Deduplication) ─────────────────────────
+[2026-06-30 11:58] [AGENT-F] DEDUP PASS — CATALOGUE (brief step 1; posted BEFORE touching any source). Ran an
+  exhaustive cross-island sweep: 8 category lenses (scalar/vector/polygon/coords/OBB/walls/color/misc) +
+  adversarial behavioral-equivalence verification per candidate (41 agents). Establishing reality first:
+  the repo is FIVE independent TS build islands — src(=A), camera-flythrough(=B), multi-room(=C), lighting(=E),
+  persistence(=C f2) — each with its OWN node_modules + tsconfig(include:["src"]) + vite/vitest, PLUS the Python
+  detection-pipeline(=B). /shared holds only JSON today; A/B/C/E DELIBERATELY port shared math read-only
+  ("faithful ports, not imports") to keep ZERO build coupling. Verified baseline GREEN: src 181 · lighting 30 ·
+  multi-room 49 · camera-flythrough 28 · persistence 26 = 314 tests.
+
+  CROSS-ISLAND DUPLICATES — SAFE (byte-identical + pure + all call sites located, verdict=identical):
+    scalar:    clamp(v,lo,hi) [src,lighting] · clamp01(v) [lighting,multi-room] · DEG2RAD [src,lighting]
+    geometry:  dot2 · polygonCentroid · pointInPolygon · signedArea · pointOnWall · obbAxes · obbOverlap ·
+               footprintCorners · bbox(full 8-field) · buildWallParts · the OBB type   (across src/multi-room/
+               camera-flythrough in various combos — B's engine + C's house both ported A's collision+wall math)
+    guards:    isObj · isFiniteNumber · looksLikeRoomDesign · looksLikeHouse · coerceRoom · safeFileBase
+               (multi-room <-> persistence, some <-> src)
+
+  CROSS-ISLAND — DIVERGENT, do NOT silently merge (each is a DECISION below):
+    deriveWalls (src≡multi-room; camera-flythrough differs) · makeFrame (code-identical, return-type annotation
+    differs) · toWorld room→house ({x,z} vs persistence {x,y}, persistence missing finite-rotation guard) ·
+    bbox (persistence returns trimmed {w,d} + empty-array guard) · footprintCorners (persistence copy differs) ·
+    constrainInside/clampToWalls (src vs camera-flythrough) · uid (3 different id FORMATS — ids are serialized, so
+    unifying is a data-contract change) · coerceHouse / wrapSingleRoom (divergent + impure Date.now/uid timestamps,
+    pinned by migrate.test) · triggerDownload vs downloadDesign (different helpers) · safeMigrate/importRoomio
+    (different transforms). PYTHON cousins in detection-pipeline (inline clamp/clip, _hex_to_rgb, validate_result)
+    — OUT OF SCOPE (not TS-consolidatable).
+
+  THIS PASS (one small reversible consolidation): extract ONLY the scalar bundle → new shared/lib/math.ts
+    (clamp + clamp01 + DEG2RAD). Rationale: smallest, lowest-risk change AND it proves the repo's FIRST-EVER
+    cross-island TS import — pre-verified that a `../../shared/lib/math` import resolves GREEN under each island's
+    vitest AND tsc (throwaway probe, now removed). Migrate lighting/colorTemp.ts + lighting/sun.ts +
+    multi-room/connectors.ts + src/data/personas.ts to import the canonical; src/geometry/collision.ts's local
+    clamp is DEAD (0 call sites — constraining is done by constrainInside) so it is DELETED, not rewired. Suite
+    green at every island step. Larger structural ports (footprintCorners/polygon/OBB/walls/guards) become
+    mechanical repeats once coupling is ratified — deferred to later passes, not done here.
+
+  DECISION -> AGENT-D (please ratify before any further consolidation):
+    (D1) ACCEPT shared/lib coupling: islands may now import /shared/lib TS (this is the first cross-island import in
+         repo history). Proven safe for trivial pure helpers this pass — OK to extend to the geometry/guard bundle?
+    (D2) camera-flythrough + persistence headers explicitly declare ZERO cross-package coupling ("faithful ports",
+         "standalone mirror with zero cross-package coupling"). Lifting their identical copies into shared/lib
+         crosses that stated boundary — needs B's / C's sign-off, not a unilateral dedup.
+    (D3) DIVERGENT items must NOT be unified blindly: uid id-format = persisted-data contract; coerceHouse/
+         wrapSingleRoom = timestamp semantics pinned by migrate.test; persistence toWorld has a latent missing
+         NaN/rotation guard on untrusted JSON. Each is an owner decision, not a mechanical merge.
+  NOTICE -> AGENT-D: cross-agent edits land this pass — shared/lib/math.ts (new) + shared/lib/math.test.ts (new) +
+    root vitest.config.ts (additive include) + 4 island files (import canonical, delete local) + 1 dead-code delete.
+    All additive/reversible; I will announce each island as it lands GREEN below.
+
+[2026-06-30 12:20] [AGENT-F] LANDED — GREEN. The scalar bundle is consolidated; all suites pass + every island
+  typechecks clean (verified by a 4-lens adversarial review, verdict=SHIP, behavior byte-identical to git HEAD
+  originals incl. NaN/inverted-bounds edge cases). Final state per island (was baseline → now):
+    src/root          181 → 192  (+11 canonical pins) · tsc 0     | personas.ts imports DEG2RAD; collision.ts dead clamp deleted
+    lighting           30 →  30   · tsc 0                          | colorTemp.ts imports clamp; sun.ts imports clamp01+DEG2RAD
+    multi-room         49 →  49   · tsc 0                          | connectors.ts imports clamp01
+    camera-flythrough  28 →  28   (untouched — no identical scalar helper to migrate)
+    persistence        26 →  26   (untouched)
+  EXACT FILE SET FOR YOUR MERGE (Agent F commit = these 9 ONLY; persistence/* changes in the tree are Agent C's
+  separate in-flight C2-3 work — keep them out of my commit):
+    NEW  shared/lib/math.ts          (canonical clamp/clamp01/DEG2RAD — single source of truth)
+    NEW  shared/lib/math.test.ts     (11 behavior pins; run by the ROOT vitest)
+    MOD  vitest.config.ts            (root include += 'shared/lib/**/*.test.ts')
+    MOD  src/data/personas.ts        (import DEG2RAD; its OWN 4-arg clamp left intact — different helper)
+    MOD  src/geometry/collision.ts   (DELETE dead local clamp — 0 call sites)
+    MOD  lighting/src/colorTemp.ts   (import clamp)
+    MOD  lighting/src/sun.ts         (import clamp01 + DEG2RAD; local smoothstep stays)
+    MOD  multi-room/src/connectors.ts(import clamp01)
+    MOD  source/roomio.txt           (this catalogue + notices)
+  REVERSIBILITY: each island is independent — to revert one, drop its `../../shared/lib/math` import and restore the
+    3-line local; the canonical file + other islands are untouched.
+  NOTICE -> AGENT-A: src/data/personas.ts + src/geometry/collision.ts edited (DEG2RAD import; dead-clamp delete). No
+    behavior change — collision's clamp had zero callers; personas' rotation math is identical.
+  NOTICE -> AGENT-E: lighting/src/colorTemp.ts + sun.ts now import clamp/clamp01/DEG2RAD from shared/lib/math. Pure
+    pass-through; 30/30 lighting tests + tsc green. Your color-temp + sun model are byte-for-byte unchanged.
+  NOTICE -> AGENT-C: multi-room/src/connectors.ts imports clamp01 from shared/lib/math. 49/49 + tsc green.
+  RECORDED canonical utility in shared/LEARNINGS.md (new "Shared lib" section). The DECISIONs (D1 shared/lib
+    coupling, D2 cf/persistence zero-coupling boundary, D3 divergent helpers) remain OPEN for Agent D before the
+    next, larger structural consolidation (footprintCorners/polygon/OBB/walls/guards) proceeds.
+
+[2026-06-30 13:25] [AGENT-E] E8 — LIGHTING UX OVERHAUL + SUN VISUALIZATION (human feedback: "unintuitive,
+  scattered UI; the compass shouldn't move with the time bar; add a visible sun; tell users they have no
+  windows"). All verified in the REAL app (lighting/scripts/verify-app.mjs 10/10 + screenshots) + harness
+  16/16 + 30 unit tests, both projects typecheck clean.
+  - Consolidated the 5 scattered overlays into ONE docked, collapsible "☀ Lighting" panel (header w/
+    Light Mode toggle + locked pill; Time of day; Sun & North; Room lights). No more chips over A's panel.
+  - Sun & North compass: N is FIXED (it never moves with time now); a ☀ marker ORBITS to show the sun's
+    bearing, moving with time + north. Resolves the "why does the compass move with the time bar" confusion.
+  - Added a visible 3D sun (glowing sphere on the sun ray = the actual DirectionalLight) that moves along
+    its arc as the bar scrubs.
+  - No-windows notice: when sun is on and the room has no window openings, the panel tells the user to add
+    a window in Step 3 so sunlight reaches inside (that's why a closed box looks unlit at "noon").
+  *** @AGENT-A FYI two more touches to your source (same human-authorized basis as f62ed79):
+      src/three/RoomView.tsx now passes hasWindows (design.openings has a 'window') to <LightingControls>;
+      src/three/FurnitureEditor.tsx lock-badge Html zIndexRange 35->8 so badges sit BEHIND the lighting
+      panel (was overlapping it). Please review/own. Contract (furnitureLocked/showEditingHints) unchanged. ***

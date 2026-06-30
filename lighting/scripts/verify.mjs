@@ -149,18 +149,27 @@ try {
   await shot('06-north180.png')
   ok(diff(n0.lum, n180.lum) > 0.03, `reverse north (180) changes light direction (${(diff(n0.lum, n180.lum) * 100).toFixed(1)}% changed)`)
 
-  // 6) HIDE CONTROLS — scene still renders
-  await set({ northOffsetDeg: 0, barVisible: false, northVisible: false })
+  // 6) COLLAPSE PANEL — controls hide, scene still renders
+  await set({ northOffsetDeg: 0 })
+  await page.evaluate(() => {
+    const btn = document.querySelector('button[aria-label="Collapse lighting panel"]')
+    if (btn) btn.click()
+  })
   await sleep(400)
   const hidden = await sample()
   await shot('07-controls-hidden.png')
   const barGone = await page.evaluate(() => !document.querySelector('input[aria-label="Time of day"]'))
-  ok(barGone, 'time bar hidden when toggled off')
+  ok(barGone, 'collapsing the panel hides the controls')
   ok(hidden.mean > 80, `scene still renders with controls hidden (mean ${hidden.mean.toFixed(0)})`)
+  // re-expand for the remaining checks
+  await page.evaluate(() => {
+    const btn = document.querySelector('button[aria-label="Expand lighting panel"]')
+    if (btn) btn.click()
+  })
+  await sleep(200)
 
   // 7) LIGHT MODE — locks furniture (badges) + hides the bottom editing hint
-  await set({ barVisible: true, northVisible: false })
-  await sleep(300)
+  await sleep(100)
   const hintBefore = await page.evaluate(() => !!document.querySelector('p.hint'))
   ok(hintBefore, 'editing hint shown when Light Mode is off (default furniture state)')
   await page.evaluate(() => window.__lighting.getState().toggleLightMode(true))
@@ -170,7 +179,7 @@ try {
     on: window.__lighting.getState().lightMode,
     hint: !!document.querySelector('p.hint'),
     badges: document.querySelectorAll('.furniture-lock-badge').length,
-    banner: !!Array.from(document.querySelectorAll('div')).find((d) => d.textContent?.includes('furniture locked')),
+    banner: Array.from(document.querySelectorAll('div')).some((d) => /furniture locked/i.test(d.textContent || '')),
   }))
   ok(lm.on === true, 'Light Mode turns on')
   ok(lm.hint === false, 'bottom editing hint HIDDEN in Light Mode')

@@ -1,99 +1,122 @@
-// Overlay that hosts the lighting controls. The time bar and the north indicator toggle
-// INDEPENDENTLY (acceptance L-10). Hiding them does not change the scene's lighting.
+// Single, consolidated Lighting panel (replaces the old scattered chips / floating compass /
+// bottom bar / center banner). One docked card on the right with clear sections:
+//   • Light Mode switch (header)   • Time of day   • Sun & North compass   • Room lights
+// Collapsible so it never crowds the scene ("hide controls -> scene still renders").
 
+import { useState } from 'react'
 import { useLighting } from '../store'
 import { TimeBar } from './TimeBar'
 import { NorthIndicator } from './NorthIndicator'
 import { LightEditor } from './LightEditor'
 
-const chip = (active: boolean): React.CSSProperties => ({
-  padding: '6px 12px',
-  borderRadius: 999,
-  border: '1px solid rgba(255,255,255,0.25)',
-  background: active ? '#ffb454' : 'rgba(20,22,26,0.78)',
-  color: active ? '#1a1206' : '#f4f1ea',
-  cursor: 'pointer',
-  font: '12px ui-sans-serif, system-ui, sans-serif',
-  fontWeight: 600,
-  backdropFilter: 'blur(6px)',
-})
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>
+      <div style={{ fontWeight: 600, opacity: 0.85, marginBottom: 8, letterSpacing: 0.2 }}>{title}</div>
+      {children}
+    </div>
+  )
+}
 
 export function LightingControls({
   roomId,
-  anchorLeftPx = 12,
+  hasWindows,
+  anchorRightPx = 12,
 }: {
   roomId?: string
-  /** left offset (px) for the toggle cluster, so it can clear an app side-panel. */
-  anchorLeftPx?: number
+  /** whether the room has any window openings (drives the "no windows" sun notice). */
+  hasWindows?: boolean
+  /** right offset (px) so the panel can clear other app chrome. */
+  anchorRightPx?: number
 }) {
-  const barVisible = useLighting((s) => s.barVisible)
-  const northVisible = useLighting((s) => s.northVisible)
   const lightMode = useLighting((s) => s.lightMode)
-  const toggleBar = useLighting((s) => s.toggleBar)
-  const toggleNorth = useLighting((s) => s.toggleNorth)
   const toggleLightMode = useLighting((s) => s.toggleLightMode)
+  const [open, setOpen] = useState(true)
 
   return (
-    <>
-      {/* top-left: independent toggles (always visible, so you can re-show panels) */}
-      <div style={{ position: 'fixed', top: 12, left: anchorLeftPx, display: 'flex', gap: 8, zIndex: 10 }}>
+    <div
+      style={{
+        position: 'fixed',
+        top: 12,
+        right: anchorRightPx,
+        width: 272,
+        maxHeight: 'calc(100vh - 24px)',
+        overflowY: 'auto',
+        borderRadius: 14,
+        background: 'rgba(22,24,28,0.86)',
+        color: '#f4f1ea',
+        backdropFilter: 'blur(8px)',
+        font: '12px ui-sans-serif, system-ui, sans-serif',
+        zIndex: 10,
+        boxShadow: '0 8px 28px rgba(0,0,0,0.28)',
+      }}
+    >
+      {/* header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px' }}>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>☀ Lighting</span>
+        <span style={{ flex: 1 }} />
         <button
-          style={chip(lightMode)}
           onClick={() => toggleLightMode()}
-          title="Lock furniture and hide editing hints so you can focus on lighting"
+          title="Light Mode: lock furniture and hide editing hints so you can focus on lighting"
+          style={{
+            padding: '5px 10px',
+            borderRadius: 999,
+            border: '1px solid rgba(255,255,255,0.22)',
+            background: lightMode ? '#ffb454' : 'rgba(255,255,255,0.1)',
+            color: lightMode ? '#1a1206' : '#f4f1ea',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
         >
-          💡 Light Mode
+          {lightMode ? '🔒 Light Mode' : '💡 Light Mode'}
         </button>
-        <button style={chip(barVisible)} onClick={() => toggleBar()}>
-          Time bar
-        </button>
-        <button style={chip(northVisible)} onClick={() => toggleNorth()}>
-          North
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-label={open ? 'Collapse lighting panel' : 'Expand lighting panel'}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 7,
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(255,255,255,0.08)',
+            color: '#f4f1ea',
+            cursor: 'pointer',
+          }}
+        >
+          {open ? '▾' : '▸'}
         </button>
       </div>
 
-      {/* light-mode banner: furniture is locked */}
       {lightMode && (
         <div
           style={{
-            position: 'fixed',
-            top: 12,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-            padding: '6px 14px',
-            borderRadius: 999,
-            background: 'rgba(20,22,26,0.78)',
+            margin: '0 12px 6px',
+            padding: '5px 9px',
+            borderRadius: 8,
+            background: 'rgba(255,180,84,0.16)',
             color: '#ffd9a0',
-            backdropFilter: 'blur(6px)',
-            font: '12px ui-sans-serif, system-ui, sans-serif',
             fontWeight: 600,
           }}
         >
-          🔒 Light Mode — furniture locked
+          🔒 Furniture locked — editing paused
         </div>
       )}
 
-      {/* top-right: light editor for the active room */}
-      {roomId && (
-        <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 10 }}>
-          <LightEditor roomId={roomId} />
+      {open && (
+        <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Section title="Time of day">
+            <TimeBar hasWindows={hasWindows} />
+          </Section>
+          <Section title="Sun & North">
+            <NorthIndicator />
+          </Section>
+          {roomId && (
+            <Section title="Room lights">
+              <LightEditor roomId={roomId} />
+            </Section>
+          )}
         </div>
       )}
-
-      {/* right-center: north indicator (independent toggle) */}
-      {northVisible && (
-        <div style={{ position: 'fixed', top: '45%', right: 12, transform: 'translateY(-50%)', zIndex: 10 }}>
-          <NorthIndicator />
-        </div>
-      )}
-
-      {/* bottom-center: time bar (independent toggle) */}
-      {barVisible && (
-        <div style={{ position: 'fixed', bottom: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}>
-          <TimeBar />
-        </div>
-      )}
-    </>
+    </div>
   )
 }

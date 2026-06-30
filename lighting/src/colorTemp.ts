@@ -3,6 +3,8 @@
 // design-friendly range. Used for the warm/cool light toggle and the sun's
 // warmth-shift toward dawn/dusk.
 
+import { clamp } from '../../shared/lib/math'
+
 export type Warmth = 'warm' | 'neutral' | 'cool'
 
 /** UI presets -> Kelvin. warm = cozy incandescent, cool = daylight. */
@@ -10,10 +12,6 @@ export const WARMTH_KELVIN: Record<Warmth, number> = {
   warm: 2700,
   neutral: 4000,
   cool: 5200,
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v
 }
 
 function toHex2(v: number): string {

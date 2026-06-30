@@ -265,7 +265,7 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
 
       {/* Lock indicator — visible when pinned but NOT selected (toolbar shows it otherwise). */}
       {locked && !selected && (
-        <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[35, 0]}>
+        <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[8, 0]}>
           <div className="lock-badge" title="Locked">🔒</div>
         </Html>
       )}

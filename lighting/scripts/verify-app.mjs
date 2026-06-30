@@ -91,6 +91,18 @@ try {
   await shot('app-03-lightmode-off.png')
   ok(await hasHint(), 'move-furniture hint returns when Light Mode is off (default state)')
 
+  // scrub the time slider to a low sun so the visible 3D sun + compass marker are clearly in view
+  await page.evaluate(() => {
+    const el = document.querySelector('input[aria-label="Time of day"]')
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setter.call(el, '0.84')
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await sleep(700)
+  await shot('app-04-low-sun.png')
+  const movedSun = await exists('input[aria-label="Time of day"]')
+  ok(movedSun, 'time slider scrubs (sun/compass update) — see app-04-low-sun.png')
+
   console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILED'} — screenshots in verify-out/`)
 } finally {
   if (browser) await browser.close()

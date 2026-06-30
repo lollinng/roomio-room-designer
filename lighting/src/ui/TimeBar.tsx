@@ -1,5 +1,5 @@
-// Time-of-day bar (Pillar 3). Scrubbing arcs the sun + sweeps shadows + shifts warmth.
-// Toggles independently of the north indicator. DOM overlay (rendered outside the Canvas).
+// Time-of-day section (Pillar 3). Scrubbing arcs the sun + sweeps shadows + shifts warmth.
+// Rendered as a SECTION inside the single Lighting panel (no own card / positioning).
 
 import { useLighting } from '../store'
 
@@ -11,28 +11,26 @@ function timeLabel(t: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-export function TimeBar() {
+export function TimeBar({ hasWindows }: { hasWindows?: boolean }) {
   const timeOfDay = useLighting((s) => s.timeOfDay)
   const setTimeOfDay = useLighting((s) => s.setTimeOfDay)
   const sun = useLighting((s) => s.sun)
   const setSunEnabled = useLighting((s) => s.setSunEnabled)
 
+  const phase =
+    timeOfDay < 0.12 ? 'dawn' : timeOfDay > 0.88 ? 'dusk' : timeOfDay > 0.42 && timeOfDay < 0.58 ? 'noon' : ''
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '10px 14px',
-        borderRadius: 12,
-        background: 'rgba(20,22,26,0.78)',
-        color: '#f4f1ea',
-        backdropFilter: 'blur(6px)',
-        font: '13px ui-sans-serif, system-ui, sans-serif',
-        minWidth: 360,
-      }}
-    >
-      <span style={{ fontWeight: 600 }}>🕑 {timeLabel(timeOfDay)}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontWeight: 600 }}>🕑 {timeLabel(timeOfDay)}</span>
+        <span style={{ opacity: 0.55 }}>{phase}</span>
+        <span style={{ flex: 1 }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+          <input type="checkbox" checked={sun.enabled} onChange={(e) => setSunEnabled(e.target.checked)} />
+          sun
+        </label>
+      </div>
       <input
         type="range"
         min={0}
@@ -40,16 +38,30 @@ export function TimeBar() {
         step={0.001}
         value={timeOfDay}
         onChange={(e) => setTimeOfDay(parseFloat(e.target.value))}
-        style={{ flex: 1, accentColor: '#ffb454' }}
+        style={{ width: '100%', accentColor: '#ffb454' }}
         aria-label="Time of day"
       />
-      <span style={{ opacity: 0.6, width: 44 }}>
-        {timeOfDay < 0.12 ? 'dawn' : timeOfDay > 0.88 ? 'dusk' : timeOfDay > 0.42 && timeOfDay < 0.58 ? 'noon' : ''}
-      </span>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-        <input type="checkbox" checked={sun.enabled} onChange={(e) => setSunEnabled(e.target.checked)} />
-        sun
-      </label>
+      {/* No-windows notice: sunlight can't reach a closed box, so tell the user how to see it. */}
+      {sun.enabled && hasWindows === false && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            padding: '7px 9px',
+            borderRadius: 8,
+            background: 'rgba(255,180,84,0.14)',
+            border: '1px solid rgba(255,180,84,0.35)',
+            color: '#ffd9a0',
+            lineHeight: 1.35,
+          }}
+        >
+          <span>🪟</span>
+          <span>
+            This room has no windows, so sunlight can’t reach inside. Add a window in{' '}
+            <strong>Step 3 (Doors &amp; windows)</strong> to see the sun cast light and shadows indoors.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -16,21 +16,9 @@ export function LightEditor({ roomId }: { roomId: string }) {
   if (!room) return null
 
   return (
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 12,
-        background: 'rgba(20,22,26,0.78)',
-        color: '#f4f1ea',
-        backdropFilter: 'blur(6px)',
-        font: '12px ui-sans-serif, system-ui, sans-serif',
-        width: 240,
-      }}
-    >
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>💡 Lights — {roomId}</div>
-
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-        <span style={{ opacity: 0.7, alignSelf: 'center' }}>Room warmth:</span>
+    <div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center' }}>
+        <span style={{ opacity: 0.7 }}>Warmth:</span>
         {(['warm', 'neutral', 'cool'] as Warmth[]).map((w) => (
           <button
             key={w}

@@ -78,6 +78,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
   const corners = useStore((s) => s.design.corners)
   const stage = useStore((s) => s.stage)
   const designId = useStore((s) => s.design.id)
+  const hasWindows = useStore((s) => s.design.openings.some((o) => o.kind === 'window'))
   const [flyController, setFlyController] = useState<FlythroughController | null>(null)
 
   // Every room gets sensible default lights the moment it exists (Pillar 1: never a dark box).
@@ -140,7 +141,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       <SceneBridge onController={setFlyController} />
     </Canvas>
     <FlythroughHud controller={flyController} />
-    <LightingControls roomId={designId} anchorLeftPx={440} />
+    <LightingControls roomId={designId} hasWindows={hasWindows} />
     </>
   )
 }

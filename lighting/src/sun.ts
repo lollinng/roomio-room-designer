@@ -4,8 +4,7 @@
 // (schema uses maxElevationDeg) and converted to radians internally.
 
 import { kelvinToHex, lerpKelvin } from './colorTemp'
-
-const DEG2RAD = Math.PI / 180
+import { clamp01, DEG2RAD } from '../../shared/lib/math'
 
 export interface SunSample {
   /** world-meter position [x,y,z] on the dome around house center. */
@@ -31,10 +30,6 @@ export interface SunOptions {
   domeRadiusM?: number
   /** apply dawn/dusk warming + cooling toward noon. */
   warmthShift?: boolean
-}
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v
 }
 
 /**

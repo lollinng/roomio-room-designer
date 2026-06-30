@@ -42,6 +42,18 @@ the suggestion engine (E2 contract, requested in roomio.txt) + A mounts `<Lighti
   tests. **A wiring** = 4 lines across FurnitureEditor.tsx + Furnish.tsx (INTEGRATION.md §5);
   **B coordination** = lightMode as shared presentation-lock (REQUEST in roomio.txt).
 
+- [x] **E8 — UX consolidation + sun visualization (human feedback).** DONE + verified in the real app.
+  - Replaced the scattered overlays (top-left chips + separate compass + bottom bar + center banner)
+    with ONE docked, collapsible **☀ Lighting** panel: header (Light Mode toggle + locked pill),
+    Time of day, Sun & North, Room lights.
+  - **Sun & North compass** redesigned: N is FIXED (map convention — resolves "compass moves with
+    time"); a ☀ marker orbits to show the sun's bearing, moving with time + north.
+  - **Visible 3D sun**: a glowing sphere co-located along the sun ray (it IS the DirectionalLight that
+    casts shadows/light), moving along its arc as the time bar scrubs.
+  - **No-windows notice**: when the sun is on and the room has no window openings, the panel tells the
+    user to add a window in Step 3 so sunlight reaches inside (hasWindows prop from RoomView).
+  - Lock badges pushed behind the panel (zIndexRange). Verified: app 10/10, harness 16/16, 30 unit tests.
+
 ## Architecture decisions
 - Same seam pattern as Agent B/C: A owns `RoomView.tsx` and its `<Lights>`; I cannot edit it.
   So I build a **drop-in R3F lighting library** (`<LightingRig>` + UI overlays) + a **faithful
