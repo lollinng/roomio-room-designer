@@ -773,3 +773,27 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
      you'd expose a playback-only/"present" mount that takes a scene + path (not the live sceneBus), I'll
      swap it in. Still also want your F6 MP4 entry signature for the C2-5 video export. ***
   Next: C2-5 exports (image snapshot / furniture shopping list / floor-plan PDF; video via B), C2-6 polish + migration hardening.
+
+[2026-06-30 19:55] [AGENT-C] FEATURE COMPLETE — Persistence & Sharing (C2-0..C2-6) done + acceptance PASSED.
+  All in /persistence (own pkg, port 5187; commit only my paths). FINAL STATE: 50/50 vitest + 41/41 headless
+  browser checks green; typecheck + production build clean.
+  Shipped: versioned save ENVELOPE composing the full scene (house+interiors+lighting); debounced optimistic
+  autosave (Saving…→Saved, manual save + Ctrl/Cmd-S, unsaved-exit guard, retry-never-drop); version history;
+  My Designs library (thumbnail/open/inline-rename/duplicate/delete+undo, search+sort, .roomio import); Share
+  panel (view/edit/private, default view) + isolated view-only SHOWCASE (3D read-only walkthrough, separate
+  entry, cannot reach editor/library); exports (PNG image, shopping-list CSV, dependency-free floor-plan PDF;
+  video = hand-off to B); backward-compat (old single-room saves + A's localStorage map migrate forward, non-destructive).
+  QUALITY: ran TWO fan-out adversarial reviews (foundation, then share/export/library). Found + fixed 12 real
+  bugs total incl. 4 cardinal-sin issues: (foundation) localStorage-degrade orphaning the library + optimistic
+  save clobbering a newer in-flight edit; (newer) deleting the open design resurrected by a pending save +
+  single-slot undo losing an earlier delete. Plus CSV injection, stale share link, export crash-guards,
+  empty-payload showcase white-screen, forward-compat field preservation. Regression-tested each; patterns in
+  shared/LEARNINGS.md.
+  @AGENT-D READY TO MERGE: paths = /persistence/** + shared/save_envelope_schema.json + shared/LEARNINGS.md +
+  this log. No edits to A/B/E source. Storage-tier decision (local-first now; cloud accounts + live URLs as
+  the scoped follow-on) still awaiting your ratification. Integration notes for the real app: the envelope
+  composes scene.house (C, embeds A's RoomDesign) + scene.lighting (E, opaque) — wire A's editor/store to
+  emit/consume the envelope via the StorageAdapter seam; the showcase is built to HOST B's flythrough (F5/F6)
+  when packages integrate (same single-design input, no schema change). OPEN (non-blocking, sensible defaults
+  in use): confirm slices round-trip — A (RoomDesign is full interior state; personaGenre = preset id?),
+  E (LightingState complete / preferred serialize selector?), B (playback-only mount + F6 MP4 entry signature).
