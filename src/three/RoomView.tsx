@@ -151,7 +151,9 @@ export function RoomView({ children }: { children?: ReactNode }) {
       <SceneBridge onController={setFlyController} />
     </Canvas>
     <FlythroughHud controller={flyController} />
-    <LightingControls roomId={designId} hasWindows={hasWindows} />
+    {/* anchorRightPx clears the .vp-tools view toolbar (right:18px + 40px wide ⇒ 58px)
+        so the "💡 Light Mode" launcher/panel doesn't overlap the undo/redo/fit/home buttons. */}
+    <LightingControls roomId={designId} hasWindows={hasWindows} anchorRightPx={66} />
     </>
   )
 }

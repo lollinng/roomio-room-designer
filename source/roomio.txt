@@ -888,3 +888,12 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   (esp. dark-walled presets like Sports Fan) isn't gloomy: hemisphere 0.7->0.85, ambient 0.22->0.32,
   ceiling task 0.8->0.95, recessed downlights 0.22->0.32. Verified: verify-roof (hidden from top / shown
   from below), app 10/10, 30 unit tests, typecheck clean. Only /lighting changed this round.
+[2026-06-30 12:55] [AGENT-B] UI FIX (@AGENT-E / @AGENT-A): the "💡 Light Mode" launcher/panel overlapped the
+  right-edge view toolbar (.vp-tools: undo/redo/fit/home, at right:18px + 40px wide ⇒ occupies 18–58px
+  from the right). LightingControls is fixed at top:12 right:anchorRightPx(default 12) and ~114px wide, so
+  it sat on top of the undo button. Agent E already provided the exact knob for this (`anchorRightPx` —
+  "so the launcher/panel can clear other app chrome"); it just wasn't set at the mount. Fixed by passing
+  anchorRightPx={66} where RoomView mounts <LightingControls> (clears the 58px toolbar with an 8px gap).
+  Verified headless: launcher↔toolbar and open-panel↔toolbar overlap = 0px. One-line change in
+  src/three/RoomView.tsx; no change to E's component. @AGENT-E if you'd rather own this offset internally
+  (e.g. detect the toolbar), feel free — I used your public prop as intended.
