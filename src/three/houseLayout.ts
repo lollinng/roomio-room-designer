@@ -15,7 +15,7 @@
  * lightweight in-app layout for the overview.
  */
 import { bbox, deriveWalls } from '../geometry/walls'
-import type { Opening, RoomDesign, Wall } from '../types'
+import type { Opening, RoomDesign, Vec2, Wall } from '../types'
 
 export interface PlacedRoom {
   design: RoomDesign
@@ -78,6 +78,128 @@ export function layoutHouse(designs: RoomDesign[]): PlacedRoom[] {
   }
 
   return placed
+}
+
+/** OBB footprint (cm) — matches the flythrough Colliders contract. */
+export interface OBB {
+  cx: number
+  cz: number
+  w: number
+  d: number
+  rot: number
+}
+
+/** Colliders for the whole house (cm), shaped like the flythrough scene contract. */
+export interface HouseColliders {
+  walls: Wall[]
+  furniture: OBB[]
+  polygon: Vec2[]
+  wallThickness: number
+  bounds: { minX: number; minZ: number; maxX: number; maxZ: number }
+}
+
+/** Translate a wall (a/b/mid) by an offset; direction + normal unchanged. */
+function offsetWall(w: Wall, off: { x: number; z: number }): Wall {
+  return {
+    ...w,
+    a: { x: w.a.x + off.x, z: w.a.z + off.z },
+    b: { x: w.b.x + off.x, z: w.b.z + off.z },
+    midX: w.midX + off.x,
+    midZ: w.midZ + off.z,
+  }
+}
+
+/**
+ * Split a wall into the SOLID sub-segments left after subtracting its openings
+ * (doorways/windows). Each sub-segment is a finite wall collider; the opening
+ * spans become walkable GAPS (the segment-aware solver skips out-of-span walls).
+ */
+function splitWall(w: Wall, openings: Opening[]): Wall[] {
+  if (openings.length === 0) return [w]
+  // opening spans in cm along the wall, clamped + merged
+  const spans = openings
+    .map((o) => {
+      const c = o.t * w.length
+      const half = o.width / 2
+      return [Math.max(0, c - half), Math.min(w.length, c + half)] as [number, number]
+    })
+    .filter(([s0, s1]) => s1 > s0)
+    .sort((p, q) => p[0] - q[0])
+
+  const merged: [number, number][] = []
+  for (const s of spans) {
+    const last = merged[merged.length - 1]
+    if (last && s[0] <= last[1]) last[1] = Math.max(last[1], s[1])
+    else merged.push([...s])
+  }
+
+  // solid sub-segments = [0, length] minus merged opening spans
+  const solids: [number, number][] = []
+  let cursor = 0
+  for (const [s0, s1] of merged) {
+    if (s0 - cursor > 2) solids.push([cursor, s0])
+    cursor = Math.max(cursor, s1)
+  }
+  if (w.length - cursor > 2) solids.push([cursor, w.length])
+
+  return solids.map(([s0, s1], i) => ({
+    ...w,
+    id: `${w.id}_seg${i}`,
+    a: { x: w.a.x + w.dirX * s0, z: w.a.z + w.dirZ * s0 },
+    b: { x: w.a.x + w.dirX * s1, z: w.a.z + w.dirZ * s1 },
+    length: s1 - s0,
+    midX: w.a.x + w.dirX * ((s0 + s1) / 2),
+    midZ: w.a.z + w.dirZ * ((s0 + s1) / 2),
+  }))
+}
+
+/**
+ * Build the collision world for the WHOLE house, in the shared house-plane
+ * (design cm) that HouseView renders.
+ *
+ * Walls are emitted as thin OBBs (not half-planes): the flythrough solver pushes
+ * the walker OUT of each box, which blocks BIDIRECTIONALLY (so you can't clip a
+ * shared interior wall from either room) and avoids the over-constraint of
+ * stacking every room's inward half-planes. Each wall is split around its
+ * openings, so DOORWAY gaps have no box and are walkable. `walls` is left empty;
+ * the house perimeter polygon is the safety fallback. Frame center = bounds center.
+ */
+export function houseColliders(placed: PlacedRoom[]): HouseColliders {
+  const b = houseBoundsCm(placed)
+  const furniture: OBB[] = []
+  let wallThickness = 12
+
+  for (const p of placed) {
+    const bb = bbox(p.design.corners)
+    const off = { x: p.centerCm.x - bb.cx, z: p.centerCm.z - bb.cz }
+    wallThickness = p.design.wallThickness
+    const allOpenings = [...p.design.openings, ...p.extraOpenings]
+    for (const w of deriveWalls(p.design.corners)) {
+      const ops = allOpenings.filter((o) => o.wallId === w.id)
+      for (const seg of splitWall(w, ops)) {
+        const s = offsetWall(seg, off)
+        // thin wall box: length along the wall (local +x), thickness across it.
+        furniture.push({
+          cx: s.midX,
+          cz: s.midZ,
+          w: s.length,
+          d: p.design.wallThickness,
+          rot: Math.atan2(-s.dirZ, s.dirX),
+        })
+      }
+    }
+    for (const f of p.design.furniture) {
+      furniture.push({ cx: f.x + off.x, cz: f.z + off.z, w: f.w, d: f.d, rot: f.rotation })
+    }
+  }
+
+  const polygon: Vec2[] = [
+    { x: b.minX, z: b.minZ },
+    { x: b.maxX, z: b.minZ },
+    { x: b.maxX, z: b.maxZ },
+    { x: b.minX, z: b.maxZ },
+  ]
+  return { walls: [], furniture, polygon, wallThickness, bounds: { minX: b.minX, minZ: b.minZ, maxX: b.maxX, maxZ: b.maxZ } }
 }
 
 /** Whole-house bounding box (world cm) for camera framing. */

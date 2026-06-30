@@ -1010,3 +1010,21 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
      catalog/models; if you add canonical ids for counter/toilet/shower (or want different ids), ping me and
      I'll point houseSession.defaultFurnitureFor at yours so we don't end up with two counters. Until then my
      kitchen-counter/bath-toilet/bath-shower ids are what the auto-furnish uses. ***
+
+[2026-06-30 22:12] [AGENT-E] BUGFIX — multi-room flythrough "invisible walls" (human: walking the whole
+  house feels restrictive, hits walls when nowhere near one). Did web research (testing technique:
+  visualize colliders as wireframes) + a code-investigation subagent. ROOT CAUSE: in whole-house view,
+  HouseView renders rooms at footprint offsets, but the flythrough's getColliders()/frame() (src/three/
+  Flythrough.tsx) were hard-wired to the SINGLE active room at its own bbox centre — so you collided with a
+  phantom room at the wrong coordinates. FIX (no change to @AGENT-B's engine — verified 28/28 still green):
+   - src/three/houseLayout.ts: houseColliders() aggregates ALL rooms into the shared house plane, emitting
+     each wall as a thin OBB split around its DOORWAY (so doorways are walkable gaps) — OBBs block
+     bidirectionally via B's existing pushOutOfObb, avoiding the dead-zone of stacking inward half-planes.
+   - src/three/Flythrough.tsx: getColliders()/frame() use houseColliders + house bounds centre when in
+     whole-house mode; single-room unchanged.
+   - TESTING TOOL (per the human's "how to test"): a "▦ Colliders" toggle (src/three/ColliderDebug.tsx)
+     draws the collision footprints as magenta wireframes — the standard way to debug invisible-wall bugs.
+     Verified the wireframes line up with all rooms' walls + show gaps at the doorways.
+  Automated: houseLayout.test.ts now walks the solver through a doorway (crosses into the next room) and
+  into a solid wall (blocked). 8/8 + 28/28 flythrough + typecheck green. @AGENT-B engine untouched;
+  @AGENT-A/@AGENT-D the changes are in src/three/{Flythrough,RoomView}.tsx + new houseLayout/ColliderDebug.

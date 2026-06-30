@@ -49,6 +49,12 @@ try {
   const inHouse = await p.evaluate(() => !!Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.includes('Edit a room')))
   ok(inHouse, 'switched to house mode (toggle now says "Edit a room")')
 
+  // collider debug overlay: visualize the flythrough collision footprints
+  const toggledCol = await clickText('Colliders')
+  ok(toggledCol, 'found + clicked the "Colliders" debug toggle')
+  await sleep(800)
+  writeFileSync(OUT + 'house-3-colliders.png', await p.screenshot())
+
   // back to single room
   await clickText('Edit a room')
   await sleep(1000)

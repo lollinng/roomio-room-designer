@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { layoutHouse, houseBoundsCm } from './houseLayout'
+import { layoutHouse, houseBoundsCm, houseColliders } from './houseLayout'
 import { newDesign } from '../store'
 import { bbox } from '../geometry/walls'
+import { resolveWalk } from '../../camera-flythrough/src/engine/collision'
 import type { RoomDesign } from '../types'
 
 function room(id: string): RoomDesign {
@@ -53,6 +54,42 @@ describe('houseLayout — interconnected floor plan', () => {
     const placed = layoutHouse([room('solo')])
     expect(placed[0].extraOpenings).toHaveLength(0)
     expect(placed[0].centerCm.z).toBe(0)
+  })
+
+  // Step rightward in small increments, like the real ~4 cm/frame walk loop
+  // (resolveWalk is not swept, so a realistic test must step, not teleport).
+  function walkRight(cols: ReturnType<typeof houseColliders>, start: { x: number; z: number }) {
+    let p = start
+    for (let i = 0; i < 120; i++) p = resolveWalk(p, { x: p.x + 5, z: p.z }, cols, { radius: 18 })
+    return p
+  }
+
+  it('houseColliders: you can WALK through the doorway from one room to the next', () => {
+    const placed = layoutHouse([room('a'), room('b')])
+    const cols = houseColliders(placed)
+    const bb0 = bbox(placed[0].design.corners)
+    const boundaryX = placed[0].centerCm.x + bb0.w / 2 // shared wall, house cm
+    const end = walkRight(cols, { x: boundaryX - 120, z: 0 }) // z=0 is the doorway
+    expect(end.x).toBeGreaterThan(boundaryX + 20) // crossed into room B through the doorway
+  })
+
+  it('houseColliders: a SOLID part of the shared wall still blocks you', () => {
+    const placed = layoutHouse([room('a'), room('b')])
+    const cols = houseColliders(placed)
+    const bb0 = bbox(placed[0].design.corners)
+    const boundaryX = placed[0].centerCm.x + bb0.w / 2
+    const zAwayFromDoor = bb0.d / 2 - 35 // near the wall end, away from the centred door
+    const end = walkRight(cols, { x: boundaryX - 120, z: zAwayFromDoor })
+    expect(end.x).toBeLessThan(boundaryX) // blocked by the solid wall, kept in room A
+  })
+
+  it('houseColliders: wall boxes are offset into shared house space (span all rooms)', () => {
+    const placed = layoutHouse([room('a'), room('b'), room('c')])
+    const cols = houseColliders(placed)
+    // walls are emitted as OBBs in furniture; their x-centres should span > one room
+    const xs = cols.furniture.map((o) => o.cx)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(bbox(placed[0].design.corners).w)
+    expect(cols.walls).toHaveLength(0) // half-planes off; OBBs do the work
   })
 
   it('house bounds enclose all rooms', () => {

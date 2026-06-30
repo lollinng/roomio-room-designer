@@ -24,6 +24,7 @@ import { makeFrame } from './coords'
 import { useHouse } from './houseSession'
 import { useHouseView } from './houseViewMode'
 import { HouseView } from './HouseView'
+import { ColliderDebug } from './ColliderDebug'
 import { layoutHouse, houseBoundsCm } from './houseLayout'
 
 type ControlsLike = {
@@ -121,6 +122,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
 
   // Whole-house overview mode: lay out all session rooms interconnected.
   const viewMode = useHouseView((s) => s.mode)
+  const debugColliders = useHouseView((s) => s.debugColliders)
   const houseRooms = useHouse((s) => s.rooms)
   const activeId = useHouse((s) => s.activeId)
   const liveDesign = useStore((s) => s.design)
@@ -171,6 +173,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
           <CameraFit />
         </>
       )}
+      <ColliderDebug />
       <OrbitControls
         makeDefault
         camera={origCam ?? undefined}
@@ -189,30 +192,46 @@ export function RoomView({ children }: { children?: ReactNode }) {
     {/* anchorRightPx clears the .vp-tools view toolbar (right:18px + 40px wide ⇒ 58px)
         so the "💡 Light Mode" launcher/panel doesn't overlap the undo/redo/fit/home buttons. */}
     <LightingControls roomId={designId} hasWindows={hasWindows} anchorRightPx={66} />
-    {/* Whole-house / single-room toggle (only meaningful with 2+ rooms). */}
+    {/* Whole-house / single-room toggle (only meaningful with 2+ rooms) + a
+        collider-debug toggle (visualise the flythrough's collision footprints,
+        to test for "invisible wall" bugs). */}
     {houseRooms.length > 1 && (
-      <button
-        onClick={() => useHouseView.getState().toggle()}
-        title={houseMode ? 'Back to editing one room' : 'See all rooms together as a connected house'}
-        style={{
-          position: 'fixed',
-          top: 14,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 10,
-          padding: '8px 16px',
-          borderRadius: 999,
-          border: '1px solid rgba(0,0,0,0.12)',
-          background: houseMode ? '#111' : '#fff',
-          color: houseMode ? '#fff' : '#23211e',
-          font: '13px ui-sans-serif, system-ui, sans-serif',
-          fontWeight: 700,
-          cursor: 'pointer',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-        }}
-      >
-        {houseMode ? '🚪 Edit a room' : '🏠 View whole house'}
-      </button>
+      <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => useHouseView.getState().toggle()}
+          title={houseMode ? 'Back to editing one room' : 'See all rooms together as a connected house'}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 999,
+            border: '1px solid rgba(0,0,0,0.12)',
+            background: houseMode ? '#111' : '#fff',
+            color: houseMode ? '#fff' : '#23211e',
+            font: '13px ui-sans-serif, system-ui, sans-serif',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          }}
+        >
+          {houseMode ? '🚪 Edit a room' : '🏠 View whole house'}
+        </button>
+        <button
+          onClick={() => useHouseView.getState().toggleDebugColliders()}
+          title="Show the flythrough collision footprints (wireframes) — to test for invisible-wall bugs"
+          style={{
+            padding: '8px 12px',
+            borderRadius: 999,
+            border: '1px solid rgba(0,0,0,0.12)',
+            background: debugColliders ? '#ff2bd6' : '#fff',
+            color: debugColliders ? '#fff' : '#23211e',
+            font: '13px ui-sans-serif, system-ui, sans-serif',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          }}
+        >
+          ▦ Colliders
+        </button>
+      </div>
     )}
     </>
   )
