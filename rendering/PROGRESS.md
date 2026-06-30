@@ -28,7 +28,7 @@ shift is compensated by G's tone-mapping `exposure` (co-tuned with E, recorded i
 | **G0** | Read roomio.txt + LEARNINGS.md; scaffold `/rendering`; settle renderer/light seam with E; publish render schema; onboarding entry | ✅ done |
 | **G1** | PBR materials + IBL env map + ACESFilmic tone mapping + sRGB | ✅ done (harness) |
 | **G2** | Ambient occlusion (N8AO) + soft-shadow integration (with E) | ✅ done (harness) |
-| **G3** | Emissive bulbs + bloom + correct falloff + area lights | 🟡 bulbs+bloom done; area lights (window/panel RectAreaLight) pending |
+| **G3** | Emissive bulbs + bloom + correct falloff + area lights | ✅ done — bulbs/window glow with bloom + RectAreaLight window/panel area fill (`AreaLight`); app window-rect wiring is a follow-on co-tune with E/A |
 | **G4** | Quality toggle (high/medium/low) + RenderControls panel | ✅ done (harness) |
 | **G5** | Optional: progressive path-traced hero render + export hook (with B/C) | ✅ done (graceful raster fallback; converges on a real GPU) |
 | **GA** | App mount (RealismLayer into RoomView) — handed to D/A via INTEGRATION.md | ⬜ awaiting D/E |

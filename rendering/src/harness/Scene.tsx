@@ -6,6 +6,7 @@
 // the same kind of lighting it will in the app.
 
 import * as THREE from 'three'
+import { AreaLight } from '../r3f/AreaLight'
 
 const RW = 4
 const RD = 5
@@ -80,6 +81,22 @@ export function HarnessScene() {
         </mesh>
         <pointLight position={[0, 0.5, 0]} color="#ffd98a" intensity={2.2} distance={0} decay={0} castShadow={false} />
       </group>
+
+      {/* a "window" on the back wall: an emissive pane (blooms into a bright window) + a RectAreaLight
+          giving a soft, directional cool-daylight area fill — the realism stack's area-light layer.
+          (App wiring of real window openings is a follow-on co-tune with E/A.) */}
+      <mesh position={[1.0, 1.35, -RD / 2 + 0.03]}>
+        <planeGeometry args={[1.4, 1.2]} />
+        <meshStandardMaterial
+          color="#eaf2ff"
+          emissive="#cfe0ff"
+          emissiveIntensity={0.5}
+          roughness={1}
+          metalness={0}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      <AreaLight position={[1.0, 1.35, -RD / 2 + 0.1]} target={[0, 1.0, 0]} width={1.4} height={1.2} color="#cfe0ff" intensity={4} />
 
       {/* E-like default lights — the RealismLayer enhances these (it does NOT replace them). */}
       <hemisphereLight color="#ffffff" groundColor="#cfcbc2" intensity={0.85} />
