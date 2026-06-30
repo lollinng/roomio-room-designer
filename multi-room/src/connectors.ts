@@ -15,6 +15,7 @@ import { buildWallParts, deriveWalls, pointOnWall, type WallPart } from './geome
 import { findSharedWalls, worldWalls } from './geometry/placement'
 import { getRoom } from './house'
 import { uid } from './util/id'
+import { clamp01 } from '../../shared/lib/math'
 
 /** A connector's hole as it lands in one specific room. */
 export interface DerivedOpening {
@@ -216,8 +217,4 @@ export function connectorWorldPoint(connector: Connector, house: House) {
   const cos = Math.cos(r)
   const sin = Math.sin(r)
   return { x: fp.x + (local.x * cos - local.z * sin), z: fp.z + (local.x * sin + local.z * cos) }
-}
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v
 }

@@ -2,6 +2,7 @@ import type { RoomDesign, FurnitureItem, Vec2, RoomType, ShapeId } from '../type
 import { ARCHETYPE_MAP } from './archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR, FLOOR_MAP } from './materials'
 import rawPersonas from './personas.json'
+import { DEG2RAD } from '../../shared/lib/math'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Persona room presets — the "Start from a style that's you" entry point.
@@ -46,8 +47,6 @@ export const PERSONAS: PersonaPreset[] = rawPersonas as PersonaPreset[]
 export const PERSONA_MAP: Record<string, PersonaPreset> = Object.fromEntries(
   PERSONAS.map((p) => [p.genre_id, p]),
 )
-
-const DEG2RAD = Math.PI / 180
 
 function uid(prefix: string): string {
   try {

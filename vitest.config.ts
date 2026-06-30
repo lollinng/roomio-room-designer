@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // Root suite also owns the shared canonical lib's tests (Agent F dedup).
+    include: ['src/**/*.test.ts', 'shared/lib/**/*.test.ts'],
   },
 })
