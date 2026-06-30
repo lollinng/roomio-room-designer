@@ -65,7 +65,13 @@ try {
   browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: 'new',
-    args: ['--no-sandbox', '--window-size=1280,860'],
+    args: [
+      '--no-sandbox',
+      '--window-size=1280,860',
+      '--use-angle=swiftshader',
+      '--enable-unsafe-swiftshader',
+      '--ignore-gpu-blocklist',
+    ],
   })
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 860 })
@@ -215,6 +221,55 @@ try {
   await sleep(400)
   const afterUndo = await countCards()
   ok(afterUndo === beforeDel, `undo restores the deleted design (${afterDel} -> ${afterUndo})`)
+
+  // 8) C2-4 SHARE + VIEW-ONLY SHOWCASE.
+  // open a design, then the Share panel
+  await page.evaluate(() => {
+    const card = document.querySelector('button img')?.closest('button')
+    card?.click()
+  })
+  await waitForPhase(page, 'saved', 4000)
+  await clickByText(page, 'Share')
+  await page.waitForSelector('[data-testid="share-panel"]', { timeout: 4000 })
+  // defaults to "view"
+  const accessSentence = await page.$eval('[data-testid="access-sentence"]', (el) => el.textContent || '')
+  ok(/view/i.test(accessSentence), `share defaults to view: "${accessSentence.trim()}"`)
+  const showcaseUrl = await page.$eval('[data-testid="showcase-url"]', (el) => el.value)
+  ok(showcaseUrl.includes('showcase.html#s='), 'showcase link points at the isolated showcase entry')
+  await page.screenshot({ path: `${OUT}c2-4-share.png` })
+
+  // CRITICAL: open the showcase link in a FRESH incognito context (no localStorage,
+  // like another device) and prove it is a read-only walkthrough of JUST this room,
+  // with NO editor / library / other designs reachable.
+  const ctx = await browser.createBrowserContext()
+  const viewer = await ctx.newPage()
+  await viewer.setViewport({ width: 1100, height: 760 })
+  await viewer.goto(showcaseUrl, { waitUntil: 'networkidle0' })
+  await sleep(800)
+  const hasViewBadge = await viewer.$('[data-testid="view-only-badge"]')
+  ok(!!hasViewBadge, 'showcase opens incognito (data came from the URL, not storage) with a View-only badge')
+  const hasPlay = await viewer.$('[data-testid="play-walkthrough"]')
+  ok(!!hasPlay, 'showcase offers a read-only walkthrough')
+  const canvasOk = await viewer.$eval('canvas', (c) => c.width > 100 && c.height > 100).catch(() => false)
+  ok(canvasOk, 'showcase renders a 3D canvas of the room')
+  // ISOLATION: the showcase must NOT expose the editor / library / other designs.
+  const leak = await viewer.evaluate(() => {
+    const txt = document.body.innerText
+    const hasEditorChrome =
+      /My Designs/i.test(txt) || /New room/i.test(txt) || /New apartment/i.test(txt) || /Saving|Saved/i.test(txt)
+    const hasShareBtn = [...document.querySelectorAll('button')].some((b) => /share/i.test(b.textContent || ''))
+    const hasEditControls = [...document.querySelectorAll('button')].some((b) =>
+      /Move item|Rotate item|Rename|Duplicate|Delete/i.test(b.textContent || ''),
+    )
+    const linksToEditor = [...document.querySelectorAll('a')].some((a) => /index\.html/i.test(a.getAttribute('href') || ''))
+    return { hasEditorChrome, hasShareBtn, hasEditControls, linksToEditor }
+  })
+  ok(!leak.hasEditorChrome, 'showcase shows NO editor/library chrome (no My Designs / New / save status)')
+  ok(!leak.hasEditControls, 'showcase shows NO edit controls')
+  ok(!leak.hasShareBtn, 'showcase shows NO share/editor buttons')
+  ok(!leak.linksToEditor, 'showcase has NO link back into the editor (index.html)')
+  await viewer.screenshot({ path: `${OUT}c2-4-showcase.png` })
+  await ctx.close()
 } catch (err) {
   console.error(err)
   failures++

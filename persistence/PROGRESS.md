@@ -44,8 +44,18 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
         divergence (15 vs 20) + reload recency-cut dropping manual checkpoints → reload routes through
         `capHistory`. Regression tests added for each.
       - 30/30 vitest + 26/26 headless checks. Screenshot `verify-out/c2-3-library.png`.
-- [ ] **C2-4** — Share panel: copy-link + view/edit access (default view) + a dedicated view-only
-      **showcase** link (read-only walkthrough reusing B's flythrough; never the editor/library).
+- [x] **C2-4** — Share panel + view/edit access (defaults to view) + view-only **showcase** link.
+      - Showcase payload (`src/share/showcasePayload.ts`) = the SECURITY BOUNDARY: a minimal `{name, scene}`
+        projection (drops design_id/share-tokens/history/thumbnail) encoded URL-safe into the `#s=` fragment.
+      - `src/share/link.ts`: access defaults to view, plain-language sentences, `buildShowcaseUrl`, clipboard.
+      - **Isolated showcase entry** (`showcase.html` → `src/showcase/*`): imports ONLY the decoder + a
+        self-contained 3D scene (`render/worldGeometry.ts` + `showcase/Scene.tsx`, glass-dollhouse) +
+        guided walkthrough. NO session/library/editor in its import graph → a view link is structurally
+        unable to reach the editor or other designs.
+      - Share panel UI (view/edit/private, copy-link, open showcase, `.roomio` export); `.roomio` import in Library.
+      - 38/38 vitest + **36/36 headless checks** incl. the cardinal-sin guard: showcase opened in a FRESH
+        incognito context (no localStorage) renders the room read-only with **no editor chrome / no edit
+        controls / no link back to the editor**. Screenshots `verify-out/c2-4-{share,showcase}.png`.
 - [ ] **C2-5** — Exports: image snapshot, furniture shopping list, floor-plan PDF (top-down, room
       labels + dims from house data); flythrough video via B.
 - [ ] **C2-6** — Backward-compat migration hardening + polish + match Roomio's clean panel UI; cleanup.

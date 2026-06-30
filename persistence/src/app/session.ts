@@ -7,8 +7,11 @@
  * once per successful durable save (strictly monotonic).
  */
 import { create } from 'zustand'
-import type { RoomioDesign, DesignSummary } from '../envelope/types'
+import type { RoomioDesign, DesignSummary, ShareAccess } from '../envelope/types'
 import { createDesign, duplicateDesign } from '../envelope/factory'
+import { importRoomio } from '../envelope/serialize'
+import { withAccess } from '../share/link'
+import { uid } from '../util/id'
 import type { House, LightingStateLike } from '../scene/slices'
 import { DesignRepository } from '../storage/repository'
 import { LocalStorageAdapter, type StorageAdapter } from '../storage/adapter'
@@ -55,10 +58,14 @@ export interface SessionState {
   renameDesign: (id: string, name: string) => Promise<void>
   deleteDesign: (id: string) => Promise<void>
   undoDelete: () => Promise<void>
+  /** Import a .roomio file's text → migrate → add to the library (fresh id on collision). */
+  importDesign: (text: string) => Promise<string | null>
   // editing (optimistic + autosave)
   rename: (name: string) => void
   mutate: (producer: (d: RoomioDesign) => RoomioDesign) => void
   saveNow: () => Promise<void>
+  // sharing
+  setShareAccess: (access: ShareAccess) => void
   // version history
   checkpoint: (label?: string) => Promise<void>
   restoreVersion: (rev: number) => void
@@ -208,6 +215,17 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
       await st.refreshLibrary()
     },
 
+    importDesign: async (text) => {
+      const st = useSession.getState()
+      const env = importRoomio(text)
+      if (!env) return null
+      // Never silently overwrite an existing design: assign a fresh id on collision.
+      const d = (await st.repo.has(env.design_id)) ? { ...env, design_id: uid('design') } : env
+      await st.repo.save(d)
+      await st.refreshLibrary()
+      return d.design_id
+    },
+
     rename: (name) => {
       useSession.getState().mutate((d) => ({ ...d, name }))
     },
@@ -222,6 +240,11 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
 
     saveNow: async () => {
       await useSession.getState().autosave.saveNow()
+    },
+
+    // ── sharing (share state is part of the envelope → autosaves) ──
+    setShareAccess: (access) => {
+      useSession.getState().mutate((d) => ({ ...d, share: withAccess(d.share, access) }))
     },
 
     // ── version history ──

@@ -12,7 +12,8 @@ import type { CSSProperties } from 'react'
 import { useSession, installSessionUnloadGuard } from '../app/session'
 import { Library } from './Library'
 import { Editor } from './Editor'
-import { T, panel, btnGhost } from '../ui/theme'
+import { SharePanel } from '../ui/SharePanel'
+import { T } from '../ui/theme'
 
 export function App() {
   const current = useSession((s) => s.current)
@@ -23,20 +24,9 @@ export function App() {
   return (
     <div style={root}>
       {current ? <Editor onShare={() => setShareOpen(true)} /> : <Library />}
-      {shareOpen && (
-        <div style={overlay} onClick={() => setShareOpen(false)}>
-          <div style={{ ...panel, padding: 24, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>Share</div>
-            <p style={{ color: T.inkSoft, fontSize: 13 }}>
-              Share panel, view-only showcase link, and exports arrive in milestone C2-4 / C2-5.
-            </p>
-            <button style={btnGhost} onClick={() => setShareOpen(false)}>Close</button>
-          </div>
-        </div>
-      )}
+      {shareOpen && current && <SharePanel onClose={() => setShareOpen(false)} />}
     </div>
   )
 }
 
 const root: CSSProperties = { height: '100%', background: T.bg, color: T.ink, font: '14px ui-sans-serif, system-ui, -apple-system, sans-serif' }
-const overlay: CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(20,18,16,0.32)', display: 'grid', placeItems: 'center', zIndex: 50 }

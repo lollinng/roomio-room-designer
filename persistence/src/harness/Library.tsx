@@ -23,8 +23,10 @@ export function Library() {
   const renameDesign = useSession((s) => s.renameDesign)
   const deleteDesign = useSession((s) => s.deleteDesign)
   const undoDelete = useSession((s) => s.undoDelete)
+  const importDesign = useSession((s) => s.importDesign)
   const lastDeleted = useSession((s) => s.lastDeleted)
   const backend = useSession((s) => s.backend)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   const [sortBy, setSortBy] = useState<SortBy>('recent')
   const [query, setQuery] = useState('')
@@ -64,6 +66,20 @@ export function Library() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button style={btnPrimary} onClick={createBedroom}>+ New room</button>
           <button style={btnGhost} onClick={createApartment}>+ New apartment</button>
+          <button style={btnGhost} onClick={() => fileRef.current?.click()} title="Import a .roomio file">⤒ Import</button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".roomio,application/json"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = '' // allow re-importing the same file
+              if (!file) return
+              const text = await file.text()
+              await importDesign(text)
+            }}
+          />
         </div>
       </header>
 
