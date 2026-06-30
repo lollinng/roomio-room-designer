@@ -11,10 +11,19 @@ export * from './pipeline/crop'
 export * from './pipeline/tile'
 export * from './pipeline/delight'
 export * from './pipeline/pbr'
+// T1→T2 orchestration + demo photo synthesis
+export * from './pipeline/compose'
+export * from './pipeline/synth'
 // shared utilities
 export * from './pipeline/image'
 export * from './pipeline/tiling'
 export * from './pipeline/sha256'
 
-// H5 persistence: content-addressed asset store (references, not bytes)
+// T3 apply (R3F): slot targeting + material assembly + reversible group apply
+export * from './r3f/slot'
+export * from './r3f/material'
+export * from './r3f/applyTexture'
+
+// H5 persistence: content-addressed asset store (references, not bytes) + AppliedTexture assembly
 export * from './store/assetStore'
+export * from './store/persist'
