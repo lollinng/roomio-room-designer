@@ -1,182 +1,172 @@
 # Roomio — Shared LEARNINGS
 
-Hard-won, cross-agent codebase facts. **Agent D curates this**; any agent may append a
-dated note under their own section. Read this at the start of every cycle. Keep entries
-terse and factual — values others (and future-you) should not have to re-derive.
+Curated, cross-agent reference. **Agent D curates this**; any agent may append a dated note under
+their section, but D dedupes/resolves on each cycle. Distinct from `source/roomio.txt` (the
+transactional comms log) — this is the deduped, resolved knowledge base. Read at the start of every cycle.
 
-> Bootstrapped by **Agent E** on 2026-06-30 because no LEARNINGS.md existed yet, though the
-> briefs reference it. Agent D: please fold/curate as you see fit.
-
----
-
-## Renderer & world units (CONFIRMED — applies to everyone)
-
-- **Renderer is React-Three-Fiber**, NOT plain Three.js. Deps: `three ^0.169.0`,
-  `@react-three/fiber ^8.17`, `@react-three/drei ^9.114`. (Confirmed by Agent B from the
-  repo, roomio.txt line ~204; re-confirmed by Agent E reading `src/three/RoomView.tsx`.)
-- **World units are METERS.** Design space is centimeters; `src/three/coords.ts` `makeFrame()`
-  converts cm→m and centers the room on its bounding-box center (`toWorld = (x-cx)/100`).
-- `<Canvas shadows flat ...>` in `src/three/RoomView.tsx`:
-  - `shadows` (bare) ⇒ `THREE.PCFSoftShadowMap` (soft edges) — good default for the sun.
-  - `flat` ⇒ `THREE.NoToneMapping`. So colors are rendered ~as authored; intensities are
-    **legacy (non-physical) units**, not physically-based watts. Tune intensities to THIS
-    renderer; do not copy physically-based-units tutorials.
-  - `gl={{ preserveDrawingBuffer: true }}` already set (Agent B needs it for frame capture).
-  - `camera`: fov 40, near 0.1, far 200.
-- A's existing baseline lights (`Lights()` in RoomView.tsx) — a working reference at room scale:
-  - `hemisphereLight('#ffffff','#cfcbc2', 1.05)` (ambient fill)
-  - `ambientLight(0.55)`
-  - `directionalLight` (sun): `position=[7,13,8]`, `intensity=1.35`, `castShadow`,
-    `shadow-mapSize 2048`, ortho `left/right/top/bottom = ±14`, `near 0.5`, `far 48`,
-    `bias -0.0004`. Two dim fill directionals (0.45, 0.25), no shadow.
-  - `<ContactShadows>` (drei) under furniture: `scale ≈ radius*4.2`, `blur 2.6`, `opacity 0.38`, `far 6`.
-- Scene background color: `#cdccc9`.
+Agents: **A** = interiors / presets / suggestions · **B** = detection + camera/flythrough ·
+**C** = multi-room house/connectors + persistence (feature 2) · **E** = lighting & time-of-day ·
+**F** = QA / dedup · **D** = coordinator. Tags like `[affects: A,B]` mark who must care.
 
 ---
 
-## Lighting & Time-of-Day (Agent E)
+## Schemas & Contracts
 
-Code in `/lighting`. Contract: `shared/lighting_schema.json` (v1.0). Schema units = meters.
+- **`shared/archetypes.json` is the single source of truth for archetype ids** — owned by Agent A,
+  auto-generated from `src/data/archetypes.ts` → `archetypes.catalog.json`. **91 ids** (grew additively
+  from 23). Fallback id is **`misc-box`** (Placeholder Box). Any producer (B's classifier, C's essentials,
+  A's presets) must emit/reference **only** ids from this file. A pings the log on every add/rename. `[affects: A,B,C]`
+- **Additive-only schema evolution.** Every contract change so far is new *optional* fields, never a
+  reshape — consumers never break. E.g. `RoomDesign.view`, `roomType`, `personaGenre`; archetype `mount`
+  (floor|wall|surface, front-end render hint, does NOT affect detection ids); lighting `lightMode`.
+  Keep new fields optional + announce in the log before relying on them. `[affects: A,B,C,E]`
+- **Contract versions in flight (all v1.0):** `detection_schema` (LOCKED), `camera_path_schema`,
+  `scene_contract`, `house_schema`, `persona_preset_schema`, `rule_schema`, `lighting_schema`,
+  `save_envelope_schema`. `[affects: all]`
+- **`detection_schema` v1.0 is LOCKED** — shape won't change without an announce + ack. `status="error"`
+  with `proposals:[]` is valid (no crash); consumers validate leniently (`additionalProperties: true`). `[affects: A,B]`
+- **`house_schema` v1.0 WRAPS, never forks, `RoomDesign`** — `HouseRoom.interior: RoomDesign` verbatim.
+  Backward compat mandatory: a bare `RoomDesign` (single-room save) loads as a one-room house, empty
+  connectors. `interior` is opaque-but-required; C's wall-cutting needs `corners[]` (cm polygon),
+  `openings[]`, `wallHeight`, `wallThickness`. Room placement = `rooms[].footprint {x,z,rotation,w,l}` (cm). `[affects: A,C,E]`
+- **`save_envelope_schema` v1.0 (C, feature 2) composes the FULL scene with no redundancy:**
+  `scene.house` (house_schema, already embeds A's RoomDesign at `rooms[].interior`) +
+  `scene.lighting` (E's LightingState, keyed by room_id, `null`⇒E's defaults, treated as **opaque
+  pass-through** — stored/returned byte-for-byte, unknown future fields survive round-trip) +
+  `design_id/name/createdAt/updatedAt/rev/thumbnail/share`. `migrateToEnvelope(json)` migrates a bare
+  RoomDesign, a bare House, and A's localStorage design-map forward; returns null (never throws) on junk. `[affects: A,C,E]`
+- **⚠ UNRESOLVED — two `RoomType` taxonomies.** A's interior `RoomDesign.roomType`
+  (`living|bedroom|studio|family|office|den`, drives the suggestion engine) vs C's house-level
+  `HouseRoom.type` (`bedroom|living|kitchen|bathroom|dining|office|foyer|hallway`). Both additive/optional
+  (no build conflict), but a C "kitchen" room's wrapped interior can't carry a meaningful `roomType`.
+  **Reconcile** (superset union, or explicit map). Note E keys lighting by House `room_id` (not roomType),
+  so E is unaffected. `[affects: A,C]`
+- **Lighting↔suggestion-engine seam (resolved-by-contract):** A's engine fires R1 "no light source" off
+  *lamp furniture* count (`roles.ts model==='lamp'`), but E lights rooms with renderer lights (not lamps).
+  E exports a pure predicate `roomLightingSatisfaction(roomId) ⇒ {hasLight,isLayered}` from
+  `/lighting/src/contract.ts`; A's engine should consult it (import or mirror) so an E-lit room passes
+  R1 + the single-overhead rule. `[affects: A,E]`
 
-### Tuned shadow / intensity values (room scale ≈ 3–6 m; UPDATE as tuned against furnished rooms)
-| Param | Working value | Notes |
-|---|---|---|
-| sun.intensity (noon) | ~1.35 (legacy units) | matches A's baseline directional; scaled by `max(0, sin(time·π))` |
-| shadow.mapSize | 2048 | 4096 only for large multi-room houses |
-| shadow.bias | -0.0004 | A's working value; small negative kills acne. Pair with normalBias. |
-| shadow.normalBias | 0.02 | preferred for angled/curved surfaces |
-| shadow ortho half-extent | houseHalf + ~3 m margin | MUST enclose whole house or shadows clip; too big ⇒ coarse |
-| shadow.camera.far | ≥ domeRadius + houseDiag | encloses sun→house |
-| hemisphere fill | sky `#ffffff` / ground `#cfcbc2`, intensity ~0.6–1.0 | so shadows aren't pure black |
-| ambient fill | ~0.3–0.55 | keep low; hemisphere does most fill |
-| ceiling task (per room) | ~0.6–0.9 | warm `#fff1e0` (~2700K) default cozy |
+## Scene / Rendering (CONFIRMED — applies to everyone)
 
-### Color temperature presets (Kelvin → used for warm/cool toggle)
-- warm ≈ 2700K (`#ffd6aa`-ish tint), neutral ≈ 4000K, cool ≈ 5000K (`#dce6ff`-ish).
-- "Warm feels cozier" acceptance: warm ceiling + warmthShift sun at low angle.
+- **Renderer is React-Three-Fiber**, NOT plain Three.js. Deps `three ^0.169`, `@react-three/fiber ^8.17`,
+  `@react-three/drei ^9.114`. `Canvas`/camera/`OrbitControls(makeDefault)` in `src/three/RoomView.tsx`. `[affects: all]`
+- **World units are METERS.** Design space is centimeters; `src/three/coords.ts` `makeFrame()` converts
+  cm→m and centers the room on its bbox center (`toWorld = (x-cx)/100`). Keep the cm↔m boundary explicit. `[affects: all]`
+- **`<Canvas shadows flat>`:** `shadows`(bare) ⇒ `PCFSoftShadowMap`; `flat` ⇒ `NoToneMapping`, so colors
+  render ~as authored and **light intensities are legacy (non-physical) units** — tune to THIS renderer, do
+  not copy physically-based-units tutorials. `gl={{preserveDrawingBuffer:true}}` is set (B needs it for
+  WebCodecs frame capture — don't remove). Camera fov 40, near 0.1, far 200. Scene background `#cdccc9`. `[affects: A,B,E]`
+- **Port shared geometry read-only; do NOT import across packages** (the convention before `shared/lib`,
+  still true for non-trivial math). B (collision), C (wall/opening + house coercion), E (coords), and
+  C-persistence (RoomDesign/House type mirrors in `src/scene/slices.ts`) all COPY A's logic into their own
+  package to keep **zero build coupling**. Cost = drift risk — re-sync when the source changes (owner pings). `[affects: all]`
+- **Connectors are just `Opening`s on a shared wall, applied to BOTH rooms.** Openings carry
+  `{wallId, t∈0..1, width, height, sill}`; `buildWallParts` subtracts the rectangular holes. Multi-room
+  helpers (consume read-only via `multi-room/src/index.ts`): `toWorld`, `worldCorners`, `worldWalls`
+  (wall world a→b + normal), `connectorWorldPoint`, `openingsForRoom`. `[affects: A,C,E]`
+- **Walk collision order: resolve furniture before walls** (wall = hard constraint). `[affects: B]`
+- **Scene seam = `sceneBus`** (mirror of `src/three/cameraBus.ts`): module-level handle,
+  `setSceneHandle()`/`getSceneHandle()`, no React. **STATUS (cycle 2): NOW WIRED into the app by B** —
+  `src/three/sceneBus.ts` + `src/three/Flythrough.tsx` (`<SceneBridge/>` inside the Canvas builds
+  `getColliders()` from the live store; `<FlythroughHud/>` DOM overlay) + `<SceneBridge/>` added to
+  `RoomView.tsx`. The engine adds only a `flythrough-overlay` group, removed on teardown. For cross-room,
+  `getColliders()` must AGGREGATE every room's walls+furniture and treat connector openings as walkable gaps. `[affects: A,B,C]`
+- **Mounting & stacking (A):** archetypes carry `mount = floor|wall|surface`. Wall/surface pieces are
+  exempt from footprint collision and lifted (TV on a console at interior-standard height, mirror on a bare
+  wall ~107–130cm). Mounted pieces MOVE WITH their host (`mount.dependentsOf` + store carry) even when
+  locked. A "Move to wall" warning snaps a floating wall-piece flush. `src/three/mount.ts`. `[affects: A,B,E]`
+- **Presentation lock = `lightMode`** (E, global flag in lighting store, additive in `lighting_schema`):
+  ON ⇒ furniture locked + editing hints hidden; OFF ⇒ default. It never mutates each item's own `locked`,
+  so toggling off restores prior state. Gating helpers `furnitureLocked(item,lightMode)` +
+  `showEditingHints(lightMode)` in `/lighting/src/contract.ts`. B's flythrough auto-locks furniture +
+  hides item overlays while open and restores on close (its own mechanism); B added an "✏️ Edit furniture"
+  toggle that hands rendering back to OrbitControls for editing mid-session. `[affects: A,B,E]`
 
-### VERIFIED working values (furnished 4×5 m room, headless swiftshader, 2026-06-30)
-These produce a lit room with clean soft shadows, **no acne, no peter-panning** at room scale
-(screenshots: `/lighting/verify-out/`). Tune up for big houses (see notes).
-| Param | Verified value |
-|---|---|
-| sun base intensity (noon) | **1.35** (legacy units) × `max(0,sin(time·π))` × intensityScale |
-| hemisphere fill | sky `#ffffff` / ground `#cfcbc2`, intensity **0.7** |
-| scene ambient fill | **0.22** (so shadowed faces aren't black) |
-| ceiling task (per room) | **0.8**, warm `#ffd6aa` (2700K) |
-| shadow.mapSize | **2048** (room scale; bump to 4096 for multi-room house) |
-| shadow.bias | **-0.0004** |
-| shadow.normalBias | **0.02** |
-| shadow ortho half-extent | **max(houseHalfW, houseHalfD) + 3 m** margin |
-| shadow.camera.far | **domeRadius + half·2 + 5** (encloses sun→house) |
-| sun.domeRadiusM | **30** |
+## Lighting & Time-of-Day (Agent E) — `/lighting`, `shared/lighting_schema.json` (v1.0, units = meters)
 
-### Gotchas confirmed
-- DirectionalLight aims `position → target`; rotating it does nothing. The default target is at
-  the origin (0,0,0) = room/house center, so aiming the sun = just setting `position`; no target
-  object needed as long as everything is centered on the bbox (it is, per coords.ts).
-- **R3F shadow-camera gotcha:** changing `shadow-camera-left/right/top/bottom`/`far` via JSX props
-  does NOT auto-call `updateProjectionMatrix()`. Set them imperatively in a `useEffect` (grab the
-  light ref, mutate `light.shadow.camera.*`, call `cam.updateProjectionMatrix()`, set
-  `light.shadow.needsUpdate = true`). See `/lighting/src/r3f/Sun.tsx`.
-- Sun position from time: `elev = sin(time·π)·maxElevRad`, `az = (time·π) − π/2 + northOffset`;
-  `pos = r·[cos(elev)·sin(az), sin(elev), cos(elev)·cos(az)]`. maxElevation is stored in DEGREES
-  (`maxElevationDeg`) and converted to radians internally. Pure fn — `/lighting/src/sun.ts`.
-- **Performance:** the sun is the ONLY shadow-casting light; per-room ceiling/accent lights are
-  `castShadow=false`. Ambient is ONE global hemisphere (not stacked per-room) so an N-room house
-  doesn't over-brighten or pay for N hemisphere lights. `<LightingRig>` enforces this.
-- Background `#cdccc9` is bright (~luma 203); a "dark box" failure shows as low mean luminance.
-  The default rig yields mean ~163 at noon (lit) with ~7–8% dark pixels (shadows present).
+- Every room auto-gets a HemisphereLight ambient fill + a warm ceiling task light the moment it exists
+  (never a dark box); editable + warm/neutral/cool (Kelvin→RGB) swatches. Layered = ambient + task (+accent).
+- **The sun is ONE DirectionalLight and the SOLE shadow caster** (room lights `castShadow=false`); ONE
+  global hemisphere (not per-room) — perf invariant = 1 shadow caster for 1→30 rooms.
+- **Sun is a pure fn of (timeOfDay, northOffsetDeg)** — `elev=sin(t·π)·maxElevRad`, `az=t·π−π/2+north`,
+  `pos=r·[cos(elev)sin(az), sin(elev), cos(elev)cos(az)]` (`/lighting/src/sun.ts`). So B can reproduce
+  exact sun/shadows per recorded frame from `timeOfDay`. N is FIXED on the compass; a ☀ marker orbits.
+- **Verified working values** (furnished 4×5m room, headless swiftshader): sun base intensity **1.35**
+  (legacy units) ×`max(0,sin(t·π))`; hemisphere sky `#ffffff`/ground `#cfcbc2` int **0.7**; ambient **0.22**;
+  ceiling task **0.8** warm `#ffd6aa`(2700K); shadow mapSize **2048** (4096 for big houses); bias **-0.0004**,
+  normalBias **0.02**; ortho half-extent **max(houseHalfW,houseHalfD)+3m**; far **domeRadius+half·2+5**; domeRadius **30**.
+- **R3F shadow-camera gotcha:** changing `shadow-camera-left/right/top/bottom`/`far` via JSX props does NOT
+  auto-call `updateProjectionMatrix()`. Mutate `light.shadow.camera.*` imperatively in a `useEffect`, call
+  `cam.updateProjectionMatrix()`, set `light.shadow.needsUpdate=true` (`/lighting/src/r3f/Sun.tsx`).
+- **No-windows = unlit interior.** A closed box looks dark at "noon" because no window lets the sun in; the
+  panel warns the user to add a window in Step 3. A passes `hasWindows` (design.openings has a `window`) to `<LightingControls>`.
 
----
+## Build / Tooling
 
-## Persistence & Sharing (Agent C, feature 2)
-
-Code in `/persistence`. Contract: `shared/save_envelope_schema.json` (v1.0).
-
-### The save envelope (one design = one envelope = one `.roomio` file)
-- Composes the FULL scene with NO redundancy:
-  - `scene.house` = Agent C's House (`shared/house_schema.json`) — **already embeds Agent A's
-    RoomDesign** at `rooms[].interior`. So "interiors" are NOT a sibling key; they live inside the house.
-  - `scene.lighting` = Agent E's LightingState (`shared/lighting_schema.json`), keyed by room_id.
-    `null` => E renders its defaults. Persistence treats lighting as an **opaque pass-through**
-    (stored + returned byte-for-byte; unknown/future fields survive a round-trip).
-  - `+ design_id, name, createdAt, updatedAt, rev (monotonic), thumbnail, share{access,view_link_id,edit_link_id}`.
-- **Backward compat is mandatory + already handled** in `persistence/src/envelope/migrate.ts`:
-  a bare RoomDesign (today's single-room save), a bare House, and A's localStorage design-map
-  `{ [id]: RoomDesign }` all migrate forward into the envelope. `migrateToEnvelope(json)` is the
-  single load/import entry; returns null (never throws) on junk.
-
-### Storage tier — DECISION (ratify @AGENT-D)
-- **LOCAL-FIRST now**, cloud accounts + live share URLs as a scoped follow-on.
-- A's `src/repository.ts` already routes *RoomDesign* saves cloud-when-authed / localStorage-when-guest.
-  Persistence works one level UP at the *envelope* level, behind a backend-agnostic `StorageAdapter`:
-  localStorage/in-memory adapter ships now; a server-envelope adapter slots into the same interface later.
-- **"Share link" in this tier** = (a) `.roomio` file export/import, (b) static view-only **showcase**
-  export (read-only walkthrough of ONE design, reuses B's flythrough). Live URLs are the upgrade.
-- **localStorage trap (brief s7):** the adapter degrades to in-memory when localStorage is unavailable
-  (artifact/preview/incognito-quota) and NEVER silently drops — surfaced as a save-status error + retry.
-
-### Gotchas
-- `/persistence` mirrors A's RoomDesign + C's House types **read-only** in `src/scene/slices.ts`
-  (same zero-build-coupling convention B/C/E use). Source of truth stays `src/types.ts` (A) /
-  `multi-room/src/types.ts` (C) / `shared/lighting_schema.json` (E). House coercion in
-  `src/scene/coerce.ts` is a read-only port of `multi-room/src/persistence.ts` — **re-sync if C's
-  house coercion changes materially.**
-- Showcase MUST be a separate entry point that only receives one design's envelope — never imports the
-  store/library. Cardinal sin = a view link reaching the editor. Design defensively (own HTML entry).
-
----
+- **`main` is PR-gated.** `.githooks/pre-commit` blocks direct commits to main; `.githooks/pre-push` blocks
+  direct pushes to main AND runs root `typecheck + test` before any push. `.github/workflows/ci.yml` runs
+  typecheck + vitest + build on PRs into main. Advance main only via a merged PR. `npm run prepare` wires
+  `core.hooksPath=.githooks` on install. `[affects: all]`
+- **The repo is FIVE independent TS build islands** — `src`(A), `camera-flythrough`(B), `multi-room`(C),
+  `lighting`(E), `persistence`(C f2) — each with its OWN `node_modules` + `tsconfig (include:["src"])` +
+  vite/vitest, PLUS the Python `detection-pipeline`(B). Ports (dev ports): app 5180, server 5181, flythrough
+  5184, lighting 5186, persistence 5187. `[affects: all]`
+- **⚠ Root CI only typechecks/tests `src/`** (root tsconfig `include:["src"]`). It does **NOT** cover the
+  sub-islands. A type error inside `/lighting`, `/multi-room`, `/camera-flythrough`, `/persistence` will
+  pass CI and merge silently. **Coordinator MUST `tsc -b` + `vitest run` each island every cycle.** `[affects: D,B,C,E]`
+- **`shared/lib/` is the FIRST cross-island TS import** (Agent F) — see the Shared-lib section. It resolves
+  under each island's tsc + vitest despite living outside `include:["src"]` (`moduleResolution:"bundler"`
+  pulls the imported leaf in). Its tests run under the ROOT vitest (`vitest.config.ts` includes
+  `shared/lib/**/*.test.ts`); there is no package.json under `/shared`. `[affects: all]`
+- **Video export uses `canvas-record`/WebCodecs**, deterministic step loop — NOT `MediaRecorder`/`captureStream`
+  (CCapture legacy fallback). Requires `preserveDrawingBuffer`. Root dep `canvas-record@^4.2.0` (added by B
+  when wiring flythrough into the app — keep it). `[affects: B]`
+- **Detection VLM = `qwen2.5vl:7b` via Ollama (Apache-2.0).** Ultralytics YOLO is **AGPL-3.0** (network-use
+  obligations) — opt-in only (`--detector yolo`), VLM is default. Watcher `--once` must BYPASS the settle
+  window (else a just-dropped file is skipped); continuous mode keeps it to avoid half-written reads;
+  atomic `.tmp`+rename writes. Browser can't read `shared/` directly → route via the Express server
+  (`POST/GET /api/detect`, :5181). `[affects: A,B]`
 
 ## Shared canonical lib `shared/lib/` (Agent F — QA/dedup)
 
-**`shared/lib/math.ts` is the single source of truth for these pure scalar helpers — do NOT re-fork
-them back into an island.** Import via a relative path:
+**`shared/lib/math.ts` is the single source of truth for these pure scalar helpers — do NOT re-fork them.**
+Import: `import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'`.
 
-```ts
-import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'
-```
-
-| Export | Body | Was duplicated in (now imports) |
+| Export | Body | Migrated from |
 |---|---|---|
-| `clamp(v, lo, hi)` | `v < lo ? lo : v > hi ? hi : v` (NaN passes through) | src/geometry/collision.ts (dead, deleted), lighting/src/colorTemp.ts |
-| `clamp01(v)` | `v < 0 ? 0 : v > 1 ? 1 : v` (= `clamp(v,0,1)`) | lighting/src/sun.ts, multi-room/src/connectors.ts |
-| `DEG2RAD` | `Math.PI / 180` | src/data/personas.ts, lighting/src/sun.ts |
+| `clamp(v,lo,hi)` | `v<lo?lo:v>hi?hi:v` (NaN passes through) | src/geometry/collision.ts (dead, deleted), lighting/colorTemp.ts |
+| `clamp01(v)` | `=clamp(v,0,1)` | lighting/sun.ts, multi-room/connectors.ts |
+| `DEG2RAD` | `Math.PI/180` | src/data/personas.ts, lighting/sun.ts |
 
-- **This is the repo's first cross-island TS import.** It is proven to resolve under each island's
-  **vitest AND tsc** even though `shared/lib` sits outside every island's `tsconfig include:["src"]`
-  (`moduleResolution:"bundler"` pulls the imported leaf in transitively). Behavior is pinned by
-  `shared/lib/math.test.ts`, **run by the ROOT vitest** (`vitest.config.ts` include adds
-  `'shared/lib/**/*.test.ts'`). There is no package.json/vitest under `/shared` — root owns its tests.
-- **Gotcha (`noUnusedLocals`):** lighting / multi-room / camera-flythrough set `noUnusedLocals:true`, so
-  when you import a helper you MUST delete the local copy in the SAME edit, or tsc fails on the orphan.
-- **NOT consolidated (deliberately distinct — leave alone):** `src/data/personas.ts` 4-arg
-  `clamp(v,def,lo,hi)` (undefined-handling), `src/data/archetypes.ts` `clampAxis` (returns a tuple),
-  and the Python `detection-pipeline` inline clamps. Same name, different behavior.
-- **Still duplicated, NOT yet consolidated — pending Agent D ratification of cross-island coupling** (see
-  roomio.txt DECISIONs D1–D3): the geometry bundle (`footprintCorners`, `polygonCentroid`,
-  `pointInPolygon`, `dot2`, `obbAxes`/`obbOverlap`, `signedArea`, `pointOnWall`, full `bbox`,
-  `buildWallParts`, the `OBB` type) and the type-guard bundle (`isObj`, `isFiniteNumber`, `looksLike*`).
-  Once D ratifies, these become mechanical repeats of the math.ts pattern.
-- **DIVERGENT across islands — must NOT be blindly merged** (each an owner decision, not a dedup):
-  `uid` (3 different id FORMATS; ids are serialized → data contract), `coerceHouse`/`wrapSingleRoom`
-  (impure `Date.now()`/timestamp semantics, pinned by migrate.test), `toWorld` room→house
-  (`{x,z}` vs persistence `{x,y}` + missing rotation/NaN guard), `deriveWalls`, `makeFrame`,
-  download helpers. See the Agent F catalogue in roomio.txt.
+- **DECISION D1 RATIFIED (Agent D, cycle 2):** islands MAY import `/shared/lib` TS for trivial pure helpers
+  — proven byte-identical + green across all 5 islands. The larger geometry bundle (`footprintCorners`,
+  `polygonCentroid`, `pointInPolygon`, `dot2`, `obbAxes`/`obbOverlap`, `signedArea`, `pointOnWall`, full
+  `bbox`, `buildWallParts`, `OBB` type) and guard bundle (`isObj`, `isFiniteNumber`, `looksLike*`) are the
+  next candidates — F may proceed, **but D2/D3 below still gate them.**
+- **D2 (HOLDS):** `/camera-flythrough` + `/persistence` declared ZERO cross-package coupling; lifting THEIR
+  copies into shared/lib needs B's / C's sign-off (C already declined for persistence — it mirrors types
+  read-only by design). Don't unilaterally dedup across a stated boundary.
+- **D3 (HOLDS):** DIVERGENT items must NOT be blindly merged — `uid` (3 id FORMATS; serialized ⇒ data
+  contract), `coerceHouse`/`wrapSingleRoom` (impure `Date.now()`, pinned by migrate.test), persistence
+  `toWorld` (`{x,y}` + missing rotation/NaN guard), `deriveWalls`, `makeFrame`, download helpers. Each is an
+  owner decision, not a mechanical merge.
+- **`noUnusedLocals` gotcha:** lighting / multi-room / camera-flythrough set `noUnusedLocals:true` — when you
+  import a helper you MUST delete the local copy in the SAME edit or tsc fails on the orphan.
+- **Deliberately NOT consolidated** (same name, different behavior): `personas.ts` 4-arg `clamp(v,def,lo,hi)`,
+  `archetypes.ts` `clampAxis` (returns a tuple), Python detection-pipeline inline clamps.
 
-### Hard-won bugs (adversarial review of the autosave/storage layer — fix these patterns anywhere)
-- **localStorage degrade must rehydrate.** A localStorage adapter that "falls back to in-memory" on a
-  mid-session quota/availability throw will ORPHAN every design already on disk (reads route to an empty
-  in-memory map -> the library looks wiped) unless `degrade()` copies all existing localStorage entries
-  into the fallback BEFORE flipping, and is idempotent. Tested in adapter.test.ts.
-- **Optimistic save reflection must not clobber a newer edit.** After an async save resolves, reflecting
-  the just-saved envelope back into the live model wholesale will overwrite an edit the user made DURING
-  the save (then a follow-on edit built on the stale base loses the intermediate edit permanently). Guard
-  with an identity check: only fully reflect when `current.scene === justSaved.scene`; otherwise adopt
-  only durable bookkeeping (rev/updatedAt) and keep the newer scene. Tested in session.test.ts.
-- **Forward-compat round-trip.** If your contract says "unknown fields preserved," the loader must actually
-  carry through unknown top-level keys and NOT downgrade a higher `schema_version`. Tested in migrate.test.ts.
-- **One cap, one place.** Duplicated cap constants (history MAX in two files) drift; route load + runtime
+## Persistence hard-won bugs (Agent C — fix these patterns anywhere)
+
+- **localStorage degrade must rehydrate.** An adapter that "falls back to in-memory" on a mid-session
+  quota/availability throw ORPHANS every design already on disk unless `degrade()` copies existing entries
+  into the fallback BEFORE flipping, idempotently. Never silently drop — surface a save-status error + retry.
+- **Optimistic save reflection must not clobber a newer edit.** After an async save resolves, reflecting the
+  saved envelope back wholesale overwrites an edit made DURING the save. Guard with identity: fully reflect
+  only when `current.scene === justSaved.scene`; else adopt just rev/updatedAt and keep the newer scene.
+- **Forward-compat round-trip.** If the contract says "unknown fields preserved," the loader must carry
+  through unknown top-level keys and NOT downgrade a higher `schema_version`.
+- **One cap, one place.** Duplicated cap constants (history MAX in two files) drift — route load + runtime
   through the same `capHistory`.
 
 ### Sharing isolation + backward compat (Agent C, C2-4..C2-6)
@@ -195,3 +185,26 @@ import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'
 - **Old saves migrate once, non-destructively.** A's pre-persistence `roomio.designs.v1` localStorage map
   is imported into the new envelope library on first run (src/storage/legacy.ts), guarded by a done-flag,
   never overwriting existing designs, never deleting the old key.
+- **Showcase is a SEPARATE entry point** that only ever receives one design's envelope — never imports the
+  store/library. Cardinal sin = a view link reaching the editor. Design defensively (own HTML entry).
+
+## Gotchas
+
+- **Commit cross-cutting shared files ATOMICALLY with their importers** `[affects: all, esp. D,E,F]`.
+  Cycle 2: F created `shared/lib/math.ts` (untracked) + edited island files to import it, but left it all
+  uncommitted; then E's broad `git add` swept the `lighting/*` import lines into the E8 commit **without**
+  `shared/lib/math.ts` → the committed lighting island failed `tsc` (TS2307, missing module). D had to land
+  F's file to repair it. Lesson: a shared/lib file + every importer go in ONE commit, on the author's branch.
+- **Scope your `git add`.** Beyond the above, `git add -A` once swept `detection-pipeline/.venv` (8675 files).
+  `.venv`, `__pycache__`, `*.tsbuildinfo`, regenerable `__shots/` belong in `.gitignore`; add specific paths.
+- **Human-authorized cross-source edits happen.** At the human's explicit "I see nothing in the frontend"
+  direction, B wired the flythrough into `src/three/` (sceneBus/Flythrough/RoomView) and E wired the lighting
+  mount + Light Mode across 4 of A's files (RoomView, FurnitureEditor, Wizard, Furnish). These are committed
+  + green; **Agent A should review/own them.** The stable contract parts are the bus + the `/lighting/src/contract.ts` helpers. `[affects: A,B,E,D]`
+- **"Saved positions not preserved" was perceptual** — furniture x/z/rotation always round-tripped; the
+  camera *view* wasn't saved. Fix: persist `design.view` (cam+target). `[affects: A]`
+- **The live requirements log is `source/roomio.txt`, not repo root.** All agents append there. `[affects: all]`
+- **Shared working copy churns under you.** Multiple agents commit/branch-switch the same checkout
+  concurrently; a branch HEAD can advance mid-cycle (cycle 2: it gained 16 commits + 2 in-flight features
+  while D worked). Coordinator: snapshot a committed ref, verify in an isolated `git worktree` (symlink each
+  island's `node_modules`), integrate from refs — never from the dirty tree. `[affects: D]`
