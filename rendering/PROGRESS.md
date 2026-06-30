@@ -80,5 +80,13 @@ No real-time ray tracer; renderer ownership with E is clean.
   quality drops AO/MSAA but keeps the IBL+ACES foundation. typecheck clean.
 - Published `rendering/INTEGRATION.md` (the exact 1-component app-mount diff for D/A). Posted the seam
   REQUEST → AGENT-E + REQUESTs → A/H/B in roomio.txt; recorded tuned values + seam ownership in
-  shared/LEARNINGS.md. Next: G3 area lights (window/panel RectAreaLight) + G5 hero path-trace; adversarial
-  review of the rig; coordinate the app mount with D/E.
+  shared/LEARNINGS.md.
+- **G5 + review (2026-07-01):** added the path-traced hero still (graceful raster fallback) and ran an
+  adversarial review (3/18 confirmed, all fixed: exposure churn, composer VRAM leak, hero hang).
+- **G3 complete (2026-07-01):** `AreaLight` (RectAreaLight) + a glowing daylight window in the harness.
+  Added a bulb toggle to the harness and verified the acceptance line "toggling a bulb changes both the
+  light AND its glow" (bulbs off → bloom 1.17%→0.61% + room mean 193→174; lamp/ceiling go dark, window
+  stays). Harness verify now 11/11.
+- **Status: G0–G5 complete + verified + committed in /rendering.** Remaining is the app MOUNT (GA) — a
+  drop-in handed to D/A via INTEGRATION.md (I stay in my sandbox; D merges) — and the IBL-fill co-tune
+  decision with E. Both are E/D-gated.

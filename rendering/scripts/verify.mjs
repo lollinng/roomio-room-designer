@@ -107,6 +107,16 @@ async function main() {
     ok(realism.mean > 20 && realism.mean < 250, `realism frame is not black/blown (mean ${realism.mean.toFixed(1)})`)
     ok(realism.darkFrac < 0.9, `realism frame is not mostly black (darkFrac ${(realism.darkFrac * 100).toFixed(1)}%)`)
 
+    // 1b) Toggle the bulbs OFF — both the light AND the bloom glow must drop together.
+    await page.evaluate('window.__rendering.setBulbs(false)')
+    await sleep(900)
+    const bulbsOff = await page.evaluate(SAMPLE)
+    writeFileSync(join(OUT, '07-bulbs-off.png'), await page.screenshot({ encoding: 'binary' }))
+    ok(bulbsOff.brightFrac < realism.brightFrac, `bulb glow (bloom) drops when bulbs off (${(realism.brightFrac * 100).toFixed(2)}% → ${(bulbsOff.brightFrac * 100).toFixed(2)}%)`)
+    ok(bulbsOff.mean < realism.mean, `room dims when bulbs off (mean ${realism.mean.toFixed(1)} → ${bulbsOff.mean.toFixed(1)})`)
+    await page.evaluate('window.__rendering.setBulbs(true)')
+    await sleep(600)
+
     // 2) Flat baseline (RealismLayer off)
     await page.evaluate('window.__rendering.setRealism(false)')
     await sleep(900)
