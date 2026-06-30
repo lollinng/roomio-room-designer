@@ -150,7 +150,6 @@ export class LocalStorageAdapter implements StorageAdapter {
  * succeeding — drives the "simulated save failure → retry, not loss" acceptance.
  */
 export class FlakyAdapter implements StorageAdapter {
-  readonly kind = 'flaky'
   private inner: StorageAdapter
   /** Number of upcoming setItem calls that should reject. */
   failsRemaining: number
@@ -160,6 +159,11 @@ export class FlakyAdapter implements StorageAdapter {
   constructor(failsRemaining = 0, inner: StorageAdapter = new InMemoryAdapter()) {
     this.failsRemaining = failsRemaining
     this.inner = inner
+  }
+
+  /** Report the real backend (e.g. "local"); the failure sim is surfaced via status. */
+  get kind(): string {
+    return this.inner.kind
   }
 
   /** Fault-injection toggle (drives the demo "simulate save failure" control). */

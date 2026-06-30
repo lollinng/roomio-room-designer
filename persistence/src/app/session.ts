@@ -15,6 +15,7 @@ import { uid } from '../util/id'
 import type { House, LightingStateLike } from '../scene/slices'
 import { DesignRepository } from '../storage/repository'
 import { LocalStorageAdapter, type StorageAdapter } from '../storage/adapter'
+import { importLegacyDesigns } from '../storage/legacy'
 import { AutosaveController } from '../autosave/engine'
 import type { SaveStatus } from '../autosave/status'
 import { installUnloadGuard } from '../autosave/beforeUnload'
@@ -139,6 +140,8 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
     lastDeleted: null,
 
     refreshLibrary: async () => {
+      // One-time, non-destructive import of pre-persistence saves (no-op after first run).
+      await importLegacyDesigns(repo, adapter)
       const summaries = await useSession.getState().repo.list()
       useSession.setState({ summaries, backend: useSession.getState().repo.backend })
     },

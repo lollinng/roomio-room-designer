@@ -63,7 +63,26 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
       - Flythrough VIDEO is Agent B's (camera_path + F6 MP4) — surfaced as a hand-off, not rebuilt.
       - 43/43 vitest + 39/39 headless checks; PDF verified valid + openable (`file` → "PDF 1.4, 1 page";
         Quartz rendered it). Screenshots/artifacts in `verify-out/`.
-- [ ] **C2-6** — Backward-compat migration hardening + polish + match Roomio's clean panel UI; cleanup.
+- [x] **C2-6** — Backward-compat + polish + match Roomio UI.
+      - One-time, NON-DESTRUCTIVE import of A's pre-persistence `roomio.designs.v1` map into the new
+        library (`src/storage/legacy.ts`); old single-room saves load as one-room houses.
+      - Polish: storage label shows the real backend (`FlakyAdapter.kind` → inner), glass-dollhouse
+        showcase, furniture draw order (rugs under furniture). Production build OK (2 entries;
+        showcase bundle is separate from the editor — isolation holds at the bundle level too).
+      - 45/45 vitest + 41/41 headless checks.
+
+## Acceptance (brief "done" bar) — all verified in `scripts/verify.mjs`
+| Acceptance item | Where |
+|---|---|
+| edit → "Saving…→Saved just now", no button | C2-1 checks |
+| reload → design intact in My Designs with thumbnail | C2-1 checks |
+| rename / duplicate / delete + undo | C2-3 checks |
+| simulated save failure → retry, not loss | C2-2 checks |
+| view-only showcase opened incognito → read-only walk of just that room, no editor/others | C2-4 checks |
+| export image + shopping list + floor-plan PDF | C2-5 checks (real files) |
+| old single-room save still loads | C2-6 check |
+
+Run: `npm test` (45 unit) · `npm run verify` (41 headless browser checks) · `npm run build`.
 
 ## Architecture notes
 - `src/scene/slices.ts` — read-only structural mirrors of A's RoomDesign + C's House (+ E's

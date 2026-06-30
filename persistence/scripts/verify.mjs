@@ -297,6 +297,32 @@ try {
   await clickTestId('export-pdf')
   const pdfName = await waitForFile(/\.pdf$/)
   ok(!!pdfName, 'export floor-plan → a .pdf file downloads')
+
+  // 10) C2-6 BACKWARD COMPAT — an old single-room save (Agent A's pre-persistence
+  // localStorage map) loads into My Designs via the one-time legacy import.
+  const legacyCtx = await browser.createBrowserContext()
+  const lp = await legacyCtx.newPage()
+  await lp.goto(APP_URL, { waitUntil: 'networkidle0' })
+  await lp.evaluate(() => {
+    localStorage.clear()
+    const room = {
+      id: 'room-legacy', name: 'My Old Room', unit: 'ft', shape: 'rect',
+      corners: [{ x: 0, z: 0 }, { x: 400, z: 0 }, { x: 400, z: 360 }, { x: 0, z: 360 }],
+      wallHeight: 270, wallThickness: 12, openings: [],
+      materials: { wallColor: '#e9e6df', floorTexture: 'oak' },
+      furniture: [{ id: 'f1', archetype: 'bed-queen', category: 'bed', name: 'Queen Bed', x: 200, z: 200, rotation: 0, w: 165, d: 212, h: 50, color: '#8a9bb0' }],
+      createdAt: 1, updatedAt: 2,
+    }
+    localStorage.setItem('roomio.designs.v1', JSON.stringify({ 'room-legacy': room }))
+  })
+  await lp.reload({ waitUntil: 'networkidle0' })
+  await sleep(500)
+  const legacyLoaded = await lp.evaluate(() => document.body.innerText.includes('My Old Room'))
+  ok(legacyLoaded, 'an old single-room save (roomio.designs.v1) loads into My Designs')
+  // and the original legacy key is left intact (non-destructive)
+  const legacyIntact = await lp.evaluate(() => !!localStorage.getItem('roomio.designs.v1'))
+  ok(legacyIntact, 'legacy data is preserved (non-destructive migration)')
+  await legacyCtx.close()
 } catch (err) {
   console.error(err)
   failures++
