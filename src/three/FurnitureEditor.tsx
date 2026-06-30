@@ -232,7 +232,15 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
 
           {/* Floating toolbar above the item: lock + delete. */}
           <Html position={[0, hM + 0.32, 0]} center distanceFactor={9} zIndexRange={[40, 0]}>
-            <div className="item-toolbar">
+            {/* Stop pointer events here so a click on the toolbar can't bubble to
+                the R3F floor "deselect" plane (its onPointerDown fires BEFORE the
+                button's onClick, deselecting + unmounting the toolbar mid-click —
+                which made lock/delete intermittently do nothing). */}
+            <div
+              className="item-toolbar"
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+            >
               <button
                 className={`tool-btn${item.locked ? ' on' : ''}`}
                 onClick={(ev) => {

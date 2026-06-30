@@ -123,7 +123,9 @@ export function coerceHouse(value: unknown): House | null {
     const v = value as unknown as Record<string, unknown>
     const rawRooms = v.rooms as unknown[]
     const rooms = rawRooms.map(coerceRoom).filter((r): r is HouseRoom => r !== null)
-    if (rooms.length === 0 && rawRooms.length > 0) return null
+    // A zero-room house is not a renderable design (and a crafted/empty showcase
+    // payload must fall through to the graceful "invalid link" state, not crash).
+    if (rooms.length === 0) return null
     return {
       schema_version: HOUSE_SCHEMA_VERSION,
       house_id: typeof v.house_id === 'string' ? v.house_id : uid('house'),

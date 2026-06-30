@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { evaluate, placementWarnings, type Suggestion } from '../suggestions/engine'
 
@@ -14,6 +14,10 @@ export function Suggestions() {
   const addFurnitureCentered = useStore((s) => s.addFurnitureCentered)
   const selectFurniture = useStore((s) => s.selectFurniture)
   const snapToWall = useStore((s) => s.snapToWall)
+
+  // Collapsible panels — default OPEN, click the header to collapse/expand.
+  const [open, setOpen] = useState(true)
+  const [warnOpen, setWarnOpen] = useState(true)
 
   // Recomputed whenever the design (furniture / materials / room) changes.
   const all = useMemo(() => evaluate(design), [design])
@@ -44,8 +48,13 @@ export function Suggestions() {
             overflow: 'hidden',
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            title={open ? 'Collapse suggestions' : 'Expand suggestions'}
             style={{
+              width: '100%',
               padding: '11px 14px',
               fontSize: 13,
               fontWeight: 800,
@@ -53,8 +62,12 @@ export function Suggestions() {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              borderBottom: '1px solid #efece6',
+              borderBottom: open ? '1px solid #efece6' : 'none',
               background: '#fbfaf7',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              font: 'inherit',
             }}
           >
             <span>💡 Suggestions</span>
@@ -62,13 +75,16 @@ export function Suggestions() {
               {necessity.length > 0 ? `${necessity.length} to fix · ` : ''}
               {polish.length} polish
             </span>
-          </div>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ink-3)' }}>{open ? '▾' : '▸'}</span>
+          </button>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {[...necessity, ...polish].map((s) => (
-              <SuggestionRow key={s.rule_id} s={s} onAdd={() => onAdd(s)} onDismiss={() => dismiss(s.rule_id)} />
-            ))}
-          </div>
+          {open && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {[...necessity, ...polish].map((s) => (
+                <SuggestionRow key={s.rule_id} s={s} onAdd={() => onAdd(s)} onDismiss={() => dismiss(s.rule_id)} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -82,8 +98,13 @@ export function Suggestions() {
             overflow: 'hidden',
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => setWarnOpen((o) => !o)}
+            aria-expanded={warnOpen}
+            title={warnOpen ? 'Collapse warnings' : 'Expand warnings'}
             style={{
+              width: '100%',
               padding: '11px 14px',
               fontSize: 13,
               fontWeight: 800,
@@ -91,12 +112,20 @@ export function Suggestions() {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              borderBottom: '1px solid #f1e4ca',
+              borderBottom: warnOpen ? '1px solid #f1e4ca' : 'none',
               background: '#fdf3e2',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+              font: 'inherit',
             }}
           >
             <span>⚠️ Placement warnings</span>
-          </div>
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ink-3)' }}>
+              {visibleWarnings.length} · {warnOpen ? '▾' : '▸'}
+            </span>
+          </button>
+          {warnOpen && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {visibleWarnings.map((w) => (
               <div
@@ -135,6 +164,7 @@ export function Suggestions() {
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
     </>

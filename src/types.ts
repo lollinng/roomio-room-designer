@@ -31,6 +31,8 @@ export type FurnitureCategory =
   | 'table'
   | 'chair'
   | 'storage'
+  | 'kitchen'
+  | 'bathroom'
   | 'decor'
   | 'misc'
 

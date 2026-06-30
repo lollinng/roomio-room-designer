@@ -30,6 +30,18 @@ export type ModelKind =
   | 'stool'
   | 'bench'
   | 'mirror'
+  // kitchen / bathroom fixtures
+  | 'counter'
+  | 'toilet'
+  | 'shower'
+  | 'vanity'
+  | 'bathtub'
+  | 'tubFreestanding'
+  | 'jacuzzi'
+  | 'island'
+  | 'stove'
+  | 'fridge'
+  | 'rangeHood'
 
 /**
  * How a piece occupies space vertically:
@@ -78,8 +90,10 @@ const MODEL_KINDS: ModelKind[] = [
   'sofa', 'sectional', 'bed', 'table', 'roundTable', 'chair', 'officeChair',
   'cabinet', 'openShelf', 'rug', 'lamp', 'plant', 'box',
   'tv', 'desk', 'ottoman', 'stool', 'bench', 'mirror',
+  'counter', 'toilet', 'shower', 'vanity', 'bathtub', 'tubFreestanding',
+  'jacuzzi', 'island', 'stove', 'fridge', 'rangeHood',
 ]
-const CATEGORIES: FurnitureCategory[] = ['sofa', 'bed', 'table', 'chair', 'storage', 'decor', 'misc']
+const CATEGORIES: FurnitureCategory[] = ['sofa', 'bed', 'table', 'chair', 'storage', 'kitchen', 'bathroom', 'decor', 'misc']
 const MOUNTS: Mount[] = ['floor', 'wall', 'surface']
 
 /** Validate + normalize a raw catalog entry into a typed Archetype (defensive). */
@@ -134,6 +148,8 @@ export const CATEGORY_ORDER: { id: FurnitureCategory; label: string }[] = [
   { id: 'table', label: 'Tables' },
   { id: 'chair', label: 'Chairs' },
   { id: 'storage', label: 'Storage' },
+  { id: 'kitchen', label: 'Kitchen' },
+  { id: 'bathroom', label: 'Bathroom' },
   { id: 'decor', label: 'Decor' },
   { id: 'misc', label: 'Other' },
 ]

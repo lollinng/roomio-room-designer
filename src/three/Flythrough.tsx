@@ -4,6 +4,14 @@ import type * as THREE from 'three'
 import { useStore } from '../store'
 import { bbox, deriveWalls } from '../geometry/walls'
 import { setSceneHandle, type SceneHandle } from './sceneBus'
+// Multi-room: when the whole-house overview is active, the walker must collide
+// against the WHOLE house (all rooms at their footprints, doorways walkable),
+// not just the single active room — else you hit invisible walls (the active
+// room's geometry sitting at the wrong coordinates).
+import { useHouseView } from './houseViewMode'
+import { useHouse } from './houseSession'
+import { layoutHouse, houseColliders, houseBoundsCm } from './houseLayout'
+import type { RoomDesign } from '../types'
 import { FlythroughController } from '../../camera-flythrough/src/engine/FlythroughController'
 import { downloadPath, readPathFile } from '../../camera-flythrough/src/engine/pathIO'
 
@@ -17,6 +25,15 @@ import { downloadPath, readPathFile } from '../../camera-flythrough/src/engine/p
  * Canvas with the authoring/playback/export controls. The room is left exactly
  * as found on close (overlay objects are removed, user camera + controls restored).
  */
+
+/** In whole-house mode with >1 room, the designs to lay out (active room live). */
+function houseModeDesigns(): RoomDesign[] | null {
+  const rooms = useHouse.getState().rooms
+  if (useHouseView.getState().mode !== 'house' || rooms.length <= 1) return null
+  const activeId = useHouse.getState().activeId
+  const live = useStore.getState().design
+  return rooms.map((r) => (r.id === activeId ? live : r.design))
+}
 
 export function SceneBridge({ onController }: { onController: (c: FlythroughController | null) => void }) {
   const gl = useThree((s) => s.gl)
@@ -38,6 +55,8 @@ export function SceneBridge({ onController }: { onController: (c: FlythroughCont
         return { width: gl.domElement.clientWidth, height: gl.domElement.clientHeight }
       },
       getColliders: () => {
+        const houseDesigns = houseModeDesigns()
+        if (houseDesigns) return houseColliders(layoutHouse(houseDesigns))
         const d = useStore.getState().design
         const walls = useStore.getState().walls ?? deriveWalls(d.corners)
         const b = bbox(d.corners)
@@ -50,7 +69,10 @@ export function SceneBridge({ onController }: { onController: (c: FlythroughCont
         }
       },
       frame: () => {
-        const b = bbox(useStore.getState().design.corners)
+        const houseDesigns = houseModeDesigns()
+        const b = houseDesigns
+          ? houseBoundsCm(layoutHouse(houseDesigns))
+          : bbox(useStore.getState().design.corners)
         return { cx: b.cx, cz: b.cz }
       },
       invalidate: () => invalidate(),
@@ -86,9 +108,12 @@ export function SceneBridge({ onController }: { onController: (c: FlythroughCont
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Priority -2 runs BEFORE drei's OrbitControls useFrame (-1), so the controller
+  // can disable the host controls before they'd otherwise update() and clobber our
+  // swapped-in camera. (Negative priority does not take over R3F's auto-render.)
   useFrame((_, dt) => {
     ctrlRef.current?.update(Math.min(dt, 0.1))
-  })
+  }, -2)
   return null
 }
 

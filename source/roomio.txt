@@ -786,6 +786,380 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   E (lighting serialize selector), B (read-only playback flag + MP4 entry for showcase). Next: C2-4 share +
   view-only showcase (reusing B's Flythrough), C2-5 exports (image / shopping-list / floor-plan PDF), C2-6 polish.
 
+[2026-06-30 19:30] [AGENT-C] C2-4 DONE — SHARE + VIEW-ONLY SHOWCASE (the cardinal-sin milestone). All in
+  /persistence; 38/38 vitest + 36/36 headless checks green; typecheck clean.
+  - Share panel: view/edit/private access, DEFAULTS TO VIEW, plain-language ("Anyone with the link can
+    view…"), copy-link, open-showcase, `.roomio` file export (+ `.roomio` import in the library).
+  - VIEW-ONLY SHOWCASE: a SEPARATE entry point (showcase.html) that decodes ONE design from the URL
+    fragment (#s=<minimal payload>) and renders a read-only walkthrough. SECURITY BOUNDARY: the showcase
+    payload is a minimal {name, scene} projection that DROPS design_id, share tokens, history, thumbnail —
+    so a link literally cannot carry other designs. The showcase import graph contains NO session/library/
+    editor, and there is no nav back to the editor. Verified by opening the link in a FRESH incognito
+    context (no localStorage): renders the room read-only, NO editor chrome / NO edit controls / NO
+    link to index.html. (Defends "a view link leaking into the editor".)
+  *** @AGENT-B re my earlier showcase REQUEST: I did NOT rebuild your flythrough. Cross-package import of
+     your engine isn't available to /persistence (Agent F/D set /camera-flythrough + /persistence as
+     ZERO-COUPLING, D2). So the showcase ships a SELF-CONTAINED 3D read-only walkthrough I own
+     (render/worldGeometry.ts reconstructs floors/walls/furniture in meters from the envelope; a local
+     CatmullRom camera tour reuses your waypoint-tour CONCEPT). The showcase is architected to HOST your
+     real first-person flythrough when we integrate: it already isolates exactly ONE scene (house+lighting)
+     + can compute a camera_path (your v1.0). When Agent D merges into the app, your <Flythrough>/playback
+     (F5) + MP4 export (F6) can replace my local scene — same single-design input, no schema change. If
+     you'd expose a playback-only/"present" mount that takes a scene + path (not the live sceneBus), I'll
+     swap it in. Still also want your F6 MP4 entry signature for the C2-5 video export. ***
+  Next: C2-5 exports (image snapshot / furniture shopping list / floor-plan PDF; video via B), C2-6 polish + migration hardening.
+
+[2026-06-30 19:55] [AGENT-C] FEATURE COMPLETE — Persistence & Sharing (C2-0..C2-6) done + acceptance PASSED.
+  All in /persistence (own pkg, port 5187; commit only my paths). FINAL STATE: 50/50 vitest + 41/41 headless
+  browser checks green; typecheck + production build clean.
+  Shipped: versioned save ENVELOPE composing the full scene (house+interiors+lighting); debounced optimistic
+  autosave (Saving…→Saved, manual save + Ctrl/Cmd-S, unsaved-exit guard, retry-never-drop); version history;
+  My Designs library (thumbnail/open/inline-rename/duplicate/delete+undo, search+sort, .roomio import); Share
+  panel (view/edit/private, default view) + isolated view-only SHOWCASE (3D read-only walkthrough, separate
+  entry, cannot reach editor/library); exports (PNG image, shopping-list CSV, dependency-free floor-plan PDF;
+  video = hand-off to B); backward-compat (old single-room saves + A's localStorage map migrate forward, non-destructive).
+  QUALITY: ran TWO fan-out adversarial reviews (foundation, then share/export/library). Found + fixed 12 real
+  bugs total incl. 4 cardinal-sin issues: (foundation) localStorage-degrade orphaning the library + optimistic
+  save clobbering a newer in-flight edit; (newer) deleting the open design resurrected by a pending save +
+  single-slot undo losing an earlier delete. Plus CSV injection, stale share link, export crash-guards,
+  empty-payload showcase white-screen, forward-compat field preservation. Regression-tested each; patterns in
+  shared/LEARNINGS.md.
+  @AGENT-D READY TO MERGE: paths = /persistence/** + shared/save_envelope_schema.json + shared/LEARNINGS.md +
+  this log. No edits to A/B/E source. Storage-tier decision (local-first now; cloud accounts + live URLs as
+  the scoped follow-on) still awaiting your ratification. Integration notes for the real app: the envelope
+  composes scene.house (C, embeds A's RoomDesign) + scene.lighting (E, opaque) — wire A's editor/store to
+  emit/consume the envelope via the StorageAdapter seam; the showcase is built to HOST B's flythrough (F5/F6)
+  when packages integrate (same single-design input, no schema change). OPEN (non-blocking, sensible defaults
+  in use): confirm slices round-trip — A (RoomDesign is full interior state; personaGenre = preset id?),
+  E (LightingState complete / preferred serialize selector?), B (playback-only mount + F6 MP4 entry signature).
+
+[2026-06-30 20:10] [AGENT-F] BUGFIX (human-directed): "Scan a room photo" silently failed for an iPhone HEIC
+  upload (IMG_3650.HEIC, 2.2 MB, 4284x5712). Debugged end-to-end and fixed across A's + B's domains; verified by
+  driving the REAL server + watcher with the actual file: POST 200 -> watcher -> server GET status=ok, 4 proposals.
+  THREE layered causes (all fixed):
+   (1) [A · server/index.js] PRIMARY upload failure: the global `express.json({limit:'2mb'})` was registered
+       BEFORE the `/api/detect` 15mb override, so it rejected any photo >2 MB with 500 PayloadTooLargeError — the
+       15mb override was dead. Fix: register the /api/detect parser FIRST (body-parser skips an already-parsed
+       body, so other routes keep 2mb). This hit ANY phone photo >~1.5 MB, HEIC or JPEG.
+   (2) [B · detection-pipeline] HEIC undecodable + too large: PIL (no pillow-heif) + cv2 both returned None ->
+       "could not read image"; and the 24 MP image overflowed Ollama's 4096-token ctx. Fixes: `pip install
+       pillow-heif` + register_heif_opener (color.py); downscale the working image to MAX_VLM_IMAGE_DIM=1536 and
+       re-encode HEIC/HEIF/WEBP to a temp JPEG for the VLM by CONTENT (color uses the decoded array); bump
+       VLM_NUM_CTX=8192; add .heic/.heif to IMAGE_EXTS. Also fixed a STALE cross-agent test
+       (tests/test_pipeline.py asserted corpus==23; A grew it to 91 — now asserts a >=23 floor). 29/29 green.
+   (3) [A · server/index.js + front-end] format honesty + UX: server now sniffs magic bytes and names the request
+       file by true content (.heic/.png/.webp/… not always .jpg) with a matching sidecar; ScanRoom.tsx surfaces a
+       real "couldn't read that photo — try JPEG/PNG" on status=error (was a generic empty msg) and raised the poll
+       budget 60s->120s (cold-model first scan measured 67s).
+  NOTICE -> AGENT-A: edited server/index.js (body-parser order + format sniff) + src/wizard/ScanRoom.tsx (error msg
+    + MAX_POLLS). NOTICE -> AGENT-B: edited detection-pipeline color.py/config.py/pipeline.py/vlm.py + a stale test;
+    added pillow-heif to the venv (add to your requirements). NOTICE -> AGENT-D: 7 files for merge; root 192 +
+    pipeline 29 green; verified live on :5199. Orthogonal (NOT fixed): VLM maps "Potted Plant"->Cube Shelf
+    occasionally — a classify/resolve_label quality quirk, user-correctable via the dropdown; flagging for B.
+
+[2026-06-30 20:10] [AGENT-C] [USER -> AGENT-C] DELIVERED: multi-room "Add room" is now usable IN THE APP, +
+  per-screen URLs with working browser Back/Forward. (Human asked twice: the /multi-room code existed but was
+  never mounted; and each screen should have its own URL navigable with the browser buttons.)
+  WHAT I BUILT (minimal, additive — same human-authorized in-app-delivery basis B/E used):
+   - src/three/houseSession.ts (MINE): an additive house-session store ON TOP of A's single-`design` store.
+     The editor still edits ONE active room; this owns the room LIST and swaps which design is loaded via A's
+     public loadDesign(), snapshotting the active room first. Reuses /multi-room ROOM_TYPE_INFO/ROOM_TYPE_LIST.
+   - src/three/RoomsBar.tsx (MINE): the in-app Rooms UI at the top of the Furnish panel — room chips (switch),
+     "+ Add room" with a room-type picker (bedroom/living/kitchen/bath/dining/office/foyer/hallway), safe remove.
+     Each room is a full RoomDesign, so the existing wizard steps edit whichever room is active.
+   - URL ROUTING in src/App.tsx: every screen + active room has its own URL (?stage=<stage>[&room=<id>]).
+     Navigation pushes history; popstate restores stage/room WITHOUT resetting the design; first room-init
+     REPLACES (no phantom entry) while real room switches PUSH (so Back/Forward navigates rooms too). The
+     auth-gate deep-link bypass is now captured ONCE at load so in-app ?stage navigation can't bypass auth.
+  *** @AGENT-A / @AGENT-D — I edited TWO of A's source files (human-authorized in-app delivery; same basis as
+     B's RoomView wiring + E's FurnitureEditor/Furnish wiring): src/App.tsx (+URL routing, ~+76 lines) and
+     src/wizard/Furnish.tsx (+2 lines: import + <RoomsBar/> at top of the panel). No behavior change to existing
+     flows; A's 192 tests still green. Please review/own these two edits. All heavy logic is in MY files
+     (src/three/houseSession.ts + RoomsBar.tsx). If you'd rather own the mount, I'll hand you the 2-line diff. ***
+  VERIFIED in the REAL app (multi-room/scripts/verify-app.mjs, 16/16): deep-link → Next through step2→3→4→
+  furnish with the URL stage param changing each step; browser Back → step4, Forward → furnish; Add room →
+  2 chips + a new room URL; switch rooms updates the URL; browser Back navigates between rooms. typecheck +
+  `vite build` clean; A's full vitest suite 192/192 green. Screenshots in multi-room/verify-out/.
+  FOLLOW-ON (not blocking): connectors/adjacency/kitchen-bath guidance from /multi-room aren't surfaced yet
+  (rooms are independent for now); and the house isn't yet fed into my persistence envelope's scene.house —
+  both are clean next steps now that the house session exists in-app.
+
+[2026-06-30 20:15] [AGENT-E] E9 — CEILING/ROOF + SUN ENCLOSURE (human request: "add a ceiling with small
+  chunks of lights; roof hidden by default, visible when you move the canvas appropriately; sun shouldn't
+  light/shadow a windowless interior now that there's a roof"). Verified: harness verify-roof + app 10/10 +
+  30 unit tests, both typecheck clean. New /lighting/src/r3f/Ceiling.tsx:
+  - SHADOW ROOF: an invisible (colorWrite=false) castShadow mesh over the room polygon -> the sun can no
+    longer light or cast shadows into a windowless interior (it's roof-shadowed); wall windows still admit
+    low-angle sun. The room stays lit by ceiling downlights + ambient (never a dark box).
+  - VISUAL CEILING + recessed amber downlights ("small chunks of lights"), unlit so it never renders dark;
+    revealed ONLY when the camera looks UP (interior/flythrough) so it never covers the room or appears as
+    a slab during the normal downward orbit (fixes the human's "roof looking bad").
+  *** @AGENT-A FYI one more touch to src/three/RoomView.tsx (same human-authorized basis): it now renders
+      <Ceiling cornersWorld={...} heightM={wallHeight/100}/> next to <Room/> (room polygon via makeFrame).
+      No change to your Room/geometry; Ceiling lives in /lighting. Please review/own. *** @AGENT-B: the
+      ceiling reveals on look-up, so it shows naturally in your first-person flythrough (no action needed).
+[2026-06-30 12:30] [AGENT-B] BUGFIX in src/three/FurnitureEditor.tsx (@AGENT-A / @AGENT-E heads-up): the
+  selected-item floating toolbar (lock + delete) buttons were INTERMITTENTLY DEAD — clicking them often
+  did nothing. Root cause: the toolbar is a drei <Html>; a click on its buttons bubbled to the R3F floor
+  "deselect" plane whose onPointerDown fires BEFORE the button's onClick → selectFurniture(null) →
+  the toolbar (rendered only when selected) UNMOUNTS mid-click → onClick is lost (race; sometimes the
+  action fired, often not). Reproduced deterministically headless: clicking the lock button took the
+  selection null in BOTH normal furnish and Light Mode. FIX (3 lines, additive): stopPropagation on the
+  .item-toolbar's onPointerDown/onPointerUp so toolbar clicks can't reach the deselect plane. Now the item
+  stays selected and lock/delete fire reliably (verified 3/3 each, normal + Light Mode). The existing
+  onClick stopPropagation only stopped the (later) click event, not the pointerdown that caused the
+  deselect — that's why it slipped through. No behavior change beyond making the buttons work; your 192
+  main-app vitest tests still pass. Also note: in Light Mode the lock BADGE stays locked (locked =
+  lightMode || item.locked) by design — but the toolbar's lock button icon (🔓/🔒) reflects item.locked
+  and now toggles reliably. Test: camera-flythrough/scripts/verify-buttons.mjs. (Tangent: ?stage=furnish&
+  seed=1 furnishes 0 items ~intermittently — my flythrough verify scripts now fall back to a persona
+  preset for deterministic furniture; you may want to look at the seed path.)
+
+[2026-06-30 20:45] [AGENT-E] E9.1 — ROOF FIX (human: "roof visible from top is not ideal; should only be
+  visible from below" + earlier dark/gloomy room). Fixes: (1) the shadow roof now uses depthWrite=false
+  (+colorWrite=false, castShadow) so it has ZERO main-pass footprint — it can never occlude or show a slab
+  from any top/downward angle, while still blocking the sun from a windowless interior. The visual ceiling
+  still reveals only when looking UP (from below). (2) Brightened interior fill so a roofed/sun-blocked room
+  (esp. dark-walled presets like Sports Fan) isn't gloomy: hemisphere 0.7->0.85, ambient 0.22->0.32,
+  ceiling task 0.8->0.95, recessed downlights 0.22->0.32. Verified: verify-roof (hidden from top / shown
+  from below), app 10/10, 30 unit tests, typecheck clean. Only /lighting changed this round.
+[2026-06-30 12:55] [AGENT-B] UI FIX (@AGENT-E / @AGENT-A): the "💡 Light Mode" launcher/panel overlapped the
+  right-edge view toolbar (.vp-tools: undo/redo/fit/home, at right:18px + 40px wide ⇒ occupies 18–58px
+  from the right). LightingControls is fixed at top:12 right:anchorRightPx(default 12) and ~114px wide, so
+  it sat on top of the undo button. Agent E already provided the exact knob for this (`anchorRightPx` —
+  "so the launcher/panel can clear other app chrome"); it just wasn't set at the mount. Fixed by passing
+  anchorRightPx={66} where RoomView mounts <LightingControls> (clears the 58px toolbar with an 8px gap).
+  Verified headless: launcher↔toolbar and open-panel↔toolbar overlap = 0px. One-line change in
+  src/three/RoomView.tsx; no change to E's component. @AGENT-E if you'd rather own this offset internally
+  (e.g. detect the toolbar), feel free — I used your public prop as intended.
+
+[2026-06-30 20:55] [AGENT-C] [USER -> AGENT-C] DELIVERED: default doors + windows for every genre. Persona
+  presets used to load as sealed boxes (openings: []); now every genre gets a sensible default door + two
+  windows out of the box (fully editable afterward). Covers the bedroom genres (anime_otaku, celestial) and
+  all others (bachelor/couple/family/gamer/sports/afrohemian/neo_deco/biophilic).
+   - NEW src/data/defaultOpenings.ts (MINE): geometry-driven defaultOpenings(corners) — a single door
+     (offset from centre) + windows on distinct walls, each width-clamped to fit its wall (works for any
+     footprint). Wall ids are deterministic (w{i}), so generated openings match the store's re-derived walls.
+   - src/data/personas.ts toRoomDesign: openings: [] -> defaultOpenings(corners). *** @AGENT-A / @AGENT-D:
+     one-line behaviour change in A's persona loader (human-authorized). I staged ONLY my hunk — I left
+     @AGENT-F's uncommitted DEG2RAD-from-shared/lib/math dedup in personas.ts UNSTAGED in the working tree
+     (preserved for D to merge); my commit does not include it. ***
+   - src/three/houseSession.ts (MINE): rooms added via the Rooms bar also get default openings now.
+  VERIFIED in the real app: multi-room/scripts/verify-genre-openings.mjs — all 10 genres load with >=1 door
+  + 2 windows that sit on real walls and fit (40/40). Plus a 10-agent vision-QA pass over per-genre
+  screenshots: 10/10 doors render flush + sensible, not buried by furniture (windows often on the off-camera
+  walls). A's 192 tests green; typecheck + build clean. Screenshots in multi-room/verify-out/genre-*.png.
+
+[2026-06-30 21:10] [AGENT-E] BUGFIX — multi-room "Add room" rooms looked wrong (progressively over-lit /
+  washed out as you added rooms). Root cause was MINE: ensureRoom() registers each room's lights in the
+  lighting store keyed by id, and <LightingRig> was rendering EVERY room's lights — but the app edits one
+  room at a time, all centered at the origin, so the per-room ceiling lights stacked (room N got N ceiling
+  lights → over-bright). Fix: LightingRig takes an `activeRoomId` (single-room mode) and renders only that
+  room's lights; RoomView passes designId. Multi-room HOUSE mode (no activeRoomId) still renders all rooms
+  at their own footprints, so Agent C's house model is unaffected. Verified: each added room (bedroom/
+  kitchen/etc.) now renders with consistent brightness; switching back restores the room exactly; app 10/10
+  + harness + roof verifies + 30 unit tests green; typecheck clean.
+  @AGENT-C your houseSession/RoomsBar add+switch logic is correct (rooms add, switch, and restore furniture
+  properly) — the only defect was my lighting accumulation. No change to your files.
+
+[2026-06-30 21:05] [AGENT-F] PRESET PRACTICALITY PASS (human-directed: persona rooms "not practical", e.g. the
+  Anime/Otaku room rendered as a near-black box with a fluorescent-pink cylinder). Audited all 10 presets
+  objectively (color saturation + rug-excluded footprint overlaps + out-of-bounds, using the real catalog dims +
+  mount rules). Root cause was localized, NOT systemic: anime_otaku + gamer used near-black furniture + 3
+  fluorescent neon accents (#FF2D95/#FF1F6B pink, #00E5FF cyan, #A020F0/#7B2FFF purple) — and the genre's real
+  signal items (posters/figures/neon signs) are unmodeled (asset_requests), so it read as a dark room with random
+  glowing blobs. The "pink cylinder" = ottoman-bean (a beanbag with no beanbag mesh) recolored #FF2D95.
+  FIX (data-only, src/data/personas.json; human chose "bright & playful" + "all genres + layout polish"):
+   - Repaletted anime_otaku + gamer to bright/livable: off-white walls (#efe9e0), light-wood/white furniture,
+     warm-white lamp shades, ONE-or-two tasteful pops (sky #6fb3d6 gaming chair, coral #e8746a beanbag). TVs/plants
+     keep natural defaults. NEON: 3+3 -> 0.
+   - Layout polish across all 10: resolved every real (rug-excluded) furniture overlap + the Sports drinks-cabinet
+     out-of-bounds; whitelisted intentional tuck-ins (chair-at-vanity/desk). Repositioned mislaid decor the
+     auto-separator couldn't (afrohemian poufs moved from BEHIND the sofa to flanking the coffee table; biophilic
+     plant out of the papasan's corner; side-table+its surface lamp into the clear gap by the tree).
+   - LEFT deliberately: Sports red/gold (#C8102E/#FFB81C) are team-color accents on a slate wall — realistic, not
+     garish. Celestial vanity+chair "overlap" is a correct tuck-in.
+  Verified: final audit = 0 neon (anime/gamer), 0 real overlaps, 0 OOB across all 10; persona 64 + engine 20 + root
+  192 green; typecheck clean. NOTICE -> AGENT-A: src/data/personas.json edited (colors + positions only; no
+  archetype ids, room sizes, or schema touched — all ids still valid, no necessity gaps). 42-line diff.
+[2026-06-30 14:05] [AGENT-B] FIX: flythrough first-person walk — forward/backward didn't work properly.
+  ROOT CAUSE: drei <OrbitControls> recreates itself whenever state.camera changes
+  (useMemo(()=>new OrbitControls(cam),[cam])) and the fresh instance is ENABLED by default. When the
+  flythrough swapped in its walk camera, that new OrbitControls' per-frame update() yanked the camera to
+  the orbit pose — y≈3m, pitched STRAIGHT DOWN. With the camera looking down, the walker's
+  horizontal-forward fell back to a fixed -z, so W/S ignored where you were looking (and could invert).
+  Two secondary issues: the walker spawned at the room CENTER (often inside/against furniture in a
+  furnished/persona room → collision ejected it), and movement was computed from camera.position (which
+  the clobber corrupted) instead of the tracked posCm.
+  FIXES:
+   - src/three/RoomView.tsx (@AGENT-A, 1 A-file): pin <OrbitControls camera={origCam}> to the ORIGINAL
+     camera (captured via Canvas onCreated) so drei never rebinds/ clobbers the flythrough's swapped
+     cameras. Normal app behavior unchanged (origCam === default camera when flythrough is closed).
+   - Flythrough SceneBridge useFrame runs at priority -2 (before drei OrbitControls' -1) and the
+     controller re-asserts host-controls-disabled every frame — belt-and-suspenders so a recreated
+     OrbitControls can't re-enable + clobber.
+   - firstPersonWalk: enter LEVEL at 1.6m (no inherited pitch); re-assert eye-height + planar position
+     from posCm every frame; compute movement from posCm not camera.position; spawn at a furniture-CLEAR
+     interior point (nearest to center) instead of dead center.
+  Verified (camera-flythrough/scripts/verify-walk-app.mjs): enters level, eye height 1.6m, spawns clear,
+  forward 0.97m / backward 1.06m, and NO inversion across 8 headings. No regressions: 192/192 main-app
+  tests, 28/28 engine unit tests, all app + harness verify suites green.
+
+[2026-06-30 21:40] [AGENT-E] FEATURE — INTERCONNECTED WHOLE-HOUSE VIEW (human: "rooms should be
+  interconnected, not added one-by-one — give the whole look of the house with rooms"). Did deep research
+  (2 subagents mapped C's /multi-room API + A's render seam) then built it. New files (mine, in src/three/):
+   - houseLayout.ts (pure): greedy adjacent placement of session RoomDesigns in a row, each touching the
+     previous along a shared wall, with a DOORWAY opening cut into both rooms at the shared wall (so rooms
+     are truly interconnected). + houseBoundsCm for camera framing. 5 unit tests.
+   - houseViewMode.ts: tiny zustand toggle (room | house).
+   - HouseView.tsx: renders ALL rooms together centered at origin, reusing A's PURE helpers read-only
+     (makeFrame/deriveWalls/buildWallParts/pointOnWall, getFloorTexture, FurnitureModel) + a dollhouse cull
+     across the whole house + its own global lighting (hemisphere+ambient + my <Sun>) + camera fit.
+   - RoomView.tsx (A's file, edited on the same human-authorized basis): a "🏠 View whole house / 🚪 Edit a
+     room" toggle (shown when >1 room) swaps between single-room editing and the connected overview.
+  Verified live: add bachelor+bedroom+kitchen → toggle → 3 rooms shown adjacent with doorways between them,
+  see into all rooms (dollhouse cull), switch back to edit cleanly. No console errors; typecheck + tests +
+  lighting regression verifies all green.
+  *** @AGENT-C this is the lightweight in-app overview; it does NOT use your House/connector model (it adds
+      doorway Openings directly via A's geometry). If you'd rather it drive your House + placeConnector +
+      worldWalls/openingsForRoom (the "proper" model with adjacency guidance AC1–AC9), I'm happy to swap the
+      renderer to consume your API — say the word. Current layout is linear (row); a 2D grid layout is a
+      natural follow-up. @AGENT-A / @AGENT-D: new src/three/{houseLayout,houseViewMode,HouseView}.tsx +
+      a RoomView toggle/branch; please review/own the RoomView edit. ***
+[2026-06-30 15:30] [AGENT-B] FEATURE: kitchen & bathroom rooms now have distinct default fixtures (was: every
+  new room an identical empty box). Root cause: houseSession.addRoom created rooms with zero furniture, and
+  the catalog had no kitchen/bath fixtures.
+  DID (verified in the live app — create a Kitchen → counter appears; Bathroom → shower + toilet):
+   - 3 new parametric 3D model kinds in Furniture3D.tsx: counter (base cabinet + stone top + inset sink +
+     faucet), toilet (tank + pedestal bowl + seat), shower (tray + translucent glass enclosure + head).
+   - 3 catalog archetypes (src/data/archetypes.catalog.json): kitchen-counter, bath-toilet, bath-shower
+     (with real-world min/max guardrails).
+   - houseSession.addRoom now AUTO-FURNISHES by room type: kitchen→counter, bathroom→toilet+shower,
+     living→sofa+coffee table, bedroom→bed, dining→table (placed against walls; addFurniture snaps flush).
+  *** @AGENT-A HEADS-UP / DE-CONFLICT: I see you're concurrently building the broader kitchen/bath fixture set
+     in the SAME files — archetypes.ts now has model kinds vanity/bathtub/tubFreestanding/jacuzzi/island/stove/
+     fridge/rangeHood + new 'kitchen'/'bathroom' categories, and Furniture3D.tsx has builders for them. My 3
+     kinds (counter/toilet/shower) + your 8 coexist (no dup builders/cases; typecheck + 200 vitest green). I
+     committed the COMBINED working state of archetypes.ts/Furniture3D.tsx/types.ts to keep a compiling HEAD +
+     lock my auto-furnish — your additions rode along (additive, preserved). PROPOSAL: you own the fixture
+     catalog/models; if you add canonical ids for counter/toilet/shower (or want different ids), ping me and
+     I'll point houseSession.defaultFurnitureFor at yours so we don't end up with two counters. Until then my
+     kitchen-counter/bath-toilet/bath-shower ids are what the auto-furnish uses. ***
+
+[2026-06-30 22:12] [AGENT-E] BUGFIX — multi-room flythrough "invisible walls" (human: walking the whole
+  house feels restrictive, hits walls when nowhere near one). Did web research (testing technique:
+  visualize colliders as wireframes) + a code-investigation subagent. ROOT CAUSE: in whole-house view,
+  HouseView renders rooms at footprint offsets, but the flythrough's getColliders()/frame() (src/three/
+  Flythrough.tsx) were hard-wired to the SINGLE active room at its own bbox centre — so you collided with a
+  phantom room at the wrong coordinates. FIX (no change to @AGENT-B's engine — verified 28/28 still green):
+   - src/three/houseLayout.ts: houseColliders() aggregates ALL rooms into the shared house plane, emitting
+     each wall as a thin OBB split around its DOORWAY (so doorways are walkable gaps) — OBBs block
+     bidirectionally via B's existing pushOutOfObb, avoiding the dead-zone of stacking inward half-planes.
+   - src/three/Flythrough.tsx: getColliders()/frame() use houseColliders + house bounds centre when in
+     whole-house mode; single-room unchanged.
+   - TESTING TOOL (per the human's "how to test"): a "▦ Colliders" toggle (src/three/ColliderDebug.tsx)
+     draws the collision footprints as magenta wireframes — the standard way to debug invisible-wall bugs.
+     Verified the wireframes line up with all rooms' walls + show gaps at the doorways.
+  Automated: houseLayout.test.ts now walks the solver through a doorway (crosses into the next room) and
+  into a solid wall (blocked). 8/8 + 28/28 flythrough + typecheck green. @AGENT-B engine untouched;
+  @AGENT-A/@AGENT-D the changes are in src/three/{Flythrough,RoomView}.tsx + new houseLayout/ColliderDebug.
+[2026-06-30 15:45] [AGENT-B] @AGENT-A CONVERGED — nice: you independently picked the SAME archetype ids
+  (kitchen-counter / bath-toilet / bath-shower) AND the same model kinds (counter/toilet/shower, rendered by
+  my Furniture3D builders), plus a richer set (kitchen-island/sink/stove/fridge/hood, bath-vanity/tubs/jacuzzi
+  under new 'kitchen'/'bathroom' categories). So my houseSession.addRoom auto-furnish resolves straight onto
+  YOUR catalog with zero changes: verified live — new Kitchen → "Counter & Cabinets"; new Bathroom → "Toilet"
+  + "Walk-in Shower". You own the fixture catalog/models; I own the auto-furnish-by-type wiring
+  (defaultFurnitureFor in houseSession). If you ever rename those 3 ids, ping me and I'll update the one map.
+  No further action needed — kitchen/bathroom now read distinctly by default. (FYI the only console noise is a
+  pre-existing React warning: a span mixing `border` + `borderColor` shorthand somewhere in the rooms UI —
+  not from this work; worth a quick fix by whoever owns that chip.)
+
+[2026-06-30 22:20] [AGENT-F] KITCHEN & BATHROOM AMENITIES (human-directed: "very less amenities from other rooms
+  apart from living/bedroom — add proper amenities, multiple shower types: jacuzzi / wall-hanged / bathtub").
+  Found an in-flight partial pass on A's files (counter/toilet/shower builders + 3 catalog entries, mis-filed
+  under storage/misc because CATEGORIES/CATEGORY_ORDER weren't extended) — BUILT ON it (did not clobber), fixed it,
+  and completed the set. Now 12 fixtures across two NEW palette categories:
+   - bathroom: Toilet, Sink Vanity, Walk-in Shower (wall-mounted head + glass), Alcove Bathtub, Freestanding Tub,
+     Jacuzzi Whirlpool.
+   - kitchen: Counter & Cabinets, Island, Sink Base, Range/Stove, Refrigerator, Range Hood (wall-mounted).
+  CHANGES:
+   - src/types.ts: FurnitureCategory += 'kitchen' | 'bathroom'.
+   - src/data/archetypes.ts: ModelKind + MODEL_KINDS += vanity/bathtub/tubFreestanding/jacuzzi/island/stove/
+     fridge/rangeHood (counter/toilet/shower already there); CATEGORIES + CATEGORY_ORDER += Kitchen, Bathroom.
+   - src/three/Furniture3D.tsx: 8 new parametric builders (Box/Cyl primitives, local-space convention) + switch
+     cases. Tubs share a filled-basin stylization; kitchen-sink + bath-vanity reuse the 'vanity' body (intentional).
+   - src/data/archetypes.catalog.json: 91 -> 103 (6 kitchen + 6 bathroom, real-world dims + min/max guardrails;
+     range hood mount:"wall"). Fixed the 3 pre-existing entries' categories.
+   - shared/archetypes.json: re-synced from the catalog (103 ids) so the DETECTOR can emit the new fixtures.
+   - multi-room/src/data/roomTypes.ts: kitchen + bathroom essentials now point at the REAL ids (were null/
+     placeholder — closes the asset gap Agent C flagged); tests repurposed (roomTypes.test.ts, acceptance.test.ts:
+     catalog-count assert relaxed to >=91; "kitchen/bath now fully modeled, no gaps").
+  Verified: root 200 + multi-room 49 + detection 29 green; root & multi-room typecheck clean; catalog/shared parity
+  (103==103, 0 set diff); zero model fallthroughs; min<=def<=max on all 103; live-app data check (addFurnitureCentered
+  succeeds for all 12). Adversarial 3-lens review = SHIP, no blockers (only taste nits). NOTE: 3D visuals couldn't be
+  screenshotted here (headless Chrome has no WebGL) — verified by geometry math + the data layer; renders in the app.
+  NOTICE -> AGENT-A: extended your catalog + Furniture3D + types (built on the in-flight counter/toilet/shower work).
+  NOTICE -> AGENT-C: your kitchen/bath room-type essentials now resolve to real fixtures (asset gap closed).
+  NOTICE -> AGENT-B: shared/archetypes.json grew to 103 ids (additive) — closed-set classifier may now emit them.
+  NOTICE -> AGENT-D: ~7 files for merge; all additive/green.
+
+[2026-06-30 22:36] [AGENT-E] BUGFIX — could WALK THROUGH a WINDOW in the multi-room flythrough (human:
+  "shows window but it's a door and I can walk through"). Cause: houseColliders.splitWall removed the wall
+  span for EVERY opening, including windows. A window has wall below its sill, so at the floor plane (where
+  the walker is) it must be SOLID — only floor-reaching openings (doors / open connectors, sill ≈ 0) are
+  walkable gaps. Fix (src/three/houseLayout.ts): only split walls around openings with sill ≤ 15 cm; windows
+  (sill > 0) stay solid in collision, matching the visible sill wall. Test added: walking into a window is
+  blocked, while the doorway still lets you through. 9/9 houseLayout + typecheck + house verify green.
+  (Cosmetic follow-up: HouseView renders window openings as plain holes; could render glass via A's
+  OpeningMesh — not a functional issue.)
+
+[2026-06-30 23:05] [AGENT-E] UX — (1) Suggestions panel is now a COLLAPSIBLE accordion (default OPEN; click
+  the header ▾/▸ to collapse — progressive disclosure to cut left-panel clutter). src/wizard/Suggestions.tsx
+  only; verified live (open 3 rows → collapse 0 → reopen 3), typecheck clean. (2) Did web research on better
+  UI/UX for the program and wrote docs/UX_RECOMMENDATIONS.md — prioritized, source-cited points (progressive
+  disclosure, empty-state onboarding, consolidate the floating viewport controls, a 2D↔3D plan toggle, WCAG
+  2.2 a11y pass, keep 3D fast). @AGENT-A/@AGENT-D worth a look for the roadmap.
+  *** INTEGRATION HEADS-UP @AGENT-D/@AGENT-C: the multi-room cluster evolved in the working tree (houseLayout
+  now takes RoomPlacement[] {design,pos,type} + 2D grid + doorway-realism). I re-aligned my src/three/
+  Flythrough.tsx + ColliderDebug.tsx to the new signature (they pass RoomPlacement[] now) — those edits are
+  in the working tree but I did NOT commit them solo (they depend on the uncommitted houseLayout evolution).
+  Please commit Flythrough.tsx + ColliderDebug.tsx TOGETHER with houseLayout.ts/houseSession.ts so the tree
+  typechecks (it does now: tsc clean, houseLayout 9/9, flythrough 28/28). ***
+
+[2026-06-30 22:55] [AGENT-F] 3BHK FLAT STRUCTURE + DRAG-TO-MOVE (human: rooms are "straight as fuck" — wanted
+  proper 3BHK flats + the option to move rooms; default = standard Indian floor plan, researched). NOTE: converged
+  with a parallel pass already on these files — both moved layoutHouse to a position-aware RoomPlacement[] API;
+  I built ON that (no clobber) and added the rest. Net (tsc clean, root 201, multi-room 49, houseLayout 9/9):
+   - LAYOUT (houseLayout.ts): layoutHouse now (a) honors an explicit per-room pos, (b) 2D-grid-packs un-positioned
+     rooms (⌈√n⌉/row) instead of a straight strip, (c) cuts doorways between ANY rooms sharing a wall edge (vertical
+     OR horizontal), with a REALISM rule that suppresses bedroom↔bedroom and bath↔bath doors (private rooms are
+     reached from the hall, not each other). RoomPlacement carries {design, pos?, type?}.
+   - STORE (houseSession.ts): RoomEntry gains pos?; moveRoom(id,pos) (seeds all positions so the rest stay put);
+     loadFlat3BHK() builds a research-grounded standard Indian 3BHK — Foyer/Living/Dining/Kitchen (public front) +
+     Hallway spine + Master(+ensuite)/Bedroom2/Bedroom3 + common bath (private rear). Sizes from NBC 2016 minimums
+     + Indian listing/builder plans (web research; sources logged). Verified: 0 room overlaps, 9 realistic doorways,
+     bedroom↔bedroom suppressed, all 10 rooms connected.
+   - UI: RoomsBar "🏠 3BHK flat" button (loads the template + switches to house view). HouseView: drag a room's
+     floor to reposition it — invisible ground plane tracks the pointer → moveRoom; OrbitControls suspended mid-drag.
+   - CALLERS updated to the new API: RoomView, ColliderDebug, Flythrough (all pass {design,pos,type}).
+   NOTE: 3D drag couldn't be screenshot-verified here (headless Chrome has no WebGL) — logic/geometry verified +
+   tsc/tests green; the drag feel needs a quick in-app check. Template rooms ship unfurnished (structure first);
+   per-room furnish/suggestions still apply. NOTICE -> AGENT-C/E: extended your house session + layout + view.
+
+[2026-07-01 00:10] [AGENT-E] UX — implemented the docs/UX_RECOMMENDATIONS.md points:
+  (1) progressive disclosure: catalog categories now collapsible (default open) + Suggestions + lighting
+      already done; (2/8) empty-state onboarding card on a new room ("Your room is empty — let's furnish
+      it!" + Scan CTA); (3) consolidated the scattered viewport chips into ONE top-centre toolbar
+      (Plan view · Whole-house · Colliders); (4) "⬓ Plan view" snaps a top-down 2D floor-plan view;
+      (5) aria-label/aria-expanded/aria-pressed on the toggles. (6/7/9 already satisfied — noted in doc.)
+  Verified live (verify-uxpass.mjs): empty-state present, category collapse 103→91, toolbar aria present,
+  plan-view snap works; typecheck clean.
+  COMMITTED solo (self-contained): src/wizard/Furnish.tsx (catalog collapse + empty state),
+  src/three/houseViewMode.ts (planNonce), docs/ + verify script.
+  *** @AGENT-D INTEGRATION: src/three/RoomView.tsx now also has the consolidated toolbar + PlanViewSnap +
+  the requestPlanView wiring — but RoomView is entangled with the in-flight multi-room cluster (RoomPlacement
+  mapping) so I did NOT commit it solo. Please commit RoomView.tsx with the houseLayout/houseSession/
+  Flythrough/ColliderDebug cluster (tree typechecks: tsc clean). ***
 # ───────────────────────── AGENT D (Coordinator) — cycle 2 ─────────────────────────
 [2026-06-30 19:27] [AGENT-D] CYCLE 2. main health: RUNNABLE (y). Integrated the full cycle-2 wave —
   E lighting (E0–E8), C persistence feature-2 (C2-0..C2-3), B flythrough-in-app + Edit-furniture toggle,

@@ -159,4 +159,18 @@ export class AutosaveController<T> {
     this.clearDebounce()
     this.clearRetry()
   }
+
+  /**
+   * Hard cancel: drop the pending value, stop all timers, and invalidate any
+   * in-flight flush so it does NOT re-persist after it returns. Use when the save
+   * target is gone (e.g. the design was deleted) — otherwise a queued/returning
+   * save would resurrect it. Unlike dispose(), this discards pending on purpose.
+   */
+  cancel(): void {
+    this.clearDebounce()
+    this.clearRetry()
+    this.pending = null
+    this.dirtySeq++ // makes a returning in-flight flush see "no newer edit" and stop cleanly
+    this.setPhase('idle', { attempt: 0, retrying: false, error: undefined })
+  }
 }

@@ -7,7 +7,7 @@
 // Screenshots land in verify-out/. Exits non-zero on any failed assertion.
 
 import { spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import puppeteer from 'puppeteer-core'
 
@@ -65,10 +65,22 @@ try {
   browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: 'new',
-    args: ['--no-sandbox', '--window-size=1280,860'],
+    args: [
+      '--no-sandbox',
+      '--window-size=1280,860',
+      '--use-angle=swiftshader',
+      '--enable-unsafe-swiftshader',
+      '--ignore-gpu-blocklist',
+    ],
   })
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 860 })
+  // capture downloads (export artifacts) into a clean folder
+  const DL = `${OUT}downloads/`
+  try { rmSync(DL, { recursive: true, force: true }) } catch {}
+  mkdirSync(DL, { recursive: true })
+  const cdp = await page.target().createCDPSession()
+  await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DL })
   await page.goto(APP_URL, { waitUntil: 'networkidle0' })
 
   // Start clean so the run is deterministic.
@@ -215,6 +227,102 @@ try {
   await sleep(400)
   const afterUndo = await countCards()
   ok(afterUndo === beforeDel, `undo restores the deleted design (${afterDel} -> ${afterUndo})`)
+
+  // 8) C2-4 SHARE + VIEW-ONLY SHOWCASE.
+  // open a design, then the Share panel
+  await page.evaluate(() => {
+    const card = document.querySelector('button img')?.closest('button')
+    card?.click()
+  })
+  await waitForPhase(page, 'saved', 4000)
+  await clickByText(page, 'Share')
+  await page.waitForSelector('[data-testid="share-panel"]', { timeout: 4000 })
+  // defaults to "view"
+  const accessSentence = await page.$eval('[data-testid="access-sentence"]', (el) => el.textContent || '')
+  ok(/view/i.test(accessSentence), `share defaults to view: "${accessSentence.trim()}"`)
+  const showcaseUrl = await page.$eval('[data-testid="showcase-url"]', (el) => el.value)
+  ok(showcaseUrl.includes('showcase.html#s='), 'showcase link points at the isolated showcase entry')
+  await page.screenshot({ path: `${OUT}c2-4-share.png` })
+
+  // CRITICAL: open the showcase link in a FRESH incognito context (no localStorage,
+  // like another device) and prove it is a read-only walkthrough of JUST this room,
+  // with NO editor / library / other designs reachable.
+  const ctx = await browser.createBrowserContext()
+  const viewer = await ctx.newPage()
+  await viewer.setViewport({ width: 1100, height: 760 })
+  await viewer.goto(showcaseUrl, { waitUntil: 'networkidle0' })
+  await sleep(800)
+  const hasViewBadge = await viewer.$('[data-testid="view-only-badge"]')
+  ok(!!hasViewBadge, 'showcase opens incognito (data came from the URL, not storage) with a View-only badge')
+  const hasPlay = await viewer.$('[data-testid="play-walkthrough"]')
+  ok(!!hasPlay, 'showcase offers a read-only walkthrough')
+  const canvasOk = await viewer.$eval('canvas', (c) => c.width > 100 && c.height > 100).catch(() => false)
+  ok(canvasOk, 'showcase renders a 3D canvas of the room')
+  // ISOLATION: the showcase must NOT expose the editor / library / other designs.
+  const leak = await viewer.evaluate(() => {
+    const txt = document.body.innerText
+    const hasEditorChrome =
+      /My Designs/i.test(txt) || /New room/i.test(txt) || /New apartment/i.test(txt) || /Saving|Saved/i.test(txt)
+    const hasShareBtn = [...document.querySelectorAll('button')].some((b) => /share/i.test(b.textContent || ''))
+    const hasEditControls = [...document.querySelectorAll('button')].some((b) =>
+      /Move item|Rotate item|Rename|Duplicate|Delete/i.test(b.textContent || ''),
+    )
+    const linksToEditor = [...document.querySelectorAll('a')].some((a) => /index\.html/i.test(a.getAttribute('href') || ''))
+    return { hasEditorChrome, hasShareBtn, hasEditControls, linksToEditor }
+  })
+  ok(!leak.hasEditorChrome, 'showcase shows NO editor/library chrome (no My Designs / New / save status)')
+  ok(!leak.hasEditControls, 'showcase shows NO edit controls')
+  ok(!leak.hasShareBtn, 'showcase shows NO share/editor buttons')
+  ok(!leak.linksToEditor, 'showcase has NO link back into the editor (index.html)')
+  await viewer.screenshot({ path: `${OUT}c2-4-showcase.png` })
+  await ctx.close()
+
+  // 9) C2-5 EXPORTS — each button produces a real downloaded file.
+  // (the Share panel is still open on the main page)
+  const clickTestId = (id) =>
+    page.evaluate((sel) => document.querySelector(`[data-testid="${sel}"]`)?.click(), id)
+  const waitForFile = async (re, timeoutMs = 6000) => {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const f = readdirSync(DL).filter((n) => re.test(n) && !n.endsWith('.crdownload'))
+      if (f.length) return f[0]
+      await sleep(150)
+    }
+    return null
+  }
+  await clickTestId('export-image')
+  ok(!!(await waitForFile(/\.png$/)), 'export image → a .png file downloads')
+  await clickTestId('export-shopping')
+  ok(!!(await waitForFile(/\.csv$/)), 'export shopping list → a .csv file downloads')
+  await clickTestId('export-pdf')
+  const pdfName = await waitForFile(/\.pdf$/)
+  ok(!!pdfName, 'export floor-plan → a .pdf file downloads')
+
+  // 10) C2-6 BACKWARD COMPAT — an old single-room save (Agent A's pre-persistence
+  // localStorage map) loads into My Designs via the one-time legacy import.
+  const legacyCtx = await browser.createBrowserContext()
+  const lp = await legacyCtx.newPage()
+  await lp.goto(APP_URL, { waitUntil: 'networkidle0' })
+  await lp.evaluate(() => {
+    localStorage.clear()
+    const room = {
+      id: 'room-legacy', name: 'My Old Room', unit: 'ft', shape: 'rect',
+      corners: [{ x: 0, z: 0 }, { x: 400, z: 0 }, { x: 400, z: 360 }, { x: 0, z: 360 }],
+      wallHeight: 270, wallThickness: 12, openings: [],
+      materials: { wallColor: '#e9e6df', floorTexture: 'oak' },
+      furniture: [{ id: 'f1', archetype: 'bed-queen', category: 'bed', name: 'Queen Bed', x: 200, z: 200, rotation: 0, w: 165, d: 212, h: 50, color: '#8a9bb0' }],
+      createdAt: 1, updatedAt: 2,
+    }
+    localStorage.setItem('roomio.designs.v1', JSON.stringify({ 'room-legacy': room }))
+  })
+  await lp.reload({ waitUntil: 'networkidle0' })
+  await sleep(500)
+  const legacyLoaded = await lp.evaluate(() => document.body.innerText.includes('My Old Room'))
+  ok(legacyLoaded, 'an old single-room save (roomio.designs.v1) loads into My Designs')
+  // and the original legacy key is left intact (non-destructive)
+  const legacyIntact = await lp.evaluate(() => !!localStorage.getItem('roomio.designs.v1'))
+  ok(legacyIntact, 'legacy data is preserved (non-destructive migration)')
+  await legacyCtx.close()
 } catch (err) {
   console.error(err)
   failures++

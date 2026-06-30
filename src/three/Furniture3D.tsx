@@ -755,6 +755,275 @@ function buildBox(W: number, D: number, H: number, color: string): JSX.Element {
   )
 }
 
+// --- kitchen / bathroom fixtures ------------------------------------------
+
+/** Kitchen counter: base cabinet + stone top + backsplash + inset sink & faucet. */
+function buildCounter(W: number, D: number, H: number, color: string): JSX.Element {
+  const stone = '#cfcdc6'
+  const toeH = Math.min(0.08, H * 0.1)
+  const topT = 0.04
+  const bodyH = Math.max(0.1, H - toeH - topT)
+  const splashH = 0.1
+  const topY = toeH + bodyH + topT
+  const sinkW = Math.min(0.5, W * 0.34)
+  const sinkD = Math.min(D * 0.62, 0.42)
+  const sinkX = W * 0.22
+  const nDoors = Math.max(2, Math.round(W / 0.6))
+  const doorW = (W - 0.04) / nDoors
+  return (
+    <group>
+      <Box size={[W * 0.97, toeH, D * 0.9]} pos={[0, toeH / 2, 0]} color={shade(color, 0.5)} roughness={0.6} />
+      <Box size={[W, bodyH, D]} pos={[0, toeH + bodyH / 2, 0]} color={color} roughness={0.55} />
+      {/* stone countertop + backsplash */}
+      <Box size={[W * 1.02, topT, D * 1.04]} pos={[0, topY - topT / 2, 0]} color={stone} roughness={0.35} />
+      <Box size={[W * 1.02, splashH, 0.02]} pos={[0, topY + splashH / 2, -D / 2 + 0.01]} color={stone} roughness={0.4} />
+      {/* cabinet door seams (front, +z) */}
+      {Array.from({ length: nDoors }).map((_, i) => {
+        const cx = -W / 2 + 0.02 + doorW * (i + 0.5)
+        return (
+          <group key={i}>
+            <Box size={[doorW - 0.02, bodyH - 0.06, 0.012]} pos={[cx, toeH + bodyH / 2, D / 2 - 0.006]} color={shade(color, 1.05)} roughness={0.5} />
+            <Cyl rTop={0.007} rBottom={0.007} height={0.1} pos={[cx + doorW * 0.32, toeH + bodyH / 2, D / 2 + 0.008]} color={METAL} segments={8} roughness={0.3} metalness={0.7} />
+          </group>
+        )
+      })}
+      {/* inset stainless sink + faucet */}
+      <Box size={[sinkW, 0.05, sinkD]} pos={[sinkX, topY - 0.02, 0]} color="#9a9ea2" roughness={0.25} metalness={0.45} />
+      <Cyl rTop={0.012} rBottom={0.012} height={0.16} pos={[sinkX, topY + 0.08, -sinkD / 2 + 0.05]} color={METAL} segments={10} roughness={0.3} metalness={0.7} />
+      <Box size={[0.05, 0.02, 0.1]} pos={[sinkX, topY + 0.15, -sinkD / 2 + 0.09]} color={METAL} roughness={0.3} metalness={0.7} />
+    </group>
+  )
+}
+
+/** Toilet (commode): tank at the back, pedestal bowl + seat at the front. */
+function buildToilet(W: number, D: number, H: number, _color: string): JSX.Element {
+  const white = '#f3f2ec'
+  const tankH = H * 0.42
+  const tankD = D * 0.22
+  const tankW = W * 0.92
+  const bowlH = H * 0.5
+  const bowlZ = D * 0.1
+  return (
+    <group>
+      {/* tank + lid at the back (-z) */}
+      <Box size={[tankW, tankH, tankD]} pos={[0, H - tankH / 2, -D / 2 + tankD / 2]} color={white} roughness={0.4} />
+      <Box size={[tankW * 1.04, 0.03, tankD * 1.15]} pos={[0, H + 0.015, -D / 2 + tankD / 2]} color={shade(white, 0.96)} roughness={0.4} />
+      {/* pedestal + bowl + seat (front) */}
+      <Cyl rTop={W * 0.3} rBottom={W * 0.22} height={bowlH} pos={[0, bowlH / 2, bowlZ]} color={white} segments={20} roughness={0.4} />
+      <Cyl rTop={W * 0.46} rBottom={W * 0.32} height={H * 0.13} pos={[0, bowlH + H * 0.04, bowlZ]} color={white} segments={24} roughness={0.4} />
+      <Cyl rTop={W * 0.48} rBottom={W * 0.48} height={0.03} pos={[0, bowlH + H * 0.12, bowlZ]} color={shade(white, 0.98)} segments={24} roughness={0.45} />
+    </group>
+  )
+}
+
+/** Shower: low tray + translucent glass enclosure (open front) + showerhead. */
+function buildShower(W: number, D: number, H: number, _color: string): JSX.Element {
+  const tray = '#e6e4de'
+  const glass = '#bcd2dc'
+  const t = 0.018
+  const gh = H * 0.96
+  const gy = 0.06 + gh / 2
+  const Glass = ({ size, pos }: { size: [number, number, number]; pos: [number, number, number] }) => (
+    <mesh position={pos}>
+      <boxGeometry args={size} />
+      <meshStandardMaterial color={glass} transparent opacity={0.26} roughness={0.08} metalness={0.1} />
+    </mesh>
+  )
+  return (
+    <group>
+      <Box size={[W, 0.06, D]} pos={[0, 0.03, 0]} color={tray} roughness={0.5} />
+      {/* back + both sides glass, partial front (door gap) */}
+      <Glass size={[W, gh, t]} pos={[0, gy, -D / 2 + t / 2]} />
+      <Glass size={[t, gh, D]} pos={[-W / 2 + t / 2, gy, 0]} />
+      <Glass size={[t, gh, D]} pos={[W / 2 - t / 2, gy, 0]} />
+      <Glass size={[W * 0.46, gh, t]} pos={[-W * 0.26, gy, D / 2 - t / 2]} />
+      {/* metal frame edges */}
+      <Box size={[W, 0.03, 0.03]} pos={[0, 0.06 + gh, -D / 2 + t / 2]} color={METAL} roughness={0.3} metalness={0.6} />
+      <Box size={[0.03, gh, 0.03]} pos={[-W / 2 + t / 2, gy, D / 2 - t / 2]} color={METAL} roughness={0.3} metalness={0.6} />
+      {/* showerhead + arm on the back wall */}
+      <Box size={[0.03, 0.03, 0.16]} pos={[0, H * 0.9, -D / 2 + 0.06]} color={METAL} roughness={0.3} metalness={0.6} />
+      <Cyl rTop={0.06} rBottom={0.055} height={0.025} pos={[0, H * 0.88, -D / 2 + 0.16]} color={METAL} segments={16} roughness={0.3} metalness={0.7} rotation={[Math.PI / 2, 0, 0]} />
+    </group>
+  )
+}
+
+/** Bathroom vanity / sink base: cabinet body + stone top + recessed basin + faucet. */
+function buildVanity(W: number, D: number, H: number, color: string): JSX.Element {
+  const stone = shade(color, 0.72)
+  const door = shade(color, 1.06)
+  const basinColor = '#eef2f3'
+  const topT = 0.04
+  const cabH = Math.max(0.1, H - topT)
+  const basinR = Math.min(W * 0.3, D * 0.34)
+  const topY = cabH + topT
+  return (
+    <group>
+      <Box size={[W, cabH, D]} pos={[0, cabH / 2, 0]} color={color} roughness={0.5} />
+      <Box size={[W * 1.02, topT, D * 1.04]} pos={[0, cabH + topT / 2, 0]} color={stone} roughness={0.3} />
+      <Cyl rTop={basinR} rBottom={basinR * 0.7} height={topT * 1.6} pos={[0, topY - topT * 0.4, D * 0.05]} color={basinColor} segments={24} roughness={0.18} />
+      <Cyl rTop={0.012} rBottom={0.012} height={0.14} pos={[0, topY + 0.07, -D / 2 + 0.09]} color={METAL} segments={10} roughness={0.3} metalness={0.7} />
+      <Box size={[0.04, 0.02, 0.09]} pos={[0, topY + 0.13, -D / 2 + 0.12]} color={METAL} roughness={0.3} metalness={0.7} />
+      <Box size={[W * 0.46, cabH * 0.82, 0.015]} pos={[-W * 0.24, cabH * 0.46, D / 2 - 0.006]} color={door} roughness={0.5} />
+      <Box size={[W * 0.46, cabH * 0.82, 0.015]} pos={[W * 0.24, cabH * 0.46, D / 2 - 0.006]} color={door} roughness={0.5} />
+    </group>
+  )
+}
+
+/** Built-in (alcove) bathtub: apron shell with a recessed inner basin + faucet. */
+function buildBathtub(W: number, D: number, H: number, color: string): JSX.Element {
+  const inner = shade(color, 0.9)
+  const rim = Math.min(0.09, Math.min(W, D) * 0.08)
+  const innerH = H * 0.72
+  return (
+    <group>
+      <Box size={[W, H, D]} pos={[0, H / 2, 0]} color={color} roughness={0.2} metalness={0.04} />
+      <Box size={[W - rim * 2, innerH, D - rim * 2]} pos={[0, H - innerH / 2 - 0.02, 0]} color={inner} roughness={0.14} />
+      <Cyl rTop={0.018} rBottom={0.018} height={0.14} pos={[-W / 2 + 0.12, H + 0.06, -D / 2 + 0.12]} color={METAL} segments={12} roughness={0.25} metalness={0.7} />
+      <Box size={[0.05, 0.02, 0.1]} pos={[-W / 2 + 0.12, H + 0.12, -D / 2 + 0.16]} color={METAL} roughness={0.25} metalness={0.7} />
+    </group>
+  )
+}
+
+/** Freestanding soaker tub: rounded (elliptical) shell + inner basin + tall floor faucet. */
+function buildTubFreestanding(W: number, D: number, H: number, color: string): JSX.Element {
+  const inner = shade(color, 0.9)
+  const faucetH = H + 0.2
+  return (
+    <group>
+      <mesh position={[0, H / 2, 0]} scale={[W / 2, 1, D / 2]} castShadow receiveShadow>
+        <cylinderGeometry args={[1, 0.86, H, 32]} />
+        <meshStandardMaterial color={color} roughness={0.16} metalness={0.05} />
+      </mesh>
+      <mesh position={[0, H - H * 0.36, 0]} scale={[(W / 2) * 0.84, 1, (D / 2) * 0.84]}>
+        <cylinderGeometry args={[1, 0.92, H * 0.72, 32]} />
+        <meshStandardMaterial color={inner} roughness={0.13} />
+      </mesh>
+      <Cyl rTop={0.02} rBottom={0.022} height={faucetH} pos={[0, faucetH / 2, -D / 2 + 0.05]} color={METAL} segments={12} roughness={0.25} metalness={0.7} />
+      <Box size={[0.05, 0.02, 0.14]} pos={[0, faucetH - 0.02, -D / 2 + 0.14]} color={METAL} roughness={0.25} metalness={0.7} />
+    </group>
+  )
+}
+
+/** Jacuzzi / whirlpool tub: wide deck surround, sunken basin, jet nozzles. */
+function buildJacuzzi(W: number, D: number, H: number, color: string): JSX.Element {
+  const inner = shade(color, 0.85)
+  const rim = Math.min(0.16, Math.min(W, D) * 0.13)
+  const innerH = H * 0.78
+  const jy = H - innerH + 0.06
+  const jx = (W - rim * 2) / 2 - 0.04
+  const jz = (D - rim * 2) / 2 - 0.04
+  const spots: [number, number, number, boolean][] = [
+    [-jx, jy, 0, true], [jx, jy, 0, true], [0, jy, -jz, false], [0, jy, jz, false],
+  ]
+  const jets = spots.map(([x, y, z, sideWall], i) => (
+    <Cyl
+      key={`jet${i}`}
+      rTop={0.02}
+      rBottom={0.02}
+      height={0.04}
+      pos={[x, y, z]}
+      rotation={sideWall ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]}
+      color={METAL}
+      segments={10}
+      roughness={0.3}
+      metalness={0.6}
+    />
+  ))
+  return (
+    <group>
+      <Box size={[W, H, D]} pos={[0, H / 2, 0]} color={color} roughness={0.25} metalness={0.05} />
+      <Box size={[W - rim * 2, innerH, D - rim * 2]} pos={[0, H - innerH / 2 - 0.02, 0]} color={inner} roughness={0.12} metalness={0.05} />
+      {jets}
+      <Cyl rTop={0.02} rBottom={0.02} height={0.12} pos={[-W / 2 + 0.16, H + 0.05, -D / 2 + 0.16]} color={METAL} segments={12} roughness={0.25} metalness={0.7} />
+    </group>
+  )
+}
+
+/** Kitchen island: base cabinet block + stone top overhanging the +z seating side. */
+function buildIsland(W: number, D: number, H: number, color: string): JSX.Element {
+  const stone = shade(color, 0.7)
+  const door = shade(color, 1.05)
+  const toeH = Math.min(0.06, H * 0.08)
+  const topT = 0.05
+  const bodyH = Math.max(0.1, H - toeH - topT)
+  const nDoors = Math.max(2, Math.round(W / 0.6))
+  const doorW = (W - 0.04) / nDoors
+  const doors: JSX.Element[] = []
+  for (let i = 0; i < nDoors; i++) {
+    const cx = -W / 2 + 0.02 + doorW * (i + 0.5)
+    doors.push(
+      <Box key={`d${i}`} size={[doorW - 0.02, bodyH * 0.86, 0.012]} pos={[cx, toeH + bodyH / 2, -D / 2 + 0.006]} color={door} roughness={0.5} />,
+    )
+  }
+  return (
+    <group>
+      <Box size={[W * 0.96, toeH, D * 0.94]} pos={[0, toeH / 2, 0]} color={shade(color, 0.45)} roughness={0.6} />
+      <Box size={[W, bodyH, D]} pos={[0, toeH + bodyH / 2, 0]} color={color} roughness={0.5} />
+      <Box size={[W * 1.04, topT, D * 1.28]} pos={[0, toeH + bodyH + topT / 2, D * 0.12]} color={stone} roughness={0.28} metalness={0.05} />
+      {doors}
+    </group>
+  )
+}
+
+/** Range / stove: body + dark cooktop with burners + oven door/window + handle + knobs. */
+function buildStove(W: number, D: number, H: number, color: string): JSX.Element {
+  const top = DARK
+  const bodyH = H * 0.96
+  const bx = W * 0.26
+  const bz = D * 0.22
+  const burnerR = Math.min(0.09, W * 0.13)
+  const burners = ([[-bx, -bz], [bx, -bz], [-bx, bz], [bx, bz]] as [number, number][]).map(([x, z], i) => (
+    <Cyl key={`b${i}`} rTop={burnerR} rBottom={burnerR} height={0.01} pos={[x, bodyH + 0.012, z]} color={shade(top, 1.25)} segments={20} roughness={0.4} />
+  ))
+  const knobs: JSX.Element[] = []
+  for (let i = 0; i < 4; i++) {
+    knobs.push(
+      <Cyl key={`k${i}`} rTop={0.012} rBottom={0.012} height={0.02} pos={[-W * 0.3 + (W * 0.6 * i) / 3, bodyH * 0.86, D / 2]} rotation={[Math.PI / 2, 0, 0]} color={METAL} segments={10} roughness={0.3} metalness={0.6} />,
+    )
+  }
+  return (
+    <group>
+      <Box size={[W, bodyH, D]} pos={[0, bodyH / 2, 0]} color={color} roughness={0.35} metalness={0.2} />
+      <Box size={[W * 0.98, 0.02, D * 0.96]} pos={[0, bodyH + 0.01, 0]} color={top} roughness={0.18} metalness={0.1} />
+      {burners}
+      <Box size={[W * 0.86, bodyH * 0.52, 0.02]} pos={[0, bodyH * 0.32, D / 2 - 0.005]} color={shade(color, 0.92)} roughness={0.3} metalness={0.25} />
+      <Box size={[W * 0.6, bodyH * 0.26, 0.005]} pos={[0, bodyH * 0.34, D / 2 + 0.006]} color={GLASS} roughness={0.1} metalness={0.2} />
+      <Cyl rTop={0.012} rBottom={0.012} height={W * 0.7} pos={[0, bodyH * 0.6, D / 2 + 0.03]} rotation={[0, 0, Math.PI / 2]} color={METAL} segments={10} roughness={0.3} metalness={0.7} />
+      {knobs}
+    </group>
+  )
+}
+
+/** Refrigerator: tall body + two doors (fridge over freezer) + vertical handles. */
+function buildFridge(W: number, D: number, H: number, color: string): JSX.Element {
+  const door = shade(color, 1.04)
+  const seam = 0.012
+  const topH = H * 0.6
+  const botH = H - topH - seam
+  return (
+    <group>
+      <Box size={[W, H, D]} pos={[0, H / 2, 0]} color={color} roughness={0.3} metalness={0.25} />
+      <Box size={[W * 0.97, topH - seam, 0.02]} pos={[0, H - topH / 2, D / 2 - 0.005]} color={door} roughness={0.32} metalness={0.2} />
+      <Box size={[W * 0.97, botH, 0.02]} pos={[0, botH / 2, D / 2 - 0.005]} color={door} roughness={0.32} metalness={0.2} />
+      <Cyl rTop={0.014} rBottom={0.014} height={topH * 0.6} pos={[-W / 2 + 0.06, H - topH / 2, D / 2 + 0.03]} color={METAL} segments={10} roughness={0.3} metalness={0.7} />
+      <Cyl rTop={0.014} rBottom={0.014} height={botH * 0.6} pos={[-W / 2 + 0.06, botH / 2, D / 2 + 0.03]} color={METAL} segments={10} roughness={0.3} metalness={0.7} />
+    </group>
+  )
+}
+
+/** Range hood: wide canopy + chimney duct (wall-mounted above a cooktop). */
+function buildRangeHood(W: number, D: number, H: number, color: string): JSX.Element {
+  const canopyH = H * 0.45
+  const chimH = H - canopyH
+  return (
+    <group>
+      <Box size={[W, canopyH, D]} pos={[0, canopyH / 2, 0]} color={color} roughness={0.3} metalness={0.3} />
+      <Box size={[W * 0.92, 0.01, D * 0.86]} pos={[0, 0.006, 0]} color={shade(color, 0.7)} roughness={0.4} metalness={0.3} />
+      <Box size={[W * 0.38, chimH, D * 0.5]} pos={[0, canopyH + chimH / 2, -D * 0.12]} color={shade(color, 0.96)} roughness={0.3} metalness={0.3} />
+    </group>
+  )
+}
+
 // ---------------------------------------------------------------------------
 
 export function FurnitureModel({
@@ -814,6 +1083,28 @@ export function FurnitureModel({
         return buildBench(W, D, H, color)
       case 'mirror':
         return buildMirror(W, D, H, color)
+      case 'counter':
+        return buildCounter(W, D, H, color)
+      case 'toilet':
+        return buildToilet(W, D, H, color)
+      case 'shower':
+        return buildShower(W, D, H, color)
+      case 'vanity':
+        return buildVanity(W, D, H, color)
+      case 'bathtub':
+        return buildBathtub(W, D, H, color)
+      case 'tubFreestanding':
+        return buildTubFreestanding(W, D, H, color)
+      case 'jacuzzi':
+        return buildJacuzzi(W, D, H, color)
+      case 'island':
+        return buildIsland(W, D, H, color)
+      case 'stove':
+        return buildStove(W, D, H, color)
+      case 'fridge':
+        return buildFridge(W, D, H, color)
+      case 'rangeHood':
+        return buildRangeHood(W, D, H, color)
       default:
         return buildBox(W, D, H, color)
     }

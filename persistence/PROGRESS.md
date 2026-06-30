@@ -44,11 +44,61 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
         divergence (15 vs 20) + reload recency-cut dropping manual checkpoints → reload routes through
         `capHistory`. Regression tests added for each.
       - 30/30 vitest + 26/26 headless checks. Screenshot `verify-out/c2-3-library.png`.
-- [ ] **C2-4** — Share panel: copy-link + view/edit access (default view) + a dedicated view-only
-      **showcase** link (read-only walkthrough reusing B's flythrough; never the editor/library).
-- [ ] **C2-5** — Exports: image snapshot, furniture shopping list, floor-plan PDF (top-down, room
-      labels + dims from house data); flythrough video via B.
-- [ ] **C2-6** — Backward-compat migration hardening + polish + match Roomio's clean panel UI; cleanup.
+- [x] **C2-4** — Share panel + view/edit access (defaults to view) + view-only **showcase** link.
+      - Showcase payload (`src/share/showcasePayload.ts`) = the SECURITY BOUNDARY: a minimal `{name, scene}`
+        projection (drops design_id/share-tokens/history/thumbnail) encoded URL-safe into the `#s=` fragment.
+      - `src/share/link.ts`: access defaults to view, plain-language sentences, `buildShowcaseUrl`, clipboard.
+      - **Isolated showcase entry** (`showcase.html` → `src/showcase/*`): imports ONLY the decoder + a
+        self-contained 3D scene (`render/worldGeometry.ts` + `showcase/Scene.tsx`, glass-dollhouse) +
+        guided walkthrough. NO session/library/editor in its import graph → a view link is structurally
+        unable to reach the editor or other designs.
+      - Share panel UI (view/edit/private, copy-link, open showcase, `.roomio` export); `.roomio` import in Library.
+      - 38/38 vitest + **36/36 headless checks** incl. the cardinal-sin guard: showcase opened in a FRESH
+        incognito context (no localStorage) renders the room read-only with **no editor chrome / no edit
+        controls / no link back to the editor**. Screenshots `verify-out/c2-4-{share,showcase}.png`.
+- [x] **C2-5** — Exports (all produce REAL downloadable artifacts):
+      - Image snapshot → PNG (high-res top-down render). Shopping list → CSV (`src/export/shoppingList.ts`,
+        aggregated by type+colour+size with qty + rooms) + copy-text. Floor-plan PDF → dependency-free
+        single-page PDF embedding the plan + title/dimensions (`src/export/pdf.ts`, JPEG via DCTDecode).
+      - Flythrough VIDEO is Agent B's (camera_path + F6 MP4) — surfaced as a hand-off, not rebuilt.
+      - 43/43 vitest + 39/39 headless checks; PDF verified valid + openable (`file` → "PDF 1.4, 1 page";
+        Quartz rendered it). Screenshots/artifacts in `verify-out/`.
+- [x] **C2-6** — Backward-compat + polish + match Roomio UI.
+      - One-time, NON-DESTRUCTIVE import of A's pre-persistence `roomio.designs.v1` map into the new
+        library (`src/storage/legacy.ts`); old single-room saves load as one-room houses.
+      - Polish: storage label shows the real backend (`FlakyAdapter.kind` → inner), glass-dollhouse
+        showcase, furniture draw order (rugs under furniture). Production build OK (2 entries;
+        showcase bundle is separate from the editor — isolation holds at the bundle level too).
+      - 45/45 vitest + 41/41 headless checks.
+
+## Acceptance (brief "done" bar) — all verified in `scripts/verify.mjs`
+| Acceptance item | Where |
+|---|---|
+| edit → "Saving…→Saved just now", no button | C2-1 checks |
+| reload → design intact in My Designs with thumbnail | C2-1 checks |
+| rename / duplicate / delete + undo | C2-3 checks |
+| simulated save failure → retry, not loss | C2-2 checks |
+| view-only showcase opened incognito → read-only walk of just that room, no editor/others | C2-4 checks |
+| export image + shopping list + floor-plan PDF | C2-5 checks (real files) |
+| old single-room save still loads | C2-6 check |
+
+Run: `npm test` (50 unit) · `npm run verify` (41 headless browser checks) · `npm run build`.
+
+## Second adversarial review (C2-3..C2-6) — 7 confirmed bugs, all FIXED
+1. **(HIGH, data loss)** deleting the open design didn't cancel autosave → a pending edit resurrected it.
+   Fix: `AutosaveController.cancel()` + a session **tombstone** set the save fn checks (precise, so a new
+   design whose first save failed still persists).
+2. **(HIGH, data loss)** single `lastDeleted` slot → a second delete made the first unrecoverable.
+   Fix: `lastDeleted` is now an undo **stack** (LIFO, capped); both deletes recover.
+3. **(HIGH)** crafted/empty-rooms showcase payload white-screened. Fix: `coerceHouse` rejects zero-room
+   houses → graceful invalid-link state; defensive guard in the walkthrough; **error boundary** in the showcase.
+4. **(HIGH, security)** CSV formula injection. Fix: `csvCell` prefixes `= + - @`-leading cells with `'`.
+5. **(MED)** copied share link could be stale (memo keyed on `rev`). Fix: memo on the live `current` ref.
+6. **(MED)** export crashed on `toDataURL`/`atob` failure. Fix: guarded `dataUrlToBytes` + try/catch +
+   empty-jpeg bail (no zero-length-image PDF).
+7. **(LOW)** no size guard on the self-contained link. Fix: `showcaseUrlSizeAdvice` + soft/hard warning that
+   steers to `.roomio` (never silently truncates).
+Regression tests added for each; 50 unit tests total.
 
 ## Architecture notes
 - `src/scene/slices.ts` — read-only structural mirrors of A's RoomDesign + C's House (+ E's

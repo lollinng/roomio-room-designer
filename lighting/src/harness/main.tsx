@@ -9,7 +9,10 @@ import { useLighting } from '../store'
 // Expose the store for the headless verify script (harness only).
 ;(window as unknown as { __lighting: typeof useLighting }).__lighting = useLighting
 
-const MULTI = new URLSearchParams(window.location.search).has('multi')
+const params = new URLSearchParams(window.location.search)
+const MULTI = params.has('multi')
+const ROOF = params.has('roof')
+const LOWCAM = params.has('lowcam') // place the camera below the ceiling to reveal the roof
 const ROOM_B_X = 4.2 // matches Scene.ROOM_B_OFFSET_X
 
 function App() {
@@ -25,15 +28,17 @@ function App() {
 
   const camera = MULTI
     ? { position: [7.5, 5.2, 7.5] as [number, number, number], fov: 42, near: 0.1, far: 200 }
-    : { position: [4.2, 3.4, 5.2] as [number, number, number], fov: 40, near: 0.1, far: 200 }
-  const target: [number, number, number] = MULTI ? [ROOM_B_X / 2, 0.8, 0] : [0, 0.8, 0]
+    : LOWCAM
+      ? { position: [2.6, 1.2, 3.2] as [number, number, number], fov: 55, near: 0.1, far: 200 }
+      : { position: [4.2, 3.4, 5.2] as [number, number, number], fov: 40, near: 0.1, far: 200 }
+  const target: [number, number, number] = MULTI ? [ROOM_B_X / 2, 0.8, 0] : LOWCAM ? [0, 2.2, -0.5] : [0, 0.8, 0]
 
   return (
     <>
       <Canvas shadows flat dpr={[1, 2]} gl={{ antialias: true, preserveDrawingBuffer: true }} camera={camera}>
         <color attach="background" args={['#cdccc9']} />
-        <Scene multi={MULTI} />
-        <OrbitControls makeDefault target={target} enableDamping maxPolarAngle={Math.PI / 2.05} />
+        <Scene multi={MULTI} roof={ROOF} />
+        <OrbitControls makeDefault target={target} enableDamping maxPolarAngle={LOWCAM ? Math.PI : Math.PI / 2.05} />
       </Canvas>
       <LightingControls roomId="r_demo" />
       <EditingHint />

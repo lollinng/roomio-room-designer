@@ -23,8 +23,10 @@ export function Library() {
   const renameDesign = useSession((s) => s.renameDesign)
   const deleteDesign = useSession((s) => s.deleteDesign)
   const undoDelete = useSession((s) => s.undoDelete)
+  const importDesign = useSession((s) => s.importDesign)
   const lastDeleted = useSession((s) => s.lastDeleted)
   const backend = useSession((s) => s.backend)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   const [sortBy, setSortBy] = useState<SortBy>('recent')
   const [query, setQuery] = useState('')
@@ -35,9 +37,10 @@ export function Library() {
     void refreshLibrary()
   }, [refreshLibrary])
 
+  const pendingUndo = lastDeleted.length ? lastDeleted[lastDeleted.length - 1] : null
   // Show the Undo snackbar when a deletion happens; auto-hide after a while.
   useEffect(() => {
-    if (!lastDeleted) return
+    if (lastDeleted.length === 0) return
     setShowUndo(true)
     const t = setTimeout(() => setShowUndo(false), 8000)
     return () => clearTimeout(t)
@@ -64,6 +67,20 @@ export function Library() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button style={btnPrimary} onClick={createBedroom}>+ New room</button>
           <button style={btnGhost} onClick={createApartment}>+ New apartment</button>
+          <button style={btnGhost} onClick={() => fileRef.current?.click()} title="Import a .roomio file">⤒ Import</button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".roomio,application/json"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = '' // allow re-importing the same file
+              if (!file) return
+              const text = await file.text()
+              await importDesign(text)
+            }}
+          />
         </div>
       </header>
 
@@ -113,9 +130,9 @@ export function Library() {
         </div>
       )}
 
-      {showUndo && lastDeleted && (
+      {showUndo && pendingUndo && (
         <div style={snackbar} role="status">
-          <span>Deleted “{lastDeleted.name}”.</span>
+          <span>Deleted “{pendingUndo.name}”.{lastDeleted.length > 1 ? ` (+${lastDeleted.length - 1} more)` : ''}</span>
           <button
             style={{ ...btnGhost, color: '#9fe3cf', border: '1px solid transparent', padding: '4px 8px' }}
             onClick={() => {

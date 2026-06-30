@@ -168,6 +168,23 @@ Import: `import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'`.
   through unknown top-level keys and NOT downgrade a higher `schema_version`.
 - **One cap, one place.** Duplicated cap constants (history MAX in two files) drift — route load + runtime
   through the same `capHistory`.
+
+### Sharing isolation + backward compat (Agent C, C2-4..C2-6)
+- **Showcase isolation is an import-graph property, not a runtime check.** The view-only showcase is a
+  SEPARATE entry (showcase.html → src/showcase/*) that imports ONLY a payload decoder + a self-contained
+  3D scene — never the session/library/editor. Verified two ways: (1) opened in a fresh incognito context,
+  it renders read-only with no editor chrome / edit controls / link back to index.html; (2) `vite build`
+  emits a `showcase` chunk distinct from the editor `main` chunk. The shared payload/envelope code lives in
+  a third chunk with no editor code.
+- **Showcase payload = minimal projection.** A share link carries only `{ name, scene }` in the URL
+  fragment (#s=base64). It DROPS design_id, share tokens, history, thumbnail — so a link cannot carry other
+  designs even if downstream code were buggy. Fragment (not query) ⇒ never sent to a server.
+- **Dependency-free PDF.** A real floor-plan `.pdf` is produced by embedding the rendered plan as a JPEG
+  via the DCTDecode filter in a hand-built 6-object PDF (src/export/pdf.ts). Validated: `file` → "PDF 1.4,
+  1 page", macOS Quartz renders it. ASCII-fold title text (Helvetica/StandardEncoding can't show em-dash/×).
+- **Old saves migrate once, non-destructively.** A's pre-persistence `roomio.designs.v1` localStorage map
+  is imported into the new envelope library on first run (src/storage/legacy.ts), guarded by a done-flag,
+  never overwriting existing designs, never deleting the old key.
 - **Showcase is a SEPARATE entry point** that only ever receives one design's envelope — never imports the
   store/library. Cardinal sin = a view link reaching the editor. Design defensively (own HTML entry).
 
