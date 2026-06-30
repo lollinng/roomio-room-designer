@@ -31,6 +31,17 @@ export type ModelKind =
   | 'bench'
   | 'mirror'
 
+/**
+ * How a piece occupies space vertically:
+ *  - 'floor'   default — sits on the floor and takes part in footprint collision.
+ *  - 'wall'    hangs on a wall (TV, mirror, floating shelf): rendered at a wall
+ *              height (or resting on a console below it), and EXEMPT from
+ *              footprint collision so it can sit above floor furniture.
+ *  - 'surface' sits on top of another piece (table lamp): elevated onto the
+ *              surface beneath it and exempt from footprint collision.
+ */
+export type Mount = 'floor' | 'wall' | 'surface'
+
 export interface Archetype {
   id: string
   category: FurnitureCategory
@@ -44,6 +55,7 @@ export interface Archetype {
   max: [number, number, number]
   color: string
   lockH?: boolean // height not resizable (rugs)
+  mount: Mount
 }
 
 interface RawArchetype {
@@ -59,6 +71,7 @@ interface RawArchetype {
   max: [number, number, number]
   color: string
   lockH?: boolean
+  mount?: string
 }
 
 const MODEL_KINDS: ModelKind[] = [
@@ -67,6 +80,7 @@ const MODEL_KINDS: ModelKind[] = [
   'tv', 'desk', 'ottoman', 'stool', 'bench', 'mirror',
 ]
 const CATEGORIES: FurnitureCategory[] = ['sofa', 'bed', 'table', 'chair', 'storage', 'decor', 'misc']
+const MOUNTS: Mount[] = ['floor', 'wall', 'surface']
 
 /** Validate + normalize a raw catalog entry into a typed Archetype (defensive). */
 function normalize(r: RawArchetype): Archetype {
@@ -94,6 +108,7 @@ function normalize(r: RawArchetype): Archetype {
     max: [maxW, maxD, maxH],
     color: r.color,
     ...(r.lockH ? { lockH: true } : {}),
+    mount: (MOUNTS as string[]).includes(r.mount ?? '') ? (r.mount as Mount) : 'floor',
   }
 }
 
@@ -102,6 +117,16 @@ export const ARCHETYPES: Archetype[] = (rawCatalog as RawArchetype[]).map(normal
 export const ARCHETYPE_MAP: Record<string, Archetype> = Object.fromEntries(
   ARCHETYPES.map((a) => [a.id, a]),
 )
+
+/** Mount class for an archetype id ('floor' for unknown ids). */
+export function mountOf(id: string): Mount {
+  return ARCHETYPE_MAP[id]?.mount ?? 'floor'
+}
+
+/** True for pieces that hang on a wall or sit on a surface (exempt from footprint collision). */
+export function isMounted(id: string): boolean {
+  return mountOf(id) !== 'floor'
+}
 
 export const CATEGORY_ORDER: { id: FurnitureCategory; label: string }[] = [
   { id: 'sofa', label: 'Sofas' },

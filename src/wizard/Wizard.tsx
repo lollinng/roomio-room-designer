@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, type Stage } from '../store'
+import { useLighting } from '../../lighting/src/store'
+import { showEditingHints } from '../../lighting/src/contract'
 import { RoomView } from '../three/RoomView'
 import { captureView } from '../three/cameraBus'
 import { saveDesign, storageMode } from '../repository'
@@ -49,6 +51,7 @@ export function Wizard() {
   const canUndo = useStore((s) => s.past.length > 0)
   const canRedo = useStore((s) => s.future.length > 0)
   const meta = META[stage]
+  const lightMode = useLighting((s) => s.lightMode)
   const [saved, setSaved] = useState(false)
 
   const onSave = async () => {
@@ -149,7 +152,7 @@ export function Wizard() {
             ⌂
           </button>
         </div>
-        <div className="vp-hint">{HINTS[stage]}</div>
+        {showEditingHints(lightMode) && <div className="vp-hint">{HINTS[stage]}</div>}
       </div>
     </>
   )

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
+import { useLighting } from '../../lighting/src/store'
+import { showEditingHints } from '../../lighting/src/contract'
 import { ARCHETYPES, ARCHETYPE_MAP, CATEGORY_ORDER } from '../data/archetypes'
 import { formatLenShort } from '../units'
 import type { FurnitureItem } from '../types'
@@ -163,6 +165,7 @@ export function Furnish() {
   const sel = useStore((s) => s.selectedFurnitureId)
   const furniture = useStore((s) => s.design.furniture)
   const addFurnitureCentered = useStore((s) => s.addFurnitureCentered)
+  const lightMode = useLighting((s) => s.lightMode)
   const [scanning, setScanning] = useState(false)
 
   const selected = sel ? furniture.find((f) => f.id === sel) : undefined
@@ -205,10 +208,12 @@ export function Furnish() {
         )
       })}
 
-      <p className="hint">
-        Click a piece to add it, then drag, rotate, resize and recolor it. Furniture snaps to walls
-        and won't pass through them.
-      </p>
+      {showEditingHints(lightMode) && (
+        <p className="hint">
+          Click a piece to add it, then drag, rotate, resize and recolor it. Furniture snaps to walls
+          and won't pass through them.
+        </p>
+      )}
     </div>
   )
 }

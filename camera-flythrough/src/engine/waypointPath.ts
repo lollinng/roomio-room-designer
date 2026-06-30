@@ -73,12 +73,29 @@ export class WaypointPath {
     this.changeCbs.forEach((c) => c())
   }
 
+  private overlay: HTMLDivElement | null = null
+
   // ---- editing lifecycle ----
+  // Bind pointer handling to a transparent overlay div placed exactly over the
+  // canvas, NOT the canvas itself. This isolates waypoint authoring from the
+  // host's own canvas interactions (e.g. the app's furniture select/drag in the
+  // furnish stage) — those events never reach the WebGL canvas while editing.
   enableEditing(camera: THREE.Camera) {
     this.camera = camera
     if (this.editing) return
     this.editing = true
-    const el = this.handle.domElement
+    const canvas = this.handle.domElement
+    const parent = canvas.parentElement ?? document.body
+    const el = document.createElement('div')
+    el.className = 'fly-overlay'
+    el.style.cssText = 'position:absolute;inset:0;z-index:5;cursor:crosshair;touch-action:none'
+    // ensure the parent is a positioning context
+    if (getComputedStyle(parent).position === 'static') parent.style.position = 'relative'
+    // hide the host's in-canvas DOM overlays (e.g. drei <Html> furniture badges)
+    // while authoring — they'd clutter the director view and steal clicks.
+    parent.classList.add('fly-editing')
+    parent.appendChild(el)
+    this.overlay = el
     el.addEventListener('pointerdown', this.onPointerDown)
     el.addEventListener('pointermove', this.onPointerMove)
     el.addEventListener('pointerup', this.onPointerUp)
@@ -86,10 +103,15 @@ export class WaypointPath {
   disableEditing() {
     if (!this.editing) return
     this.editing = false
-    const el = this.handle.domElement
-    el.removeEventListener('pointerdown', this.onPointerDown)
-    el.removeEventListener('pointermove', this.onPointerMove)
-    el.removeEventListener('pointerup', this.onPointerUp)
+    const el = this.overlay
+    if (el) {
+      el.parentElement?.classList.remove('fly-editing')
+      el.removeEventListener('pointerdown', this.onPointerDown)
+      el.removeEventListener('pointermove', this.onPointerMove)
+      el.removeEventListener('pointerup', this.onPointerUp)
+      el.remove()
+      this.overlay = null
+    }
     this.dragging = -1
     this.pendingFloor = null
   }

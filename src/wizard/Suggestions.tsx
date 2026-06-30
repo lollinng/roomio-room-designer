@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useStore } from '../store'
-import { evaluate, type Suggestion } from '../suggestions/engine'
+import { evaluate, placementWarnings, type Suggestion } from '../suggestions/engine'
 
 /**
  * Design-suggestion dropdown. Re-evaluates the rulebook on every scene change
@@ -13,12 +13,15 @@ export function Suggestions() {
   const dismiss = useStore((s) => s.dismissSuggestion)
   const addFurnitureCentered = useStore((s) => s.addFurnitureCentered)
   const selectFurniture = useStore((s) => s.selectFurniture)
+  const snapToWall = useStore((s) => s.snapToWall)
 
   // Recomputed whenever the design (furniture / materials / room) changes.
   const all = useMemo(() => evaluate(design), [design])
+  const warnings = useMemo(() => placementWarnings(design), [design])
   const visible = all.filter((s) => !dismissed.includes(s.rule_id))
+  const visibleWarnings = warnings.filter((w) => !dismissed.includes(w.key))
 
-  if (visible.length === 0) return null
+  if (visible.length === 0 && visibleWarnings.length === 0) return null
 
   const necessity = visible.filter((s) => s.tier === 'necessity')
   const polish = visible.filter((s) => s.tier === 'polish')
@@ -30,41 +33,111 @@ export function Suggestions() {
   }
 
   return (
-    <div
-      style={{
-        marginBottom: 18,
-        border: '1.5px solid #e6e3dd',
-        borderRadius: 14,
-        background: '#fff',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          padding: '11px 14px',
-          fontSize: 13,
-          fontWeight: 800,
-          color: 'var(--ink)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          borderBottom: '1px solid #efece6',
-          background: '#fbfaf7',
-        }}
-      >
-        <span>💡 Suggestions</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)' }}>
-          {necessity.length > 0 ? `${necessity.length} to fix · ` : ''}
-          {polish.length} polish
-        </span>
-      </div>
+    <>
+      {visible.length > 0 && (
+        <div
+          style={{
+            marginBottom: 14,
+            border: '1.5px solid #e6e3dd',
+            borderRadius: 14,
+            background: '#fff',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '11px 14px',
+              fontSize: 13,
+              fontWeight: 800,
+              color: 'var(--ink)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              borderBottom: '1px solid #efece6',
+              background: '#fbfaf7',
+            }}
+          >
+            <span>💡 Suggestions</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)' }}>
+              {necessity.length > 0 ? `${necessity.length} to fix · ` : ''}
+              {polish.length} polish
+            </span>
+          </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {[...necessity, ...polish].map((s) => (
-          <SuggestionRow key={s.rule_id} s={s} onAdd={() => onAdd(s)} onDismiss={() => dismiss(s.rule_id)} />
-        ))}
-      </div>
-    </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {[...necessity, ...polish].map((s) => (
+              <SuggestionRow key={s.rule_id} s={s} onAdd={() => onAdd(s)} onDismiss={() => dismiss(s.rule_id)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {visibleWarnings.length > 0 && (
+        <div
+          style={{
+            marginBottom: 18,
+            border: '1.5px solid #efd9b8',
+            borderRadius: 14,
+            background: '#fffaf0',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '11px 14px',
+              fontSize: 13,
+              fontWeight: 800,
+              color: 'var(--ink)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              borderBottom: '1px solid #f1e4ca',
+              background: '#fdf3e2',
+            }}
+          >
+            <span>⚠️ Placement warnings</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {visibleWarnings.map((w) => (
+              <div
+                key={w.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: '11px 14px',
+                  borderTop: '1px solid #f4e8d4',
+                }}
+              >
+                <span style={{ marginTop: 1, fontSize: 13 }}>📌</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.4 }}>{w.message}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 'none', padding: '4px 12px' }}
+                      onClick={() => {
+                        snapToWall(w.itemId)
+                        selectFurniture(w.itemId)
+                      }}
+                    >
+                      Move to wall
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ flex: 'none', padding: '4px 12px' }}
+                      onClick={() => dismiss(w.key)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

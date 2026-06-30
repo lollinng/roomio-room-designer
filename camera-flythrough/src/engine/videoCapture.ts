@@ -25,6 +25,12 @@ export interface CaptureOpts {
   /** export resolution; defaults to the canvas backing-store size */
   width?: number
   height?: number
+  /**
+   * Capture at the canvas's current backing size without touching the
+   * renderer's size/pixelRatio. Use inside React-Three-Fiber, whose own loop
+   * manages size — resizing mid-capture would fight it. (width/height ignored.)
+   */
+  noResize?: boolean
   /** auto-download the file when done (true for UI; false for tests) */
   download?: boolean
   filename?: string
@@ -64,10 +70,11 @@ export async function captureFlythrough(
 
   const fps = opts.fps ?? 30
   const canvas = renderer.domElement
+  const noResize = opts.noResize ?? false
 
   // resolution (clamped to AVC max, forced even)
-  let w = even(opts.width ?? canvas.width)
-  let h = even(opts.height ?? canvas.height)
+  let w = even(noResize ? canvas.width : (opts.width ?? canvas.width))
+  let h = even(noResize ? canvas.height : (opts.height ?? canvas.height))
   if (w * h > AVC_MAX_PIXELS) {
     const s = Math.sqrt(AVC_MAX_PIXELS / (w * h))
     w = even(w * s)
@@ -86,10 +93,12 @@ export async function captureFlythrough(
   const prevAspect = recordingCamera.aspect
   const prevTau = playback.tauSeconds
 
-  renderer.setPixelRatio(1)
-  renderer.setSize(w, h, false)
-  recordingCamera.aspect = w / h
-  recordingCamera.updateProjectionMatrix()
+  if (!noResize) {
+    renderer.setPixelRatio(1)
+    renderer.setSize(w, h, false)
+    recordingCamera.aspect = w / h
+    recordingCamera.updateProjectionMatrix()
+  }
 
   const webcodecs = webCodecsAvailable()
   // NOTE: do NOT pass width/height to the Recorder — its `set width` writes to
@@ -121,10 +130,12 @@ export async function captureFlythrough(
   } finally {
     await recorder.dispose?.()
     // restore renderer + camera + playhead
-    renderer.setPixelRatio(prevPixelRatio)
-    renderer.setSize(prevSize.x, prevSize.y, false)
-    recordingCamera.aspect = prevAspect
-    recordingCamera.updateProjectionMatrix()
+    if (!noResize) {
+      renderer.setPixelRatio(prevPixelRatio)
+      renderer.setSize(prevSize.x, prevSize.y, false)
+      recordingCamera.aspect = prevAspect
+      recordingCamera.updateProjectionMatrix()
+    }
     playback.tauSeconds = prevTau
   }
   return result
