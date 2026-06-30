@@ -83,15 +83,9 @@ try {
   )
   ok(banner, 'Light Mode "furniture locked" banner shown')
   const barShown = await exists('input[aria-label="Time of day"]')
-  ok(barShown, 'entering Light Mode surfaces the time bar (lighting UI)')
+  ok(barShown, 'opening Light Mode reveals the lighting controls (were hidden by default)')
 
-  // turn it OFF -> default state restored
-  ok(await clickText('Light Mode'), 'clicked Light Mode toggle off')
-  await sleep(600)
-  await shot('app-03-lightmode-off.png')
-  ok(await hasHint(), 'move-furniture hint returns when Light Mode is off (default state)')
-
-  // scrub the time slider to a low sun so the visible 3D sun + compass marker are clearly in view
+  // while OPEN: scrub the time slider to a low sun so the visible 3D sun + compass marker show
   await page.evaluate(() => {
     const el = document.querySelector('input[aria-label="Time of day"]')
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
@@ -100,8 +94,14 @@ try {
   })
   await sleep(700)
   await shot('app-04-low-sun.png')
-  const movedSun = await exists('input[aria-label="Time of day"]')
-  ok(movedSun, 'time slider scrubs (sun/compass update) — see app-04-low-sun.png')
+
+  // close it -> default state restored, controls hidden again
+  ok(await clickText('Light Mode'), 'clicked Light Mode toggle off')
+  await sleep(600)
+  await shot('app-03-lightmode-off.png')
+  ok(await hasHint(), 'move-furniture hint returns when Light Mode is off (default state)')
+  const controlsHidden = !(await exists('input[aria-label="Time of day"]'))
+  ok(controlsHidden, 'lighting controls hidden when Light Mode is off (only the launcher shows)')
 
   console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILED'} — screenshots in verify-out/`)
 } finally {

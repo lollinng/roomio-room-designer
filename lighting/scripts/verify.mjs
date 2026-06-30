@@ -149,27 +149,21 @@ try {
   await shot('06-north180.png')
   ok(diff(n0.lum, n180.lum) > 0.03, `reverse north (180) changes light direction (${(diff(n0.lum, n180.lum) * 100).toFixed(1)}% changed)`)
 
-  // 6) COLLAPSE PANEL — controls hide, scene still renders
+  // 6) CONTROLS HIDDEN BY DEFAULT (Light Mode off) — only the launcher shows; scene still renders
   await set({ northOffsetDeg: 0 })
-  await page.evaluate(() => {
-    const btn = document.querySelector('button[aria-label="Collapse lighting panel"]')
-    if (btn) btn.click()
-  })
+  await page.evaluate(() => window.__lighting.getState().toggleLightMode(false))
   await sleep(400)
   const hidden = await sample()
   await shot('07-controls-hidden.png')
   const barGone = await page.evaluate(() => !document.querySelector('input[aria-label="Time of day"]'))
-  ok(barGone, 'collapsing the panel hides the controls')
+  ok(barGone, 'controls hidden by default (Light Mode off) — only the launcher shows')
+  const launcher = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('button')).some((b) => /Light Mode/.test(b.textContent || '')),
+  )
+  ok(launcher, 'compact Light Mode launcher is present when closed')
   ok(hidden.mean > 80, `scene still renders with controls hidden (mean ${hidden.mean.toFixed(0)})`)
-  // re-expand for the remaining checks
-  await page.evaluate(() => {
-    const btn = document.querySelector('button[aria-label="Expand lighting panel"]')
-    if (btn) btn.click()
-  })
-  await sleep(200)
 
-  // 7) LIGHT MODE — locks furniture (badges) + hides the bottom editing hint
-  await sleep(100)
+  // 7) LIGHT MODE — opens controls + locks furniture (badges) + hides the bottom editing hint
   const hintBefore = await page.evaluate(() => !!document.querySelector('p.hint'))
   ok(hintBefore, 'editing hint shown when Light Mode is off (default furniture state)')
   await page.evaluate(() => window.__lighting.getState().toggleLightMode(true))
