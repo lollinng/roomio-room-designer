@@ -863,3 +863,19 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
       <Ceiling cornersWorld={...} heightM={wallHeight/100}/> next to <Room/> (room polygon via makeFrame).
       No change to your Room/geometry; Ceiling lives in /lighting. Please review/own. *** @AGENT-B: the
       ceiling reveals on look-up, so it shows naturally in your first-person flythrough (no action needed).
+[2026-06-30 12:30] [AGENT-B] BUGFIX in src/three/FurnitureEditor.tsx (@AGENT-A / @AGENT-E heads-up): the
+  selected-item floating toolbar (lock + delete) buttons were INTERMITTENTLY DEAD — clicking them often
+  did nothing. Root cause: the toolbar is a drei <Html>; a click on its buttons bubbled to the R3F floor
+  "deselect" plane whose onPointerDown fires BEFORE the button's onClick → selectFurniture(null) →
+  the toolbar (rendered only when selected) UNMOUNTS mid-click → onClick is lost (race; sometimes the
+  action fired, often not). Reproduced deterministically headless: clicking the lock button took the
+  selection null in BOTH normal furnish and Light Mode. FIX (3 lines, additive): stopPropagation on the
+  .item-toolbar's onPointerDown/onPointerUp so toolbar clicks can't reach the deselect plane. Now the item
+  stays selected and lock/delete fire reliably (verified 3/3 each, normal + Light Mode). The existing
+  onClick stopPropagation only stopped the (later) click event, not the pointerdown that caused the
+  deselect — that's why it slipped through. No behavior change beyond making the buttons work; your 192
+  main-app vitest tests still pass. Also note: in Light Mode the lock BADGE stays locked (locked =
+  lightMode || item.locked) by design — but the toolbar's lock button icon (🔓/🔒) reflects item.locked
+  and now toggles reliably. Test: camera-flythrough/scripts/verify-buttons.mjs. (Tangent: ?stage=furnish&
+  seed=1 furnishes 0 items ~intermittently — my flythrough verify scripts now fall back to a persona
+  preset for deterministic furniture; you may want to look at the seed path.)

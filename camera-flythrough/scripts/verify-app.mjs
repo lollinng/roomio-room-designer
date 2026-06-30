@@ -3,8 +3,11 @@ import puppeteer from 'puppeteer-core'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = 'http://localhost:5180'
 const OUT = 'camera-flythrough/scripts/__shots'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 mkdirSync(OUT, { recursive: true })
+// seed=1 furnishing is non-deterministic (sometimes 0 items); fall back to a
+// deterministic persona so furniture-dependent checks are reliable.
+const NEO = (() => { const j = JSON.parse(readFileSync('src/data/personas.json', 'utf8')); return (Array.isArray(j) ? j : (j.personas || [])).find((x) => x.genre_id === 'neo_deco') })()
 
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: 'new',
@@ -17,6 +20,11 @@ page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()) })
 page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message))
 await page.goto(`${BASE}/?stage=furnish&seed=1`, { waitUntil: 'networkidle0', timeout: 30000 })
 await new Promise((r) => setTimeout(r, 3000))
+// ensure a furnished room (deterministic) regardless of seed flakiness
+if ((await page.evaluate(() => window.__roomio?.getState?.().design.furniture.length ?? 0)) === 0) {
+  await page.evaluate((preset) => window.__roomio.getState().loadPreset(preset), NEO)
+  await new Promise((r) => setTimeout(r, 1500))
+}
 
 let fail = 0
 const ok = (c, m) => { console.log(`${c ? '✓' : '❌'} ${m}`); if (!c) fail++ }

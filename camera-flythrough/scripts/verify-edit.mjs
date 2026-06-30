@@ -1,8 +1,10 @@
 // Furniture select / remove / rotate: works fresh, blocked DURING flythrough path-mode,
 // available via the EDIT-FURNITURE toggle, and fully restored AFTER closing.
 import puppeteer from 'puppeteer-core'
+import { readFileSync } from 'node:fs'
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const BASE = 'http://localhost:5180'
+const NEO = (() => { const j = JSON.parse(readFileSync('src/data/personas.json', 'utf8')); return (Array.isArray(j) ? j : (j.personas || [])).find((x) => x.genre_id === 'neo_deco') })()
 
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: 'new',
@@ -15,6 +17,10 @@ page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()) })
 page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message))
 await page.goto(`${BASE}/?stage=furnish&seed=1`, { waitUntil: 'networkidle0', timeout: 30000 })
 await new Promise((r) => setTimeout(r, 3000))
+if ((await page.evaluate(() => window.__roomio?.getState?.().design.furniture.length ?? 0)) === 0) {
+  await page.evaluate((preset) => window.__roomio.getState().loadPreset(preset), NEO)
+  await new Promise((r) => setTimeout(r, 1500))
+}
 
 let fail = 0
 const ok = (c, m) => { console.log(`${c ? '✓' : '❌'} ${m}`); if (!c) fail++ }
