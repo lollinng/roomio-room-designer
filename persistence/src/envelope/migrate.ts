@@ -23,6 +23,7 @@ import {
 } from './types'
 import type { House, LightingStateLike } from '../scene/slices'
 import { coerceHouse } from '../scene/coerce'
+import { capHistory } from './history'
 import { uid } from '../util/id'
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -34,8 +35,6 @@ function isFiniteNumber(v: unknown): v is number {
 function str(v: unknown, fallback: string): string {
   return typeof v === 'string' && v ? v : fallback
 }
-
-const MAX_HISTORY = 20
 
 function coerceShare(v: unknown): ShareState {
   if (!isObj(v)) return freshShareState()
@@ -70,7 +69,10 @@ function coerceHistory(v: unknown): VersionSnapshot[] | undefined {
       thumbnail: typeof s.thumbnail === 'string' ? s.thumbnail : null,
     })
   }
-  return out.length ? out.slice(-MAX_HISTORY) : undefined
+  // Use the SAME cap + manual-checkpoint-preserving eviction as the runtime
+  // (history.ts capHistory), so a save→reload round-trip is deterministic and
+  // never drops an older manual restore point by mere recency.
+  return out.length ? capHistory(out) : undefined
 }
 
 /** Build a complete envelope around a known-good House + lighting + metadata. */
@@ -105,7 +107,7 @@ export function migrateToEnvelope(value: unknown): RoomioDesign | null {
     const scene = value.scene as Record<string, unknown>
     const house = coerceHouse(scene.house)
     if (!house) return null
-    return envelopeFrom(house, coerceLighting(scene.lighting), {
+    const env = envelopeFrom(house, coerceLighting(scene.lighting), {
       design_id: value.design_id as string,
       name: value.name as string,
       createdAt: value.createdAt as number,
@@ -115,6 +117,16 @@ export function migrateToEnvelope(value: unknown): RoomioDesign | null {
       share: coerceShare(value.share),
       history: coerceHistory(value.history),
     })
+    // Forward-compat (types.ts contract: "unknown fields preserved on round-trip"):
+    // carry through any unknown top-level keys a NEWER Roomio added, and never
+    // downgrade the version — preserve the source's (possibly higher) schema_version
+    // so re-saving in an older client doesn't silently strip v2 data.
+    const KNOWN = new Set([
+      'schema_version', 'design_id', 'name', 'createdAt', 'updatedAt', 'rev', 'thumbnail', 'scene', 'share', 'history',
+    ])
+    const extras: Record<string, unknown> = {}
+    for (const k of Object.keys(value)) if (!KNOWN.has(k)) extras[k] = value[k]
+    return { ...extras, ...env, schema_version: str(value.schema_version, ENVELOPE_VERSION) }
   }
 
   // (2) a flat { house, lighting } (envelope without the wrapper fields)

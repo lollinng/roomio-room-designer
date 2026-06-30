@@ -8,7 +8,7 @@
  */
 import { create } from 'zustand'
 import type { RoomioDesign, DesignSummary } from '../envelope/types'
-import { createDesign } from '../envelope/factory'
+import { createDesign, duplicateDesign } from '../envelope/factory'
 import type { House, LightingStateLike } from '../scene/slices'
 import { DesignRepository } from '../storage/repository'
 import { LocalStorageAdapter, type StorageAdapter } from '../storage/adapter'
@@ -41,6 +41,8 @@ export interface SessionState {
   /** True when the storage backend supports the demo failure simulation. */
   canSimulateFailure: boolean
   failureSimOn: boolean
+  /** The most recently deleted design, kept in memory so a delete is UNDOable. */
+  lastDeleted: RoomioDesign | null
 
   // lifecycle
   refreshLibrary: () => Promise<void>
@@ -48,6 +50,11 @@ export interface SessionState {
   newDesign: (house: House, lighting?: LightingStateLike | null, name?: string) => Promise<RoomioDesign>
   open: (id: string) => Promise<boolean>
   closeToLibrary: () => Promise<void>
+  // library management (operate by id; the design need not be open)
+  duplicate: (id: string) => Promise<string | null>
+  renameDesign: (id: string, name: string) => Promise<void>
+  deleteDesign: (id: string) => Promise<void>
+  undoDelete: () => Promise<void>
   // editing (optimistic + autosave)
   rename: (name: string) => void
   mutate: (producer: (d: RoomioDesign) => RoomioDesign) => void
@@ -94,10 +101,21 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
   const autosave = makeAutosave(
     () => repo,
     (committed) => {
-      // Reflect the durable rev/updatedAt back into the optimistic model.
       const st = useSession.getState()
-      if (st.current?.design_id === committed.design_id) {
-        useSession.setState({ current: committed })
+      const cur = st.current
+      if (cur?.design_id === committed.design_id) {
+        // The save fn keeps committed.scene === the scene object it was handed.
+        // If `current` still points at that same scene, nothing newer happened →
+        // reflect the whole committed envelope. If the user edited DURING the save
+        // (current.scene is a newer object), we must NOT overwrite their newer
+        // edit — adopt only the durable bookkeeping (rev/updatedAt) and keep the
+        // newer scene/name/history. (Critical: prevents silent loss of an
+        // acknowledged optimistic edit; the newer edit re-saves via coalescing.)
+        if (cur.scene === committed.scene) {
+          useSession.setState({ current: committed })
+        } else {
+          useSession.setState({ current: { ...cur, rev: committed.rev, updatedAt: committed.updatedAt } })
+        }
       }
       void st.refreshLibrary()
     },
@@ -111,6 +129,7 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
     summaries: [],
     canSimulateFailure: !!fault,
     failureSimOn: false,
+    lastDeleted: null,
 
     refreshLibrary: async () => {
       const summaries = await useSession.getState().repo.list()
@@ -137,8 +156,56 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
     closeToLibrary: async () => {
       // Flush any pending edits before leaving so nothing is lost.
       await useSession.getState().autosave.saveNow()
+      // Guard against the cardinal sin: if a save is still pending (e.g. storage
+      // down), keep the editor open rather than dropping the unsaved design.
+      if (useSession.getState().autosave.hasUnsaved()) return
       useSession.setState({ current: null })
       await useSession.getState().refreshLibrary()
+    },
+
+    // ── library management ──
+    duplicate: async (id) => {
+      const st = useSession.getState()
+      const src = await st.repo.load(id)
+      if (!src) return null
+      const copy = duplicateDesign(src)
+      await st.repo.save(copy)
+      await st.refreshLibrary()
+      return copy.design_id
+    },
+
+    renameDesign: async (id, name) => {
+      const st = useSession.getState()
+      const trimmed = name.trim() || 'Untitled room'
+      // If the design is currently open, route through the optimistic editor path.
+      if (st.current?.design_id === id) {
+        st.rename(trimmed)
+        return
+      }
+      const d = await st.repo.load(id)
+      if (!d) return
+      await st.repo.save({ ...d, name: trimmed, updatedAt: Date.now(), rev: d.rev + 1 })
+      await st.refreshLibrary()
+    },
+
+    deleteDesign: async (id) => {
+      const st = useSession.getState()
+      // Keep the full envelope in memory so the delete is UNDOable (not a trap).
+      const victim = await st.repo.load(id)
+      await st.repo.remove(id)
+      useSession.setState({ lastDeleted: victim ?? null })
+      // If the deleted design was open, return to the library.
+      if (st.current?.design_id === id) useSession.setState({ current: null })
+      await st.refreshLibrary()
+    },
+
+    undoDelete: async () => {
+      const st = useSession.getState()
+      const d = st.lastDeleted
+      if (!d) return
+      await st.repo.save(d)
+      useSession.setState({ lastDeleted: null })
+      await st.refreshLibrary()
     },
 
     rename: (name) => {

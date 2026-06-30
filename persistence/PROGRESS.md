@@ -32,8 +32,18 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
         History panel. ⌘/Ctrl-S = manual restore point.
       - 22/22 vitest + 19/19 headless checks (failure→retry, rev frozen during failure, kept-in-memory,
         recovery, checkpoint→restore-point, restore-as-new-rev). Screenshot `verify-out/c2-2-retry.png`.
-- [ ] **C2-3** — My Designs library: grid of cards (thumbnail + name + last-edited), open / inline
-      rename / duplicate / delete-with-undo; new design = "Untitled room" autosaved; sort/filter.
+- [x] **C2-3** — My Designs library: grid of cards (thumbnail + name + last-edited), open / inline
+      rename / duplicate / delete-with-undo; new design autosaved; sort (recent/name) + search.
+      - Session actions `duplicate`/`renameDesign`/`deleteDesign`/`undoDelete` (+ `lastDeleted`).
+      - Library UI: cards, inline rename, duplicate, delete + Undo snackbar, search + sort.
+      - **Adversarial review (workflow) of the C2-0..C2-2 foundation found + FIXED 5 real bugs**
+        (2 critical data-loss): (a) mid-session storage degrade orphaned the whole library →
+        `degrade()` now seeds the fallback from localStorage first; (b) `onSaved` clobbered a newer
+        in-flight edit → scene-reference check keeps the newer edit; (c) newer-schema envelope was
+        downgraded + unknown top-level fields dropped → preserved on round-trip; (d/e) `MAX_HISTORY`
+        divergence (15 vs 20) + reload recency-cut dropping manual checkpoints → reload routes through
+        `capHistory`. Regression tests added for each.
+      - 30/30 vitest + 26/26 headless checks. Screenshot `verify-out/c2-3-library.png`.
 - [ ] **C2-4** — Share panel: copy-link + view/edit access (default view) + a dedicated view-only
       **showcase** link (read-only walkthrough reusing B's flythrough; never the editor/library).
 - [ ] **C2-5** — Exports: image snapshot, furniture shopping list, floor-plan PDF (top-down, room

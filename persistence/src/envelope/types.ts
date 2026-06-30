@@ -51,8 +51,13 @@ export interface SceneEnvelope {
 
 /** The full saved design. This is exactly what a `.roomio` file contains. */
 export interface RoomioDesign {
-  /** Envelope format version (string), for migration. */
-  schema_version: typeof ENVELOPE_VERSION
+  /**
+   * Envelope format version (string), for migration. Typed as a plain string
+   * (not the literal) because the envelope is contractually forward-compatible:
+   * a newer Roomio may write '2.0', and an older client must preserve that
+   * version (and any unknown fields) rather than silently downgrade it.
+   */
+  schema_version: string
   design_id: string
   name: string
   createdAt: number

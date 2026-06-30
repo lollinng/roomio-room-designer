@@ -125,3 +125,56 @@ Code in `/persistence`. Contract: `shared/save_envelope_schema.json` (v1.0).
   house coercion changes materially.**
 - Showcase MUST be a separate entry point that only receives one design's envelope — never imports the
   store/library. Cardinal sin = a view link reaching the editor. Design defensively (own HTML entry).
+
+---
+
+## Shared canonical lib `shared/lib/` (Agent F — QA/dedup)
+
+**`shared/lib/math.ts` is the single source of truth for these pure scalar helpers — do NOT re-fork
+them back into an island.** Import via a relative path:
+
+```ts
+import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'
+```
+
+| Export | Body | Was duplicated in (now imports) |
+|---|---|---|
+| `clamp(v, lo, hi)` | `v < lo ? lo : v > hi ? hi : v` (NaN passes through) | src/geometry/collision.ts (dead, deleted), lighting/src/colorTemp.ts |
+| `clamp01(v)` | `v < 0 ? 0 : v > 1 ? 1 : v` (= `clamp(v,0,1)`) | lighting/src/sun.ts, multi-room/src/connectors.ts |
+| `DEG2RAD` | `Math.PI / 180` | src/data/personas.ts, lighting/src/sun.ts |
+
+- **This is the repo's first cross-island TS import.** It is proven to resolve under each island's
+  **vitest AND tsc** even though `shared/lib` sits outside every island's `tsconfig include:["src"]`
+  (`moduleResolution:"bundler"` pulls the imported leaf in transitively). Behavior is pinned by
+  `shared/lib/math.test.ts`, **run by the ROOT vitest** (`vitest.config.ts` include adds
+  `'shared/lib/**/*.test.ts'`). There is no package.json/vitest under `/shared` — root owns its tests.
+- **Gotcha (`noUnusedLocals`):** lighting / multi-room / camera-flythrough set `noUnusedLocals:true`, so
+  when you import a helper you MUST delete the local copy in the SAME edit, or tsc fails on the orphan.
+- **NOT consolidated (deliberately distinct — leave alone):** `src/data/personas.ts` 4-arg
+  `clamp(v,def,lo,hi)` (undefined-handling), `src/data/archetypes.ts` `clampAxis` (returns a tuple),
+  and the Python `detection-pipeline` inline clamps. Same name, different behavior.
+- **Still duplicated, NOT yet consolidated — pending Agent D ratification of cross-island coupling** (see
+  roomio.txt DECISIONs D1–D3): the geometry bundle (`footprintCorners`, `polygonCentroid`,
+  `pointInPolygon`, `dot2`, `obbAxes`/`obbOverlap`, `signedArea`, `pointOnWall`, full `bbox`,
+  `buildWallParts`, the `OBB` type) and the type-guard bundle (`isObj`, `isFiniteNumber`, `looksLike*`).
+  Once D ratifies, these become mechanical repeats of the math.ts pattern.
+- **DIVERGENT across islands — must NOT be blindly merged** (each an owner decision, not a dedup):
+  `uid` (3 different id FORMATS; ids are serialized → data contract), `coerceHouse`/`wrapSingleRoom`
+  (impure `Date.now()`/timestamp semantics, pinned by migrate.test), `toWorld` room→house
+  (`{x,z}` vs persistence `{x,y}` + missing rotation/NaN guard), `deriveWalls`, `makeFrame`,
+  download helpers. See the Agent F catalogue in roomio.txt.
+
+### Hard-won bugs (adversarial review of the autosave/storage layer — fix these patterns anywhere)
+- **localStorage degrade must rehydrate.** A localStorage adapter that "falls back to in-memory" on a
+  mid-session quota/availability throw will ORPHAN every design already on disk (reads route to an empty
+  in-memory map -> the library looks wiped) unless `degrade()` copies all existing localStorage entries
+  into the fallback BEFORE flipping, and is idempotent. Tested in adapter.test.ts.
+- **Optimistic save reflection must not clobber a newer edit.** After an async save resolves, reflecting
+  the just-saved envelope back into the live model wholesale will overwrite an edit the user made DURING
+  the save (then a follow-on edit built on the stale base loses the intermediate edit permanently). Guard
+  with an identity check: only fully reflect when `current.scene === justSaved.scene`; otherwise adopt
+  only durable bookkeeping (rev/updatedAt) and keep the newer scene. Tested in session.test.ts.
+- **Forward-compat round-trip.** If your contract says "unknown fields preserved," the loader must actually
+  carry through unknown top-level keys and NOT downgrade a higher `schema_version`. Tested in migrate.test.ts.
+- **One cap, one place.** Duplicated cap constants (history MAX in two files) drift; route load + runtime
+  through the same `capHistory`.

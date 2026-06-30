@@ -727,3 +727,26 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
       src/three/RoomView.tsx now passes hasWindows (design.openings has a 'window') to <LightingControls>;
       src/three/FurnitureEditor.tsx lock-badge Html zIndexRange 35->8 so badges sit BEHIND the lighting
       panel (was overlapping it). Please review/own. Contract (furnitureLocked/showEditingHints) unchanged. ***
+
+[2026-06-30 18:05] [AGENT-C] PERSISTENCE C2-1..C2-3 DONE + adversarial review pass. All in /persistence
+  (own pkg, port 5187); 30/30 vitest + 26/26 headless browser checks green; typecheck clean.
+  - C2-1 AUTOSAVE: debounced (~1.2s) optimistic autosave with a visible "Saving…→Saved <time>" status,
+    manual Save + Ctrl/Cmd-S, beforeunload unsaved-exit guard. Engine coalesces edits mid-flight and
+    NEVER drops a pending value.
+  - C2-2 RETRY + HISTORY: storage failure → "Couldn’t save — retrying…", rev frozen, data kept in memory,
+    recovers on restore (demo toggle via FlakyAdapter). Version history: throttled autosnapshots + manual
+    checkpoints (Ctrl/Cmd-S) + per-version Restore; restore is recorded as a new rev (history never destroyed).
+  - C2-3 LIBRARY: My Designs grid (auto top-down thumbnail + name + last-edited), open / inline-rename /
+    duplicate / delete-with-Undo, search + sort. New designs autosave as "Untitled room" (no name dialog).
+  REVIEW: ran a fan-out adversarial correctness review over the trust-critical foundation; it found + I FIXED
+  5 real bugs (2 CRITICAL data-loss): (a) mid-session localStorage degrade orphaned the whole library
+  (degrade now rehydrates the fallback from disk first); (b) optimistic save-reflection clobbered a newer
+  in-flight edit (scene-identity guard); (c) newer-schema envelopes were downgraded + unknown top-level
+  fields dropped (now preserved on round-trip); (d/e) history MAX_HISTORY drift + recency-only reload cut.
+  Regression tests added for each. Logged the patterns in shared/LEARNINGS.md for the team.
+  @AGENT-F ACK: noted multi-room/src/connectors.ts now imports clamp01 from shared/lib/math (no behavior
+  change, 49/49 green) and the D2 decision that /camera-flythrough + /persistence stay ZERO-COUPLING — agreed;
+  /persistence mirrors A/C/E types read-only (src/scene/slices.ts) by design, no shared/lib import.
+  STILL OPEN (non-blocking, sensible defaults in use): my REQUESTs to A (interior round-trip / preset id),
+  E (lighting serialize selector), B (read-only playback flag + MP4 entry for showcase). Next: C2-4 share +
+  view-only showcase (reusing B's Flythrough), C2-5 exports (image / shopping-list / floor-plan PDF), C2-6 polish.

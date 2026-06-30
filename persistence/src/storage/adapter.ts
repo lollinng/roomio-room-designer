@@ -36,6 +36,10 @@ export class InMemoryAdapter implements StorageAdapter {
   async keys(prefix: string): Promise<string[]> {
     return [...this.map.keys()].filter((k) => k.startsWith(prefix))
   }
+  /** Synchronous seed used by LocalStorageAdapter.degrade(); never overwrites a fresher key. */
+  seedSync(key: string, value: string): void {
+    if (!this.map.has(key)) this.map.set(key, value)
+  }
 }
 
 /** True only when localStorage exists AND a write round-trips (private-mode safe). */
@@ -69,7 +73,27 @@ export class LocalStorageAdapter implements StorageAdapter {
     return this._kind
   }
 
+  /**
+   * Fall back to in-memory. CRITICAL: before flipping, copy every existing
+   * localStorage entry into the fallback so designs already on disk stay
+   * readable for the rest of the session (otherwise list()/load() would route
+   * to an empty fallback and the user's whole library would appear wiped).
+   * Idempotent: a second degrade() must not re-copy stale disk over fresher
+   * in-memory writes.
+   */
   private degrade(): void {
+    if (this._kind === 'memory') return
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k !== null) {
+          const v = localStorage.getItem(k)
+          if (v !== null) this.fallback.seedSync(k, v)
+        }
+      }
+    } catch {
+      // localStorage fully unavailable: nothing to copy; keep whatever fallback has.
+    }
     this._kind = 'memory'
   }
 

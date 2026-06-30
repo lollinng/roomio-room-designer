@@ -164,6 +164,57 @@ try {
     card?.click()
   })
   ok(await waitForPhase(page, 'saved', 4000), 'reopening a saved design loads it (status Saved)')
+
+  // 7) C2-3 LIBRARY ACTIONS — duplicate, inline rename, delete + undo.
+  await clickByText(page, '‹ My Designs')
+  await sleep(300)
+  const countCards = () => page.$$eval('img', (imgs) => imgs.filter((i) => (i.getAttribute('src') || '').startsWith('data:')).length)
+  const before = await countCards()
+  ok(before >= 1, `library shows ${before} card(s)`)
+
+  // duplicate
+  await clickByText(page, 'Duplicate')
+  await sleep(500)
+  const afterDup = await countCards()
+  ok(afterDup === before + 1, `duplicate adds a card (${before} -> ${afterDup})`)
+  const hasCopy = await page.evaluate(() => document.body.innerText.includes('(copy)'))
+  ok(hasCopy, 'duplicated design is named "… (copy)"')
+
+  // inline rename (rename the first card)
+  await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Rename')
+    btn?.click()
+  })
+  await sleep(150)
+  await page.evaluate(() => {
+    const inp = document.querySelector('input[aria-label="Rename design"]')
+    if (inp) {
+      inp.value = ''
+      inp.focus()
+    }
+  })
+  await page.keyboard.type('Renamed Design')
+  await page.keyboard.press('Enter')
+  await sleep(500)
+  const hasRenamed = await page.evaluate(() => document.body.innerText.includes('Renamed Design'))
+  ok(hasRenamed, 'inline rename updates the card name')
+  await page.screenshot({ path: `${OUT}c2-3-library.png` })
+
+  // delete + undo
+  const beforeDel = await countCards()
+  await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Delete')
+    btn?.click()
+  })
+  await sleep(400)
+  const afterDel = await countCards()
+  ok(afterDel === beforeDel - 1, `delete removes a card (${beforeDel} -> ${afterDel})`)
+  const undoVisible = await page.evaluate(() => [...document.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Undo'))
+  ok(undoVisible, 'delete shows an Undo affordance (not a trap)')
+  await clickByText(page, 'Undo')
+  await sleep(400)
+  const afterUndo = await countCards()
+  ok(afterUndo === beforeDel, `undo restores the deleted design (${afterDel} -> ${afterUndo})`)
 } catch (err) {
   console.error(err)
   failures++

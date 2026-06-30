@@ -42,11 +42,11 @@ function interior(id = 'room-1', name = 'Bedroom'): RoomDesign {
   }
 }
 
-function house(): House {
+function house(name = 'My home'): House {
   return {
     schema_version: '1.0',
     house_id: 'house-1',
-    name: 'My home',
+    name,
     rooms: [
       {
         room_id: 'room-1',
@@ -120,13 +120,33 @@ describe('envelope round-trip', () => {
     expect(restored!.scene.lighting).toEqual(lighting)
   })
 
-  it('preserves unknown top-level fields written by a newer Roomio', () => {
+  it('preserves unknown top-level fields AND the source version from a newer Roomio (forward-compat)', () => {
     const env = createDesign({ house: house(), now: 5000 }) as unknown as Record<string, unknown>
+    env.schema_version = '2.0' // a future format
     env.experimental_flag = 'keep me'
-    const restored = importRoomio(JSON.stringify(env))
-    // migrate composes a clean envelope; unknown fields on the scene/lighting survive,
-    // and import never throws on extras.
+    env.settings_v2 = { theme: 'dark' }
+    const restored = importRoomio(JSON.stringify(env)) as unknown as Record<string, unknown>
     expect(restored).not.toBeNull()
+    // unknown fields survive the round-trip (contract: additive + forward-compatible)
+    expect(restored.experimental_flag).toBe('keep me')
+    expect(restored.settings_v2).toEqual({ theme: 'dark' })
+    // version is NOT silently downgraded to 1.0
+    expect(restored.schema_version).toBe('2.0')
+  })
+
+  it('history reload uses the runtime cap + preserves manual checkpoints (no recency-only drop)', () => {
+    const base = createDesign({ house: house(), now: 1 }) as unknown as Record<string, unknown>
+    const hist: unknown[] = []
+    // a manual checkpoint at the OLDEST position, then 25 autos (well over the cap)
+    hist.push({ rev: 1, at: 1, kind: 'manual', label: 'golden', scene: { house: house('golden') }, thumbnail: null })
+    for (let i = 0; i < 25; i++) hist.push({ rev: i + 2, at: i + 2, kind: 'auto', scene: { house: house() }, thumbnail: null })
+    base.history = hist
+    const restored = importRoomio(JSON.stringify(base))
+    expect(restored).not.toBeNull()
+    const h = restored!.history!
+    expect(h.length).toBeLessThanOrEqual(15) // runtime MAX_HISTORY, not 20
+    // the oldest manual checkpoint must survive a recency cut
+    expect(h.some((s) => s.kind === 'manual' && s.label === 'golden')).toBe(true)
   })
 })
 
