@@ -86,9 +86,12 @@ export function SceneBridge({ onController }: { onController: (c: FlythroughCont
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Priority -2 runs BEFORE drei's OrbitControls useFrame (-1), so the controller
+  // can disable the host controls before they'd otherwise update() and clobber our
+  // swapped-in camera. (Negative priority does not take over R3F's auto-render.)
   useFrame((_, dt) => {
     ctrlRef.current?.update(Math.min(dt, 0.1))
-  })
+  }, -2)
   return null
 }
 

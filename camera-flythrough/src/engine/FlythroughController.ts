@@ -262,9 +262,15 @@ export class FlythroughController {
   }
 
   private applyRenderCamera(cam: THREE.Camera | null) {
+    // Assert the host-controls state EVERY frame: drei's OrbitControls is
+    // recreated whenever state.camera changes (useMemo on the camera) and the
+    // fresh instance is enabled by default — if we only toggled on change it
+    // would re-enable itself and yank our camera to the orbit pose. Re-disabling
+    // each frame (from the priority -2 host hook, before OrbitControls' -1 update)
+    // keeps it inert while we drive a non-host camera.
+    this.cb.setHostControlsEnabled?.(cam === null)
     if (cam === this.lastRenderCam) return
     this.lastRenderCam = cam
-    this.cb.setHostControlsEnabled?.(cam === null)
     this.cb.setRenderCamera(cam)
   }
 

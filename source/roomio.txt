@@ -926,3 +926,46 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   + harness + roof verifies + 30 unit tests green; typecheck clean.
   @AGENT-C your houseSession/RoomsBar add+switch logic is correct (rooms add, switch, and restore furniture
   properly) — the only defect was my lighting accumulation. No change to your files.
+
+[2026-06-30 21:05] [AGENT-F] PRESET PRACTICALITY PASS (human-directed: persona rooms "not practical", e.g. the
+  Anime/Otaku room rendered as a near-black box with a fluorescent-pink cylinder). Audited all 10 presets
+  objectively (color saturation + rug-excluded footprint overlaps + out-of-bounds, using the real catalog dims +
+  mount rules). Root cause was localized, NOT systemic: anime_otaku + gamer used near-black furniture + 3
+  fluorescent neon accents (#FF2D95/#FF1F6B pink, #00E5FF cyan, #A020F0/#7B2FFF purple) — and the genre's real
+  signal items (posters/figures/neon signs) are unmodeled (asset_requests), so it read as a dark room with random
+  glowing blobs. The "pink cylinder" = ottoman-bean (a beanbag with no beanbag mesh) recolored #FF2D95.
+  FIX (data-only, src/data/personas.json; human chose "bright & playful" + "all genres + layout polish"):
+   - Repaletted anime_otaku + gamer to bright/livable: off-white walls (#efe9e0), light-wood/white furniture,
+     warm-white lamp shades, ONE-or-two tasteful pops (sky #6fb3d6 gaming chair, coral #e8746a beanbag). TVs/plants
+     keep natural defaults. NEON: 3+3 -> 0.
+   - Layout polish across all 10: resolved every real (rug-excluded) furniture overlap + the Sports drinks-cabinet
+     out-of-bounds; whitelisted intentional tuck-ins (chair-at-vanity/desk). Repositioned mislaid decor the
+     auto-separator couldn't (afrohemian poufs moved from BEHIND the sofa to flanking the coffee table; biophilic
+     plant out of the papasan's corner; side-table+its surface lamp into the clear gap by the tree).
+   - LEFT deliberately: Sports red/gold (#C8102E/#FFB81C) are team-color accents on a slate wall — realistic, not
+     garish. Celestial vanity+chair "overlap" is a correct tuck-in.
+  Verified: final audit = 0 neon (anime/gamer), 0 real overlaps, 0 OOB across all 10; persona 64 + engine 20 + root
+  192 green; typecheck clean. NOTICE -> AGENT-A: src/data/personas.json edited (colors + positions only; no
+  archetype ids, room sizes, or schema touched — all ids still valid, no necessity gaps). 42-line diff.
+[2026-06-30 14:05] [AGENT-B] FIX: flythrough first-person walk — forward/backward didn't work properly.
+  ROOT CAUSE: drei <OrbitControls> recreates itself whenever state.camera changes
+  (useMemo(()=>new OrbitControls(cam),[cam])) and the fresh instance is ENABLED by default. When the
+  flythrough swapped in its walk camera, that new OrbitControls' per-frame update() yanked the camera to
+  the orbit pose — y≈3m, pitched STRAIGHT DOWN. With the camera looking down, the walker's
+  horizontal-forward fell back to a fixed -z, so W/S ignored where you were looking (and could invert).
+  Two secondary issues: the walker spawned at the room CENTER (often inside/against furniture in a
+  furnished/persona room → collision ejected it), and movement was computed from camera.position (which
+  the clobber corrupted) instead of the tracked posCm.
+  FIXES:
+   - src/three/RoomView.tsx (@AGENT-A, 1 A-file): pin <OrbitControls camera={origCam}> to the ORIGINAL
+     camera (captured via Canvas onCreated) so drei never rebinds/ clobbers the flythrough's swapped
+     cameras. Normal app behavior unchanged (origCam === default camera when flythrough is closed).
+   - Flythrough SceneBridge useFrame runs at priority -2 (before drei OrbitControls' -1) and the
+     controller re-asserts host-controls-disabled every frame — belt-and-suspenders so a recreated
+     OrbitControls can't re-enable + clobber.
+   - firstPersonWalk: enter LEVEL at 1.6m (no inherited pitch); re-assert eye-height + planar position
+     from posCm every frame; compute movement from posCm not camera.position; spawn at a furniture-CLEAR
+     interior point (nearest to center) instead of dead center.
+  Verified (camera-flythrough/scripts/verify-walk-app.mjs): enters level, eye height 1.6m, spawns clear,
+  forward 0.97m / backward 1.06m, and NO inversion across 8 headings. No regressions: 192/192 main-app
+  tests, 28/28 engine unit tests, all app + harness verify suites green.

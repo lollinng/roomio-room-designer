@@ -10,6 +10,7 @@ import { FurnitureEditor } from './FurnitureEditor'
 import { setViewCapturer } from './cameraBus'
 import { SceneBridge, FlythroughHud } from './Flythrough'
 import type { FlythroughController } from '../../camera-flythrough/src/engine/FlythroughController'
+import type { Camera } from 'three'
 import type { CameraView } from '../types'
 // Agent E lighting (drop-in): layered default room lights + directional sun + soft shadows,
 // driven by the time bar / north controls. Replaces the old local <Lights>.
@@ -83,6 +84,9 @@ export function RoomView({ children }: { children?: ReactNode }) {
   const hasWindows = useStore((s) => s.design.openings.some((o) => o.kind === 'window'))
   const wallHeight = useStore((s) => s.design.wallHeight)
   const [flyController, setFlyController] = useState<FlythroughController | null>(null)
+  // Pin OrbitControls to the ORIGINAL camera so drei never rebinds it to (and
+  // clobbers) the flythrough's swapped-in cameras. Captured once on Canvas create.
+  const [origCam, setOrigCam] = useState<Camera | null>(null)
 
   // Room polygon in world meters, for the ceiling/roof.
   const ceilingCorners = useMemo(() => {
@@ -117,6 +121,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       dpr={[1, 2]}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       camera={{ position: camPos, fov: 40, near: 0.1, far: 200 }}
+      onCreated={(s) => setOrigCam(s.camera)}
     >
       <color attach="background" args={['#cdccc9']} />
       <LightingRig houseHalfExtentM={radius / 2} activeRoomId={designId} />
@@ -138,6 +143,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       </Suspense>
       <OrbitControls
         makeDefault
+        camera={origCam ?? undefined}
         target={[0, 0.7, 0]}
         enablePan
         minDistance={radius * 0.45}

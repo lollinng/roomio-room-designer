@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
 import type { SceneHandle, Vec2 } from '../contract/sceneContract'
 import { resolveWalk } from './collision'
+import { pointInPolygon } from './geometry'
 
 /**
  * F1 — First-person walk.
@@ -61,10 +62,15 @@ export class FirstPersonWalk {
     this.active = true
     if (this.handle.controls) this.handle.controls.enabled = false
     const f = this.frameFns()
-    const start = startCm ?? this.roomCenterCm()
+    const start = startCm ?? this.findSpawn()
     this.posCm = { ...start }
     const [wx, wz] = f.toWorld(start.x, start.z)
     this.camera.position.set(wx, this.eyeHeight, wz)
+    // start LEVEL at eye height (no inherited pitch/roll). The user mouse-looks
+    // from here; the key fix is that we no longer enter pitched down/up.
+    this.camera.up.set(0, 1, 0)
+    this.camera.rotation.set(0, 0, 0)
+    this.camera.quaternion.setFromEuler(this.camera.rotation)
     const aspect = (this.handle.size?.width ?? 1) / (this.handle.size?.height ?? 1) || 1
     this.camera.aspect = aspect
     this.camera.updateProjectionMatrix()
@@ -96,6 +102,16 @@ export class FirstPersonWalk {
   update(dt: number): THREE.PerspectiveCamera {
     if (!this.active) return this.camera
 
+    // Re-assert eye height + planar position from our OWN source of truth (posCm)
+    // every frame. The host's OrbitControls can transiently clobber the camera
+    // when it's swapped in; this keeps the walker pinned at eye height and where
+    // it actually is, independent of any external camera manipulation.
+    {
+      const f = this.frameFns()
+      const [cwx, cwz] = f.toWorld(this.posCm.x, this.posCm.z)
+      this.camera.position.set(cwx, this.eyeHeight, cwz)
+    }
+
     // horizontal forward / right from the look direction
     this.camera.getWorldDirection(this.fwd)
     this.fwd.y = 0
@@ -116,10 +132,10 @@ export class FirstPersonWalk {
       const dxW = (this.fwd.x * mz + this.right.x * mx) * step
       const dzW = (this.fwd.z * mz + this.right.z * mx) * step
       const f = this.frameFns()
-      const proposedCm = f.fromWorld(
-        this.camera.position.x + dxW,
-        this.camera.position.z + dzW,
-      )
+      // advance from our tracked position (posCm), NOT camera.position — the
+      // latter can be transiently clobbered by the host's controls.
+      const [curWx, curWz] = f.toWorld(this.posCm.x, this.posCm.z)
+      const proposedCm = f.fromWorld(curWx + dxW, curWz + dzW)
       const colliders = this.handle.getColliders?.()
       const resolved = colliders
         ? resolveWalk(this.posCm, { x: proposedCm[0], z: proposedCm[1] }, colliders, {
@@ -157,10 +173,46 @@ export class FirstPersonWalk {
     return this.recording
   }
 
-  private roomCenterCm(): Vec2 {
+  /**
+   * Pick a spawn point that's inside the room AND clear of furniture, so the
+   * walker doesn't start jammed against a piece (which makes collision eject it
+   * and forward/backward feel broken). Prefers the point nearest the room center.
+   */
+  private findSpawn(): Vec2 {
     const c = this.handle.getColliders?.()
-    if (c) return { x: (c.bounds.minX + c.bounds.maxX) / 2, z: (c.bounds.minZ + c.bounds.maxZ) / 2 }
-    return { x: 0, z: 0 }
+    if (!c) return { x: 0, z: 0 }
+    const b = c.bounds
+    const cx0 = (b.minX + b.maxX) / 2
+    const cz0 = (b.minZ + b.maxZ) / 2
+    const margin = this.bodyRadius + 8
+    const clear = (x: number, z: number): boolean => {
+      if (!pointInPolygon({ x, z }, c.polygon)) return false
+      for (const o of c.furniture) {
+        const cs = Math.cos(o.rot)
+        const sn = Math.sin(o.rot)
+        const lx = (x - o.cx) * cs + (z - o.cz) * -sn
+        const lz = (x - o.cx) * sn + (z - o.cz) * cs
+        if (Math.abs(lx) <= o.w / 2 + margin && Math.abs(lz) <= o.d / 2 + margin) return false
+      }
+      return true
+    }
+    if (clear(cx0, cz0)) return { x: cx0, z: cz0 }
+    let best: Vec2 | null = null
+    let bestD = Infinity
+    const N = 16
+    for (let i = 0; i <= N; i++) {
+      for (let j = 0; j <= N; j++) {
+        const x = b.minX + ((b.maxX - b.minX) * i) / N
+        const z = b.minZ + ((b.maxZ - b.minZ) * j) / N
+        if (!clear(x, z)) continue
+        const d = (x - cx0) ** 2 + (z - cz0) ** 2
+        if (d < bestD) {
+          bestD = d
+          best = { x, z }
+        }
+      }
+    }
+    return best ?? { x: cx0, z: cz0 }
   }
 
   private frameFns() {
