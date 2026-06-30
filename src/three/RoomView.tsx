@@ -14,8 +14,10 @@ import type { CameraView } from '../types'
 // Agent E lighting (drop-in): layered default room lights + directional sun + soft shadows,
 // driven by the time bar / north controls. Replaces the old local <Lights>.
 import { LightingRig } from '../../lighting/src/r3f/LightingRig'
+import { Ceiling } from '../../lighting/src/r3f/Ceiling'
 import { LightingControls } from '../../lighting/src/ui/LightingControls'
 import { useLighting } from '../../lighting/src/store'
+import { makeFrame } from './coords'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
@@ -79,7 +81,14 @@ export function RoomView({ children }: { children?: ReactNode }) {
   const stage = useStore((s) => s.stage)
   const designId = useStore((s) => s.design.id)
   const hasWindows = useStore((s) => s.design.openings.some((o) => o.kind === 'window'))
+  const wallHeight = useStore((s) => s.design.wallHeight)
   const [flyController, setFlyController] = useState<FlythroughController | null>(null)
+
+  // Room polygon in world meters, for the ceiling/roof.
+  const ceilingCorners = useMemo(() => {
+    const f = makeFrame(corners)
+    return corners.map((c) => f.toWorld(c.x, c.z) as [number, number])
+  }, [corners])
 
   // Every room gets sensible default lights the moment it exists (Pillar 1: never a dark box).
   useEffect(() => {
@@ -113,6 +122,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       <LightingRig houseHalfExtentM={radius / 2} />
       <Suspense fallback={null}>
         <Room />
+        <Ceiling cornersWorld={ceilingCorners} heightM={wallHeight / 100} />
         {stage === 'step2' && <EditHandles />}
         {stage === 'step3' && <OpeningEditor />}
         {stage === 'furnish' && <FurnitureEditor />}

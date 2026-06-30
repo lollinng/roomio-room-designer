@@ -54,6 +54,16 @@ the suggestion engine (E2 contract, requested in roomio.txt) + A mounts `<Lighti
     user to add a window in Step 3 so sunlight reaches inside (hasWindows prop from RoomView).
   - Lock badges pushed behind the panel (zIndexRange). Verified: app 10/10, harness 16/16, 30 unit tests.
 
+- [x] **E9 — Ceiling/roof + sun enclosure (human request).** DONE + verified.
+  - `Ceiling.tsx`: builds the room polygon at wall height. A **shadow roof** (invisible to camera
+    via `colorWrite=false`, `castShadow`) permanently blocks the sun from a windowless interior —
+    no sun light/shadows inside (wall windows still admit low-angle sun). A **visual ceiling**
+    (unlit light surface) + a grid of **amber recessed downlights** (small ceiling lights) reveals
+    ONLY when the camera looks UP (interior / flythrough), so it never covers the room or shows as a
+    slab during the normal downward orbit. Recessed point lights (capped, non-shadow) keep the room lit.
+  - Wired into RoomView (real app, single room) + harness (`?roof`, `?lowcam`). Verified:
+    verify-roof (hidden looking down / revealed looking up), app 10/10, 30 unit tests, typecheck clean.
+
 ## Architecture decisions
 - Same seam pattern as Agent B/C: A owns `RoomView.tsx` and its `<Lights>`; I cannot edit it.
   So I build a **drop-in R3F lighting library** (`<LightingRig>` + UI overlays) + a **faithful

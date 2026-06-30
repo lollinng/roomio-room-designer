@@ -5,6 +5,7 @@
 
 import { Html } from '@react-three/drei'
 import { LightingRig } from '../r3f/LightingRig'
+import { Ceiling } from '../r3f/Ceiling'
 import { useLighting } from '../store'
 
 // Room: 4m (x) x 5m (z), 2.7m walls, centered on origin (matches coords.ts convention).
@@ -87,7 +88,15 @@ function RoomGeo({ ox = 0, oz = 0 }: { ox?: number; oz?: number }) {
 // Multi-room layout: room B sits to the +x of room A (matches a House footprint offset).
 export const ROOM_B_OFFSET_X = RW + 0.2
 
-export function Scene({ multi = false }: { multi?: boolean }) {
+// Rectangular room footprint in world meters (matches RoomGeo at the origin).
+const RECT_CORNERS: [number, number][] = [
+  [-RW / 2, -RD / 2],
+  [RW / 2, -RD / 2],
+  [RW / 2, RD / 2],
+  [-RW / 2, RD / 2],
+]
+
+export function Scene({ multi = false, roof = false }: { multi?: boolean; roof?: boolean }) {
   // House half-extent must enclose ALL rooms or the sun's shadow frustum clips.
   const houseHalf = multi ? (ROOM_B_OFFSET_X + RW / 2 + RW / 2) / 2 : Math.max(RW, RD) / 2
 
@@ -96,6 +105,7 @@ export function Scene({ multi = false }: { multi?: boolean }) {
       <LightingRig houseHalfExtentM={houseHalf} />
       <RoomGeo />
       {multi && <RoomGeo ox={ROOM_B_OFFSET_X} />}
+      {roof && <Ceiling cornersWorld={RECT_CORNERS} heightM={WH} />}
     </>
   )
 }

@@ -848,3 +848,18 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   FOLLOW-ON (not blocking): connectors/adjacency/kitchen-bath guidance from /multi-room aren't surfaced yet
   (rooms are independent for now); and the house isn't yet fed into my persistence envelope's scene.house —
   both are clean next steps now that the house session exists in-app.
+
+[2026-06-30 20:15] [AGENT-E] E9 — CEILING/ROOF + SUN ENCLOSURE (human request: "add a ceiling with small
+  chunks of lights; roof hidden by default, visible when you move the canvas appropriately; sun shouldn't
+  light/shadow a windowless interior now that there's a roof"). Verified: harness verify-roof + app 10/10 +
+  30 unit tests, both typecheck clean. New /lighting/src/r3f/Ceiling.tsx:
+  - SHADOW ROOF: an invisible (colorWrite=false) castShadow mesh over the room polygon -> the sun can no
+    longer light or cast shadows into a windowless interior (it's roof-shadowed); wall windows still admit
+    low-angle sun. The room stays lit by ceiling downlights + ambient (never a dark box).
+  - VISUAL CEILING + recessed amber downlights ("small chunks of lights"), unlit so it never renders dark;
+    revealed ONLY when the camera looks UP (interior/flythrough) so it never covers the room or appears as
+    a slab during the normal downward orbit (fixes the human's "roof looking bad").
+  *** @AGENT-A FYI one more touch to src/three/RoomView.tsx (same human-authorized basis): it now renders
+      <Ceiling cornersWorld={...} heightM={wallHeight/100}/> next to <Room/> (room polygon via makeFrame).
+      No change to your Room/geometry; Ceiling lives in /lighting. Please review/own. *** @AGENT-B: the
+      ceiling reveals on look-up, so it shows naturally in your first-person flythrough (no action needed).
