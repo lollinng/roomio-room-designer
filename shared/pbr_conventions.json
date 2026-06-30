@@ -1,0 +1,52 @@
+{
+  "$id": "roomio/pbr_conventions",
+  "title": "Roomio PBR map authoring conventions",
+  "version": "1.0-draft",
+  "owner": "Agent H (texturing)",
+  "status": "DRAFT published by Agent H because Agent G (Realistic Rendering) has not yet shipped any code or schema. Pending Agent G + Agent D ratification (see roomio.txt REQUEST -> AGENT-G). Conventions are chosen to be CORRECT under the current renderer (<Canvas shadows flat> => NoToneMapping; legacy non-physical light units) AND forward-compatible with G's planned ACESFilmic + sRGB output + HDR IBL stack, so PBR maps authored to this spec need NO recolor when G lands.",
+  "renderer": {
+    "library": "react-three-fiber (three ^0.169.0; @react-three/fiber ^8; drei ^9)",
+    "canvas": "<Canvas shadows flat> — PCFSoftShadowMap + THREE.NoToneMapping",
+    "material": "THREE.MeshStandardMaterial (metal-roughness workflow) — used for ALL furniture",
+    "colorApi": "modern: THREE.SRGBColorSpace / texture.colorSpace (NOT legacy sRGBEncoding/.encoding)"
+  },
+  "colorSpace": {
+    "albedoMap": "srgb  — THREE.SRGBColorSpace (de-lit base color)",
+    "roughnessMap": "linear — THREE.NoColorSpace (default); data map, NEVER set sRGB",
+    "normalMap": "linear — THREE.NoColorSpace (default); data map, NEVER set sRGB",
+    "metalnessMap": "linear — THREE.NoColorSpace (default); usually omitted (dielectric)",
+    "aoMap": "linear — see ao note",
+    "note": "<Canvas flat> only sets NoToneMapping (the tonemap curve); it does NOT change texture color management. The sRGB-albedo / linear-data-map split holds today and is exactly what G's planned ACESFilmic+sRGB output expects."
+  },
+  "normalMap": {
+    "type": "TangentSpaceNormalMap (three default)",
+    "orientation": "+Y (OpenGL / Y-up green channel). If a height->normal bake yields -Y (DirectX), invert the green channel at BAKE time, not runtime.",
+    "normalScaleDefault": [1, 1],
+    "guidance": "derive from luminance/height; keep relief SUBTLE (weave/grain catches light), not embossed; expose material.normalScale for tuning"
+  },
+  "roughness": {
+    "materialBaseline": "material.roughness = 1.0 so the MAP fully drives roughness (three multiplies roughness * roughnessMap)",
+    "bands": { "fabric": [0.8, 0.95], "wood": [0.4, 0.6], "metal": [0.2, 0.5] },
+    "note": "single-channel grayscale map; avoid 0/1 extremes"
+  },
+  "metalness": {
+    "fabricWood": "material.metalness = 0.0 (dielectric); ship NO metalnessMap",
+    "metallic": "only for genuinely metallic detected surfaces (chrome/brass) emit a metalnessMap"
+  },
+  "ao": {
+    "recommendation": "H does NOT bake aoMap into tiling photo materials (a tiling patch has no meaningful contact AO). Let G provide contact AO via an SSAO/GTAO screen-space post-pass.",
+    "uvChannel": "three 0.169 unified UV via texture.channel — aoMap can reuse channel 0; a separate uv2 attribute is NOT required. (G brief's 'aoMap needs uv2' is pre-r150 framing — FLAGGED for G.)"
+  },
+  "tiling": {
+    "wrap": "wrapS = wrapT = THREE.RepeatWrapping on ALL maps (albedo + roughness + normal)",
+    "repeatRegistration": "apply the SAME repeat.set(x,y) + rotation to all maps so they stay registered",
+    "anisotropy": 8,
+    "worldSpace": "tiling density is world-space: repeat derived per-mesh from worldDimCm / repeat_cm (mirrors the floor's areaCm contract in src/three/textures.ts). Keeps pattern scale physically consistent across differently-sized meshes."
+  },
+  "delight": "albedo MUST be de-lit (large-scale illumination flattened). Because G's IBL + E's lights do the lighting, baked highlights/shadows in albedo DOUBLE-light. This is a rendering-CORRECTNESS requirement (verified under a lit room, not a flat preview).",
+  "ownershipSeam": {
+    "agentH_owns": "per-material texture maps + each map's colorSpace / wrap / repeat / rotation / anisotropy / channel",
+    "agentE_and_G_own": "renderer.toneMapping, renderer.outputColorSpace, scene.environment (HDR IBL / PMREMGenerator), bloom/SSAO passes, shadow config",
+    "rule": "H must NOT set renderer-level state; G/E must NOT overwrite H's per-material maps. On a textured item, item.color stays as the fallback/tint."
+  }
+}
