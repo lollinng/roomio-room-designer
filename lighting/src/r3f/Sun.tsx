@@ -22,6 +22,7 @@ export function Sun({ houseHalfExtentM, baseIntensity = 1.35, marginM = 3 }: Sun
   const northOffsetDeg = useLighting((s) => s.northOffsetDeg)
   const sun = useLighting((s) => s.sun)
   const shadow = useLighting((s) => s.shadow)
+  const lightMode = useLighting((s) => s.lightMode)
 
   const half = (shadow.halfExtentM ?? houseHalfExtentM) + marginM
   // far must enclose the sun (on the dome) -> house, plus the frustum depth.
@@ -82,26 +83,29 @@ export function Sun({ houseHalfExtentM, baseIntensity = 1.35, marginM = 3 }: Sun
         shadow-mapSize-width={shadow.mapSize}
         shadow-mapSize-height={shadow.mapSize}
       />
-      {/* Visible sun body — moves along its arc as the time bar is scrubbed. */}
-      <group position={gizmoPos}>
-        {/* bright core (unlit so it always glows) */}
-        <mesh>
-          <sphereGeometry args={[sunSize, 24, 24]} />
-          <meshBasicMaterial color={sample.color} toneMapped={false} />
-        </mesh>
-        {/* soft halo */}
-        <mesh>
-          <sphereGeometry args={[sunSize * 2.4, 24, 24]} />
-          <meshBasicMaterial
-            color={sample.color}
-            transparent
-            opacity={0.16 + 0.14 * sample.intensityFactor}
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-            toneMapped={false}
-          />
-        </mesh>
-      </group>
+      {/* Visible sun body — only shown in Light Mode (it's a lighting-visualization aid).
+          Moves along its arc as the time bar is scrubbed. */}
+      {lightMode && (
+        <group position={gizmoPos}>
+          {/* bright core (unlit so it always glows) */}
+          <mesh>
+            <sphereGeometry args={[sunSize, 24, 24]} />
+            <meshBasicMaterial color={sample.color} toneMapped={false} />
+          </mesh>
+          {/* soft halo */}
+          <mesh>
+            <sphereGeometry args={[sunSize * 2.4, 24, 24]} />
+            <meshBasicMaterial
+              color={sample.color}
+              transparent
+              opacity={0.16 + 0.14 * sample.intensityFactor}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      )}
     </>
   )
 }
