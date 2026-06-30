@@ -16,13 +16,27 @@ export interface LightingRigProps {
   houseHalfExtentM: number
   /** renderer-tuned base sun intensity at noon (legacy units). */
   baseIntensity?: number
+  /**
+   * When set, render ONLY this room's lights (the app edits one room at a time, all
+   * centered at the origin — so rendering every room's lights would stack them and
+   * over-brighten as rooms are added). Omit for the multi-room house model where each
+   * room sits at its own footprint.
+   */
+  activeRoomId?: string
 }
 
-export function LightingRig({ houseHalfExtentM, baseIntensity }: LightingRigProps) {
+export function LightingRig({ houseHalfExtentM, baseIntensity, activeRoomId }: LightingRigProps) {
   const rooms = useLighting((s) => s.rooms)
 
-  const ambientLights = Object.values(rooms)
-    .flatMap((r) => r.lights)
+  const entries =
+    activeRoomId != null
+      ? rooms[activeRoomId]
+        ? ([[activeRoomId, rooms[activeRoomId]]] as const)
+        : []
+      : (Object.entries(rooms) as [string, (typeof rooms)[string]][])
+
+  const ambientLights = entries
+    .flatMap(([, r]) => r.lights)
     .filter((l) => l.layer === 'ambient' && l.enabled !== false && l.intensity > 0)
 
   const fill = ambientLights[0]
@@ -37,8 +51,8 @@ export function LightingRig({ houseHalfExtentM, baseIntensity }: LightingRigProp
       <hemisphereLight color={skyColor} groundColor={groundColor} intensity={hemiIntensity} />
       <ambientLight intensity={0.32} />
 
-      {/* Per-room task/accent lights. */}
-      {Object.entries(rooms).map(([id, r]) => (
+      {/* Per-room task/accent lights (only the active room in single-room mode). */}
+      {entries.map(([id, r]) => (
         <RoomLights key={id} lights={r.lights} />
       ))}
 

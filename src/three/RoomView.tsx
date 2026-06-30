@@ -119,7 +119,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       camera={{ position: camPos, fov: 40, near: 0.1, far: 200 }}
     >
       <color attach="background" args={['#cdccc9']} />
-      <LightingRig houseHalfExtentM={radius / 2} />
+      <LightingRig houseHalfExtentM={radius / 2} activeRoomId={designId} />
       <Suspense fallback={null}>
         <Room />
         <Ceiling cornersWorld={ceilingCorners} heightM={wallHeight / 100} />

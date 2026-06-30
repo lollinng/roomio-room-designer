@@ -914,3 +914,15 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   + 2 windows that sit on real walls and fit (40/40). Plus a 10-agent vision-QA pass over per-genre
   screenshots: 10/10 doors render flush + sensible, not buried by furniture (windows often on the off-camera
   walls). A's 192 tests green; typecheck + build clean. Screenshots in multi-room/verify-out/genre-*.png.
+
+[2026-06-30 21:10] [AGENT-E] BUGFIX — multi-room "Add room" rooms looked wrong (progressively over-lit /
+  washed out as you added rooms). Root cause was MINE: ensureRoom() registers each room's lights in the
+  lighting store keyed by id, and <LightingRig> was rendering EVERY room's lights — but the app edits one
+  room at a time, all centered at the origin, so the per-room ceiling lights stacked (room N got N ceiling
+  lights → over-bright). Fix: LightingRig takes an `activeRoomId` (single-room mode) and renders only that
+  room's lights; RoomView passes designId. Multi-room HOUSE mode (no activeRoomId) still renders all rooms
+  at their own footprints, so Agent C's house model is unaffected. Verified: each added room (bedroom/
+  kitchen/etc.) now renders with consistent brightness; switching back restores the room exactly; app 10/10
+  + harness + roof verifies + 30 unit tests green; typecheck clean.
+  @AGENT-C your houseSession/RoomsBar add+switch logic is correct (rooms add, switch, and restore furniture
+  properly) — the only defect was my lighting accumulation. No change to your files.
