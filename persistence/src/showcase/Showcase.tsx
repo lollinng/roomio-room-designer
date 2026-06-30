@@ -9,11 +9,26 @@
  * of reaching the editor or the user's other work. There is also no navigation
  * affordance to the editor/library anywhere in this view.
  */
-import { useEffect, useMemo, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { Component, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { decodeShowcasePayload } from '../share/showcasePayload'
 import { readShowcaseHash } from '../share/link'
 import { ShowcaseScene } from './Scene'
+
+/**
+ * Belt-and-suspenders: if anything in the read-only scene throws (e.g. a future
+ * malformed-payload edge), degrade to the graceful empty-state rather than a white
+ * screen. It still NEVER reaches the editor/library — it only renders a message.
+ */
+class SceneBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
 
 export function Showcase() {
   const [hash, setHash] = useState(typeof window !== 'undefined' ? window.location.hash : '')
@@ -30,23 +45,25 @@ export function Showcase() {
     return enc ? decodeShowcasePayload(enc) : null
   }, [hash])
 
-  if (!payload) {
-    return (
-      <div style={emptyWrap}>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>This showcase link is empty or invalid</div>
-        <div style={{ opacity: 0.7, marginTop: 8 }}>
-          Ask whoever shared it for a fresh link. (A showcase link only ever opens one read-only room.)
-        </div>
+  const invalid = (
+    <div style={emptyWrap}>
+      <div style={{ fontSize: 20, fontWeight: 800 }}>This showcase link is empty or invalid</div>
+      <div style={{ opacity: 0.7, marginTop: 8 }}>
+        Ask whoever shared it for a fresh link. (A showcase link only ever opens one read-only room.)
       </div>
-    )
-  }
+    </div>
+  )
+
+  if (!payload) return invalid
 
   const roomCount = payload.scene.house.rooms.length
 
   return (
     <div style={root}>
       <div style={canvasWrap}>
-        <ShowcaseScene house={payload.scene.house} playing={playing} onTourEnd={() => setPlaying(false)} />
+        <SceneBoundary fallback={invalid}>
+          <ShowcaseScene house={payload.scene.house} playing={playing} onTourEnd={() => setPlaying(false)} />
+        </SceneBoundary>
       </div>
 
       {/* read-only header overlay */}

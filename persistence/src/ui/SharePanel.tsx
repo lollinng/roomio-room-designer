@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useSession } from '../app/session'
-import { buildShowcaseUrl, accessSentence, copyToClipboard } from '../share/link'
+import { buildShowcaseUrl, accessSentence, copyToClipboard, showcaseUrlSizeAdvice } from '../share/link'
 import { downloadRoomio } from '../envelope/serialize'
 import { ExportsSection } from './Exports'
 import { T, panel, btnPrimary, btnGhost } from '../ui/theme'
@@ -41,12 +41,12 @@ export function SharePanel({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.design_id])
 
-  // Recompute the link whenever the scene or access changes (it embeds the scene).
-  const showcaseUrl = useMemo(
-    () => (current ? buildShowcaseUrl(current) : ''),
-    // rev advances on every save, so this also refreshes after edits land
-    [current?.design_id, current?.rev, access],
-  )
+  // Recompute the link whenever the live design changes. `mutate` swaps the whole
+  // `current` reference on EVERY optimistic edit (scene, name, share), so keying on
+  // it means the copied link always reflects the latest edit — even before autosave
+  // commits (rev would lag and serve a stale scene/name).
+  const showcaseUrl = useMemo(() => (current ? buildShowcaseUrl(current) : ''), [current])
+  const sizeAdvice = useMemo(() => showcaseUrlSizeAdvice(showcaseUrl), [showcaseUrl])
 
   if (!current) return null
   const shareable = access === 'view' || access === 'edit'
@@ -106,6 +106,11 @@ export function SharePanel({ onClose }: { onClose: () => void }) {
                   Open showcase ↗
                 </a>
               </div>
+              {sizeAdvice.level !== 'ok' && (
+                <div style={sizeAdvice.level === 'hard' ? sizeWarnHard : sizeWarnSoft} data-testid="size-advice">
+                  {sizeAdvice.message}
+                </div>
+              )}
             </>
           ) : (
             <div style={lockedNote}>
@@ -142,3 +147,5 @@ const accessNote: CSSProperties = { fontSize: 13, color: T.ink, background: '#f4
 const linkRow: CSSProperties = { display: 'flex', gap: 8 }
 const linkInput: CSSProperties = { flex: 1, font: 'inherit', fontSize: 12, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.panelBorder}`, background: '#faf9f7', color: T.inkSoft, minWidth: 0 }
 const lockedNote: CSSProperties = { fontSize: 13, color: T.inkSoft, background: '#f4f2ee', borderRadius: 8, padding: '10px 12px' }
+const sizeWarnSoft: CSSProperties = { fontSize: 12, color: T.warn, background: '#fbf1da', borderRadius: 8, padding: '8px 10px' }
+const sizeWarnHard: CSSProperties = { fontSize: 12, color: T.danger, background: '#f7e7e4', borderRadius: 8, padding: '8px 10px' }

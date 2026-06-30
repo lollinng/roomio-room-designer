@@ -4,7 +4,7 @@ import {
   encodeShowcasePayload,
   decodeShowcasePayload,
 } from './showcasePayload'
-import { withAccess, buildShowcaseUrl, resolveShowcaseHref, readShowcaseHash, accessSentence } from './link'
+import { withAccess, buildShowcaseUrl, resolveShowcaseHref, readShowcaseHash, accessSentence, showcaseUrlSizeAdvice } from './link'
 import { createDesign } from '../envelope/factory'
 import type { House } from '../scene/slices'
 
@@ -99,5 +99,20 @@ describe('share-link helpers', () => {
   it('accessSentence is plain-language', () => {
     expect(accessSentence('view')).toMatch(/view/i)
     expect(accessSentence('private')).toMatch(/private/i)
+  })
+
+  it('warns (never silently truncates) when a self-contained link gets large', () => {
+    expect(showcaseUrlSizeAdvice('x'.repeat(100)).level).toBe('ok')
+    expect(showcaseUrlSizeAdvice('x'.repeat(9000)).level).toBe('soft')
+    const hard = showcaseUrlSizeAdvice('x'.repeat(20000))
+    expect(hard.level).toBe('hard')
+    expect(hard.message).toMatch(/\.roomio/i) // steers to the reliable export
+  })
+})
+
+describe('showcase rejects a zero-room (crafted/empty) payload → graceful invalid state', () => {
+  it('decodes to null instead of yielding an unrenderable empty house', () => {
+    const encoded = encodeShowcasePayload({ v: 1, name: 'x', scene: { house: { rooms: [] } } } as never)
+    expect(decodeShowcasePayload(encoded)).toBeNull()
   })
 })

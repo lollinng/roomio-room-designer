@@ -66,6 +66,19 @@ describe('shopping list', () => {
     expect(text).toContain('1× Coffee, Table')
     expect(text).toContain('Total: 1 item')
   })
+
+  it('neutralizes CSV formula injection in user-controlled fields', () => {
+    const house = houseWith([
+      { name: '=cmd', items: [fi('misc-box', '=HYPERLINK("http://evil")', '+evil', 10, 10, 10), fi('chair-arm', '@SUM(A1)', '#fff', 10, 10, 10)] },
+    ])
+    const csv = shoppingListToCSV(buildShoppingList(house))
+    // a leading =, +, @ must be prefixed with ' so it isn't evaluated as a formula
+    expect(csv).not.toMatch(/(^|,)=HYPERLINK/m)
+    expect(csv).toContain("'=HYPERLINK")
+    expect(csv).toContain("'@SUM(A1)")
+    expect(csv).toContain("'+evil")
+    expect(csv).toContain("'=cmd") // room name too
+  })
 })
 
 describe('PDF writer (JPEG embed)', () => {

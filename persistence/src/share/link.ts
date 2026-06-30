@@ -76,6 +76,30 @@ export function resolveShowcaseHref(pageHref: string): string {
   }
 }
 
+/**
+ * Advise on a self-contained showcase URL's size. The link embeds the whole scene
+ * in its fragment, so a large multi-room house can exceed what some chat/email
+ * channels carry without truncation. We NEVER silently truncate/compress — instead
+ * we surface an honest warning and steer to the `.roomio` export (brief: never
+ * silently corrupt a share). A future server token makes this moot.
+ */
+export type ShowcaseSizeLevel = 'ok' | 'soft' | 'hard'
+export function showcaseUrlSizeAdvice(url: string): { level: ShowcaseSizeLevel; message?: string } {
+  const n = url.length
+  if (n >= 16000)
+    return {
+      level: 'hard',
+      message:
+        'This design makes a very long link — some apps will shorten it and break it. Send the .roomio file instead for a reliable copy.',
+    }
+  if (n >= 8000)
+    return {
+      level: 'soft',
+      message: 'This is a large design; some chat/email apps may shorten the link. If it doesn’t open, send the .roomio file.',
+    }
+  return { level: 'ok' }
+}
+
 /** Read the encoded showcase payload from a page hash like "#s=…". */
 export function readShowcaseHash(hash: string): string | null {
   const m = /[#&]s=([^&]+)/.exec(hash || '')

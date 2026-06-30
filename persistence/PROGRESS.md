@@ -82,7 +82,23 @@ Re-read `source/roomio.txt` + `shared/LEARNINGS.md` at the start of every cycle.
 | export image + shopping list + floor-plan PDF | C2-5 checks (real files) |
 | old single-room save still loads | C2-6 check |
 
-Run: `npm test` (45 unit) · `npm run verify` (41 headless browser checks) · `npm run build`.
+Run: `npm test` (50 unit) · `npm run verify` (41 headless browser checks) · `npm run build`.
+
+## Second adversarial review (C2-3..C2-6) — 7 confirmed bugs, all FIXED
+1. **(HIGH, data loss)** deleting the open design didn't cancel autosave → a pending edit resurrected it.
+   Fix: `AutosaveController.cancel()` + a session **tombstone** set the save fn checks (precise, so a new
+   design whose first save failed still persists).
+2. **(HIGH, data loss)** single `lastDeleted` slot → a second delete made the first unrecoverable.
+   Fix: `lastDeleted` is now an undo **stack** (LIFO, capped); both deletes recover.
+3. **(HIGH)** crafted/empty-rooms showcase payload white-screened. Fix: `coerceHouse` rejects zero-room
+   houses → graceful invalid-link state; defensive guard in the walkthrough; **error boundary** in the showcase.
+4. **(HIGH, security)** CSV formula injection. Fix: `csvCell` prefixes `= + - @`-leading cells with `'`.
+5. **(MED)** copied share link could be stale (memo keyed on `rev`). Fix: memo on the live `current` ref.
+6. **(MED)** export crashed on `toDataURL`/`atob` failure. Fix: guarded `dataUrlToBytes` + try/catch +
+   empty-jpeg bail (no zero-length-image PDF).
+7. **(LOW)** no size guard on the self-contained link. Fix: `showcaseUrlSizeAdvice` + soft/hard warning that
+   steers to `.roomio` (never silently truncates).
+Regression tests added for each; 50 unit tests total.
 
 ## Architecture notes
 - `src/scene/slices.ts` — read-only structural mirrors of A's RoomDesign + C's House (+ E's

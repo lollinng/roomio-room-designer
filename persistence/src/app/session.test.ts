@@ -86,13 +86,30 @@ describe('session — library management', () => {
     await S().closeToLibrary()
     await S().deleteDesign(d.design_id)
     expect(await S().repo.has(d.design_id)).toBe(false)
-    expect(S().lastDeleted?.design_id).toBe(d.design_id)
+    expect(S().lastDeleted.map((x) => x.design_id)).toContain(d.design_id)
 
     await S().undoDelete()
     expect(await S().repo.has(d.design_id)).toBe(true)
     const back = await S().repo.load(d.design_id)
     expect(back!.name).toBe('Fragile')
-    expect(S().lastDeleted).toBeNull()
+    expect(S().lastDeleted).toEqual([])
+  })
+
+  it('deleting two designs before undo keeps BOTH recoverable (regression: stack, not 1 slot)', async () => {
+    const a = await S().newDesign(sampleBedroom(), null, 'Alpha')
+    await S().closeToLibrary()
+    const b = await S().newDesign(sampleBedroom(), null, 'Beta')
+    await S().closeToLibrary()
+
+    await S().deleteDesign(a.design_id)
+    await S().deleteDesign(b.design_id) // would overwrite a single slot
+    expect(await S().repo.has(a.design_id)).toBe(false)
+    expect(await S().repo.has(b.design_id)).toBe(false)
+
+    await S().undoDelete() // LIFO → restores Beta
+    expect(await S().repo.has(b.design_id)).toBe(true)
+    await S().undoDelete() // → restores Alpha (NOT lost)
+    expect(await S().repo.has(a.design_id)).toBe(true)
   })
 
   it('deleting the currently-open design returns to the library', async () => {
@@ -100,6 +117,20 @@ describe('session — library management', () => {
     expect(S().current?.design_id).toBe(d.design_id)
     await S().deleteDesign(d.design_id)
     expect(S().current).toBeNull()
+  })
+
+  it('a pending edit cannot resurrect a deleted open design (regression: tombstone + cancel)', async () => {
+    const d = await S().newDesign(sampleBedroom(), null, 'Doomed')
+    // make an optimistic edit → arms a debounced autosave (pending), but don't flush
+    S().mutate(setMarker('edited'))
+    expect(S().autosave.hasUnsaved()).toBe(true)
+    // delete the open design before the save settles
+    await S().deleteDesign(d.design_id)
+    // let any timers/in-flight work settle
+    await new Promise((r) => setTimeout(r, 50))
+    await S().autosave.saveNow().catch(() => {})
+    await new Promise((r) => setTimeout(r, 30))
+    expect(await S().repo.has(d.design_id)).toBe(false) // stays deleted
   })
 })
 

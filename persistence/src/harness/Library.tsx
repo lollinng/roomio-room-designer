@@ -37,9 +37,10 @@ export function Library() {
     void refreshLibrary()
   }, [refreshLibrary])
 
+  const pendingUndo = lastDeleted.length ? lastDeleted[lastDeleted.length - 1] : null
   // Show the Undo snackbar when a deletion happens; auto-hide after a while.
   useEffect(() => {
-    if (!lastDeleted) return
+    if (lastDeleted.length === 0) return
     setShowUndo(true)
     const t = setTimeout(() => setShowUndo(false), 8000)
     return () => clearTimeout(t)
@@ -129,9 +130,9 @@ export function Library() {
         </div>
       )}
 
-      {showUndo && lastDeleted && (
+      {showUndo && pendingUndo && (
         <div style={snackbar} role="status">
-          <span>Deleted “{lastDeleted.name}”.</span>
+          <span>Deleted “{pendingUndo.name}”.{lastDeleted.length > 1 ? ` (+${lastDeleted.length - 1} more)` : ''}</span>
           <button
             style={{ ...btnGhost, color: '#9fe3cf', border: '1px solid transparent', padding: '4px 8px' }}
             onClick={() => {

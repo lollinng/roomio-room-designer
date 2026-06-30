@@ -33,6 +33,9 @@ function asFault(a: StorageAdapter): FaultInjectable | null {
   return typeof f.setFailing === 'function' ? (f as FaultInjectable) : null
 }
 
+/** Bound the in-memory undo stack (each entry holds a full envelope + thumbnail). */
+const UNDO_STACK_MAX = 20
+
 export interface SessionState {
   repo: DesignRepository
   autosave: AutosaveController<RoomioDesign>
@@ -45,8 +48,8 @@ export interface SessionState {
   /** True when the storage backend supports the demo failure simulation. */
   canSimulateFailure: boolean
   failureSimOn: boolean
-  /** The most recently deleted design, kept in memory so a delete is UNDOable. */
-  lastDeleted: RoomioDesign | null
+  /** Undo STACK of deleted designs (LIFO), kept in memory so deletes are UNDOable. */
+  lastDeleted: RoomioDesign[]
 
   // lifecycle
   refreshLibrary: () => Promise<void>
@@ -76,10 +79,18 @@ export interface SessionState {
 }
 
 /** Build the autosave controller, wiring its save fn through the repository. */
-function makeAutosave(getRepo: () => DesignRepository, onSaved: (committed: RoomioDesign) => void) {
+function makeAutosave(
+  getRepo: () => DesignRepository,
+  onSaved: (committed: RoomioDesign) => void,
+  isTombstoned: (id: string) => boolean,
+) {
   return new AutosaveController<RoomioDesign>({
     debounceMs: 1200,
     save: async (env) => {
+      // Don't resurrect a design that was deleted while this save was pending/in-flight.
+      // (A precise tombstone, not a has()-check, so a brand-new design whose first save
+      // failed still persists on retry.)
+      if (isTombstoned(env.design_id)) return
       const now = Date.now()
       let committed: RoomioDesign = {
         ...env,
@@ -106,6 +117,9 @@ function currentRev(): number {
 export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter()): SessionState {
   const repo = new DesignRepository(adapter)
   const fault = asFault(adapter)
+  // Ids deleted this session: the autosave save fn refuses to write them, so a
+  // pending/in-flight edit can never resurrect a deleted design.
+  const tombstones = new Set<string>()
   const autosave = makeAutosave(
     () => repo,
     (committed) => {
@@ -127,6 +141,7 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
       }
       void st.refreshLibrary()
     },
+    (id) => tombstones.has(id),
   )
   return {
     repo,
@@ -137,7 +152,7 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
     summaries: [],
     canSimulateFailure: !!fault,
     failureSimOn: false,
-    lastDeleted: null,
+    lastDeleted: [],
 
     refreshLibrary: async () => {
       // One-time, non-destructive import of pre-persistence saves (no-op after first run).
@@ -200,21 +215,29 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
 
     deleteDesign: async (id) => {
       const st = useSession.getState()
+      // Tombstone first (synchronously) so any pending/in-flight autosave for this
+      // design refuses to re-write it — a delete must not be silently undone.
+      tombstones.add(id)
+      if (st.current?.design_id === id) {
+        st.autosave.cancel() // drop pending edits + stop timers for the open design
+        useSession.setState({ current: null }) // back to the library
+      }
       // Keep the full envelope in memory so the delete is UNDOable (not a trap).
       const victim = await st.repo.load(id)
       await st.repo.remove(id)
-      useSession.setState({ lastDeleted: victim ?? null })
-      // If the deleted design was open, return to the library.
-      if (st.current?.design_id === id) useSession.setState({ current: null })
+      // Push onto an undo STACK so deleting B before undoing A never loses A.
+      if (victim) useSession.setState({ lastDeleted: [...useSession.getState().lastDeleted, victim].slice(-UNDO_STACK_MAX) })
       await st.refreshLibrary()
     },
 
     undoDelete: async () => {
       const st = useSession.getState()
-      const d = st.lastDeleted
-      if (!d) return
+      const stack = st.lastDeleted
+      if (stack.length === 0) return
+      const d = stack[stack.length - 1] // LIFO: undo the most recent delete first
+      tombstones.delete(d.design_id) // it lives again
       await st.repo.save(d)
-      useSession.setState({ lastDeleted: null })
+      useSession.setState({ lastDeleted: stack.slice(0, -1) })
       await st.refreshLibrary()
     },
 
@@ -224,6 +247,7 @@ export function makeSession(adapter: StorageAdapter = new LocalStorageAdapter())
       if (!env) return null
       // Never silently overwrite an existing design: assign a fresh id on collision.
       const d = (await st.repo.has(env.design_id)) ? { ...env, design_id: uid('design') } : env
+      tombstones.delete(d.design_id) // a re-imported id is alive again
       await st.repo.save(d)
       await st.refreshLibrary()
       return d.design_id

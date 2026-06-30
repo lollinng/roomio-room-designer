@@ -84,11 +84,11 @@ function Walkthrough({ scene, playing, onEnd }: { scene: WorldScene; playing: bo
   const { camera } = useThree()
   const t = useRef(0)
   const curve = useMemo(() => {
-    const pts = (scene.tour.length >= 2 ? scene.tour : [...scene.tour, ...scene.tour]).map(
-      ([x, z]) => new THREE.Vector3(x, 1.5, z),
-    )
-    // pad to at least 2 distinct points
-    if (pts.length < 2) pts.push(new THREE.Vector3(pts[0].x + 0.01, 1.5, pts[0].z + 0.01))
+    const pts = scene.tour.map(([x, z]) => new THREE.Vector3(x, 1.5, z))
+    // Pad to >=2 distinct points without dereferencing a possibly-empty array
+    // (a malformed/empty payload can yield an empty tour — must never crash render).
+    const base = pts[0] ?? new THREE.Vector3(0, 1.5, 0)
+    while (pts.length < 2) pts.push(new THREE.Vector3(base.x + 0.01 * pts.length, 1.5, base.z + 0.01 * pts.length))
     return new THREE.CatmullRomCurve3(pts, false, 'centripetal')
   }, [scene])
 

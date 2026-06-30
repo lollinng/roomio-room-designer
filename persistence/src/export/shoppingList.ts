@@ -63,8 +63,13 @@ export function totalItems(rows: ShoppingRow[]): number {
 }
 
 function csvCell(s: string | number): string {
-  const str = String(s)
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
+  let str = String(s)
+  // Neutralize CSV/formula injection: a cell whose first non-space char is a
+  // formula trigger is prefixed with a quote so spreadsheets treat it as text,
+  // not a live formula (=HYPERLINK/@SUM/+cmd/-2…). The shopping list is a shared
+  // export artifact, so this is a real trust boundary.
+  if (/^\s*[=+\-@\t\r]/.test(str)) str = `'${str}`
+  return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
 }
 
 /** CSV with a header row (opens in any spreadsheet). */
