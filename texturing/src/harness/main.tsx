@@ -11,7 +11,7 @@ function App() {
   return (
     <div style={{ padding: 24, maxWidth: 720, color: '#222' }}>
       <h1 style={{ marginBottom: 4 }}>Roomio — Photo Texture Mapping</h1>
-      <p style={{ color: '#666', marginTop: 0 }}>Agent H harness · port 5188</p>
+      <p style={{ color: '#666', marginTop: 0 }}>Agent H harness · port 5189</p>
       <p>
         Take a furniture photo → detect+crop its surface (via Agent B) → seamless, de-lit
         tiling PBR material (albedo + roughness + normal) → applied to the matching

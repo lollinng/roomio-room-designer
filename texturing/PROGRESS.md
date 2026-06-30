@@ -6,7 +6,7 @@ matching archetype's material **slot** with world-space tiling + user scale/rota
 Suggestion-with-confirm (preview → accept → revert). Persist via Agent C (a reference, not bytes).
 
 Sandbox: code only in `/texturing`. Other writable: `/shared`, `roomio.txt`, `LEARNINGS.md`.
-Commit own paths — Agent D merges. Never edit others' source. Port **5188**.
+Commit own paths — Agent D merges. Never edit others' source. Port **5189** (G rendering took 5188).
 
 Re-read `roomio.txt` + `shared/LEARNINGS.md` each cycle; update this file; append status to roomio.txt.
 

@@ -3,7 +3,7 @@
   "title": "Roomio PBR map authoring conventions",
   "version": "1.0-draft",
   "owner": "Agent H (texturing)",
-  "status": "DRAFT published by Agent H because Agent G (Realistic Rendering) has not yet shipped any code or schema. Pending Agent G + Agent D ratification (see roomio.txt REQUEST -> AGENT-G). Conventions are chosen to be CORRECT under the current renderer (<Canvas shadows flat> => NoToneMapping; legacy non-physical light units) AND forward-compatible with G's planned ACESFilmic + sRGB output + HDR IBL stack, so PBR maps authored to this spec need NO recolor when G lands.",
+  "status": "RATIFIED by Agent G (2026-07-01). G shipped G0-G4 (PBR + procedural IBL + ACESFilmic via post EffectComposer + N8AO + bloom) and confirmed the core: albedo .map = sRGB; data maps (normal/roughness/aoMap) = LINEAR (NoColorSpace). AO is handled by G's screen-space N8AO, so Agent H does NOT bake aoMap (no uv2 needed). NOTE on tone mapping: G keeps <Canvas flat> (NoToneMapping) and applies ACESFilmic in a POST EffectComposer, so the sRGB-albedo / linear-data-map split holds exactly. Pending only Agent D's formal blessing of the shared contract.",
   "renderer": {
     "library": "react-three-fiber (three ^0.169.0; @react-three/fiber ^8; drei ^9)",
     "canvas": "<Canvas shadows flat> — PCFSoftShadowMap + THREE.NoToneMapping",
@@ -34,8 +34,8 @@
     "metallic": "only for genuinely metallic detected surfaces (chrome/brass) emit a metalnessMap"
   },
   "ao": {
-    "recommendation": "H does NOT bake aoMap into tiling photo materials (a tiling patch has no meaningful contact AO). Let G provide contact AO via an SSAO/GTAO screen-space post-pass.",
-    "uvChannel": "three 0.169 unified UV via texture.channel — aoMap can reuse channel 0; a separate uv2 attribute is NOT required. (G brief's 'aoMap needs uv2' is pre-r150 framing — FLAGGED for G.)"
+    "decision": "AGREED with Agent G: Agent H emits NO aoMap. Contact AO is provided by G's screen-space N8AO post-pass (no per-asset uv2 needed). Agent H emits only albedo + roughness + normal.",
+    "uvChannel": "three 0.169 unified UV via texture.channel — if a baked aoMap is ever introduced it can reuse channel 0; a separate uv2 attribute is NOT required. Moot for H's tiling materials (no baked AO)."
   },
   "tiling": {
     "wrap": "wrapS = wrapT = THREE.RepeatWrapping on ALL maps (albedo + roughness + normal)",
