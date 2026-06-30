@@ -95,5 +95,18 @@
   { "id": "decor-tv-large", "category": "decor", "name": "Large TV", "icon": "📺", "model": "tv", "w": 168, "d": 9, "h": 96, "min": [110, 6, 65], "max": [210, 14, 125], "color": "#141518", "mount": "wall" },
   { "id": "decor-mirror", "category": "decor", "name": "Wall / Floor Mirror", "icon": "🪞", "model": "mirror", "w": 50, "d": 4, "h": 160, "min": [35, 3, 120], "max": [70, 8, 195], "color": "#caa86a", "mount": "wall" },
 
-  { "id": "misc-box", "category": "misc", "name": "Placeholder Box", "icon": "📦", "model": "box", "w": 60, "d": 60, "h": 60, "min": [20, 20, 20], "max": [300, 300, 300], "color": "#b7b2a8" }
+  { "id": "misc-box", "category": "misc", "name": "Placeholder Box", "icon": "📦", "model": "box", "w": 60, "d": 60, "h": 60, "min": [20, 20, 20], "max": [300, 300, 300], "color": "#b7b2a8" },
+
+  { "id": "kitchen-counter", "category": "kitchen", "name": "Counter & Cabinets", "icon": "🧑‍🍳", "model": "counter", "w": 240, "d": 60, "h": 90, "min": [120, 55, 85], "max": [400, 70, 95], "color": "#d9d5cd" },
+  { "id": "kitchen-island", "category": "kitchen", "name": "Kitchen Island", "icon": "🍽️", "model": "island", "w": 140, "d": 90, "h": 92, "min": [90, 70, 88], "max": [260, 120, 98], "color": "#cdbfa6" },
+  { "id": "kitchen-sink", "category": "kitchen", "name": "Kitchen Sink Base", "icon": "🚰", "model": "vanity", "w": 90, "d": 60, "h": 90, "min": [55, 55, 85], "max": [120, 68, 95], "color": "#d6cdbd" },
+  { "id": "kitchen-stove", "category": "kitchen", "name": "Range / Stove", "icon": "🍳", "model": "stove", "w": 76, "d": 66, "h": 92, "min": [50, 60, 88], "max": [92, 70, 98], "color": "#c9ccce" },
+  { "id": "kitchen-fridge", "category": "kitchen", "name": "Refrigerator", "icon": "🧊", "model": "fridge", "w": 91, "d": 74, "h": 178, "min": [55, 65, 150], "max": [100, 82, 190], "color": "#cfd3d6" },
+  { "id": "kitchen-hood", "category": "kitchen", "name": "Range Hood", "icon": "💨", "model": "rangeHood", "w": 76, "d": 50, "h": 60, "min": [50, 40, 40], "max": [120, 60, 75], "color": "#c9ccce", "mount": "wall" },
+  { "id": "bath-toilet", "category": "bathroom", "name": "Toilet", "icon": "🚽", "model": "toilet", "w": 38, "d": 68, "h": 78, "min": [35, 60, 70], "max": [44, 75, 88], "color": "#f3f2ec" },
+  { "id": "bath-vanity", "category": "bathroom", "name": "Sink Vanity", "icon": "🚰", "model": "vanity", "w": 80, "d": 50, "h": 85, "min": [50, 40, 80], "max": [160, 60, 92], "color": "#e7e1d6" },
+  { "id": "bath-shower", "category": "bathroom", "name": "Walk-in Shower", "icon": "🚿", "model": "shower", "w": 90, "d": 90, "h": 210, "min": [80, 80, 190], "max": [120, 120, 225], "color": "#dfe3e6" },
+  { "id": "bath-tub-alcove", "category": "bathroom", "name": "Alcove Bathtub", "icon": "🛁", "model": "bathtub", "w": 170, "d": 75, "h": 58, "min": [140, 68, 52], "max": [185, 80, 64], "color": "#f1f2f0" },
+  { "id": "bath-tub-freestanding", "category": "bathroom", "name": "Freestanding Tub", "icon": "🛁", "model": "tubFreestanding", "w": 170, "d": 80, "h": 62, "min": [150, 72, 56], "max": [190, 92, 70], "color": "#f4f4f2" },
+  { "id": "bath-jacuzzi", "category": "bathroom", "name": "Jacuzzi Whirlpool", "icon": "💦", "model": "jacuzzi", "w": 200, "d": 150, "h": 64, "min": [160, 120, 58], "max": [230, 175, 74], "color": "#eaf0f1" }
 ]

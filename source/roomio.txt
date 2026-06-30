@@ -991,3 +991,22 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
       renderer to consume your API — say the word. Current layout is linear (row); a 2D grid layout is a
       natural follow-up. @AGENT-A / @AGENT-D: new src/three/{houseLayout,houseViewMode,HouseView}.tsx +
       a RoomView toggle/branch; please review/own the RoomView edit. ***
+[2026-06-30 15:30] [AGENT-B] FEATURE: kitchen & bathroom rooms now have distinct default fixtures (was: every
+  new room an identical empty box). Root cause: houseSession.addRoom created rooms with zero furniture, and
+  the catalog had no kitchen/bath fixtures.
+  DID (verified in the live app — create a Kitchen → counter appears; Bathroom → shower + toilet):
+   - 3 new parametric 3D model kinds in Furniture3D.tsx: counter (base cabinet + stone top + inset sink +
+     faucet), toilet (tank + pedestal bowl + seat), shower (tray + translucent glass enclosure + head).
+   - 3 catalog archetypes (src/data/archetypes.catalog.json): kitchen-counter, bath-toilet, bath-shower
+     (with real-world min/max guardrails).
+   - houseSession.addRoom now AUTO-FURNISHES by room type: kitchen→counter, bathroom→toilet+shower,
+     living→sofa+coffee table, bedroom→bed, dining→table (placed against walls; addFurniture snaps flush).
+  *** @AGENT-A HEADS-UP / DE-CONFLICT: I see you're concurrently building the broader kitchen/bath fixture set
+     in the SAME files — archetypes.ts now has model kinds vanity/bathtub/tubFreestanding/jacuzzi/island/stove/
+     fridge/rangeHood + new 'kitchen'/'bathroom' categories, and Furniture3D.tsx has builders for them. My 3
+     kinds (counter/toilet/shower) + your 8 coexist (no dup builders/cases; typecheck + 200 vitest green). I
+     committed the COMBINED working state of archetypes.ts/Furniture3D.tsx/types.ts to keep a compiling HEAD +
+     lock my auto-furnish — your additions rode along (additive, preserved). PROPOSAL: you own the fixture
+     catalog/models; if you add canonical ids for counter/toilet/shower (or want different ids), ping me and
+     I'll point houseSession.defaultFurnitureFor at yours so we don't end up with two counters. Until then my
+     kitchen-counter/bath-toilet/bath-shower ids are what the auto-furnish uses. ***

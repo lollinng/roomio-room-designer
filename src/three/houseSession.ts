@@ -11,10 +11,44 @@
  */
 import { create } from 'zustand'
 import { useStore, newDesign } from '../store'
-import type { RoomDesign, ShapeId } from '../types'
+import type { RoomDesign, ShapeId, Vec2 } from '../types'
 import { presetCorners } from '../geometry/presets'
+import { bbox } from '../geometry/walls'
 import { defaultOpenings } from '../data/defaultOpenings'
 import { ROOM_TYPE_INFO, ROOM_TYPE_LIST, type RoomType } from '../../multi-room/src/index'
+
+/**
+ * Per-type starter furniture so each room reads as its function the moment it's
+ * created (kitchens get a counter, bathrooms a shower + toilet, etc.) instead of
+ * every new room being an identical empty box. Positions are in design cm,
+ * placed against/near walls; addFurniture() snaps them flush via the §7 solver.
+ * Unknown ids are no-ops, so this never throws.
+ */
+function defaultFurnitureFor(type: RoomType, corners: Vec2[]): Array<{ archetype: string; x: number; z: number }> {
+  const b = bbox(corners)
+  const cx = (b.minX + b.maxX) / 2
+  const cz = (b.minZ + b.maxZ) / 2
+  switch (type) {
+    case 'kitchen':
+      return [{ archetype: 'kitchen-counter', x: cx, z: b.minZ + 42 }]
+    case 'bathroom':
+      return [
+        { archetype: 'bath-toilet', x: b.minX + 110, z: b.minZ + 48 },
+        { archetype: 'bath-shower', x: b.maxX - 95, z: b.minZ + 95 },
+      ]
+    case 'living':
+      return [
+        { archetype: 'sofa-3', x: cx, z: b.maxZ - 75 },
+        { archetype: 'table-coffee', x: cx, z: cz },
+      ]
+    case 'bedroom':
+      return [{ archetype: 'bed-queen', x: cx, z: b.minZ + 120 }]
+    case 'dining':
+      return [{ archetype: 'table-dining', x: cx, z: cz }]
+    default:
+      return []
+  }
+}
 
 export interface RoomEntry {
   /** equals the RoomDesign.id of this room */
@@ -101,6 +135,12 @@ export const useHouse = create<HouseSession>((set, get) => ({
     }
     set((s) => ({ rooms: [...s.rooms, { id: d.id, type, design: d }], activeId: d.id }))
     useStore.getState().loadDesign(d) // loads into the editor (stage → furnish)
+    // Furnish the new room with type-appropriate starter pieces, then snapshot
+    // the result back into the room entry so each room type looks distinct.
+    const fixtures = defaultFurnitureFor(type, corners)
+    for (const fx of fixtures) useStore.getState().addFurniture(fx.archetype, fx.x, fx.z)
+    useStore.getState().selectFurniture(null)
+    get().syncActive()
     return d.id
   },
 
