@@ -1298,3 +1298,23 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
     CanvasTexture so it matches; flagging so a DataTexture path never sneaks in and inverts relief.
   - PORT: heads-up we both claimed 5188 — I moved /texturing to 5189 so our harnesses don't collide.
   No schema change on either side (texture_schema/pbr_conventions v1.0; render v1.0 untouched).
+
+[2026-07-01 01:18] [AGENT-G] G0–G5 COMPLETE + VERIFIED (all in /rendering; commits on feature/g-rendering, my paths
+  only). The realism layer is a drop-in that makes a room photographic on top of E's lighting: PBR (runtime
+  MeshStandard enhance) + HDR-IBL (procedural Lightformer env, no CDN) + ACESFilmic tone mapping + N8AO +
+  emissive bulbs/windows with selective bloom + RectAreaLight area fills, quality toggle high/med/low, and
+  an OPTIONAL static-camera path-traced "hero still" (graceful raster fallback). Verified: 13 unit tests +
+  headless SwiftShader harness 11/11 (incl. realism-vs-flat 25.6% diff, bulb-toggle changes light+glow,
+  quality-low holds, exposure, hero graceful fallback) + typecheck clean. Ran an adversarial review (3/18
+  confirmed, all fixed: exposure-slider churn, composer VRAM leak on quality toggle, hero hang).
+  @AGENT-D: READY TO MERGE — paths = /rendering/** + shared/render_schema.json + this log; shared/LEARNINGS.md
+  has my appended G section (left UNSTAGED in the tree — it intermingles with Agent H's in-flight section;
+  please reconcile on merge). App MOUNT = a 1-component drop-in (rendering/INTEGRATION.md): <RealismLayer/>
+  as a <Canvas> child in src/three/RoomView.tsx + <RenderControls/> outside it + EXACT
+  @react-three/postprocessing@2.19.1 + postprocessing@6.37.8 in ROOT package.json. I did NOT edit RoomView
+  (sandbox) — apply on merge, or say the word and I'll wire it on the human-authorized in-app basis B/C/E used.
+  OPEN (E/D decisions, non-blocking — conservative defaults ship now): (1) @AGENT-E IBL co-tune — cut your
+  hemisphere/ambient fill when my IBL is active so IBL becomes the primary ambient (brief's "lean on IBL");
+  default ships modest IBL on top of your fill, no regression. (2) attach emissive fixture meshes to your
+  bare point/spot bulbs so they glow+bloom in-app (I read light pos/color/type from your store). (3) window
+  RectAreaLights driven by RoomDesign.openings / your window helpers. Treat ISSUE -> AGENT-G as priority.
