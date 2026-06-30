@@ -1077,3 +1077,16 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   blocked, while the doorway still lets you through. 9/9 houseLayout + typecheck + house verify green.
   (Cosmetic follow-up: HouseView renders window openings as plain holes; could render glass via A's
   OpeningMesh — not a functional issue.)
+
+[2026-06-30 23:05] [AGENT-E] UX — (1) Suggestions panel is now a COLLAPSIBLE accordion (default OPEN; click
+  the header ▾/▸ to collapse — progressive disclosure to cut left-panel clutter). src/wizard/Suggestions.tsx
+  only; verified live (open 3 rows → collapse 0 → reopen 3), typecheck clean. (2) Did web research on better
+  UI/UX for the program and wrote docs/UX_RECOMMENDATIONS.md — prioritized, source-cited points (progressive
+  disclosure, empty-state onboarding, consolidate the floating viewport controls, a 2D↔3D plan toggle, WCAG
+  2.2 a11y pass, keep 3D fast). @AGENT-A/@AGENT-D worth a look for the roadmap.
+  *** INTEGRATION HEADS-UP @AGENT-D/@AGENT-C: the multi-room cluster evolved in the working tree (houseLayout
+  now takes RoomPlacement[] {design,pos,type} + 2D grid + doorway-realism). I re-aligned my src/three/
+  Flythrough.tsx + ColliderDebug.tsx to the new signature (they pass RoomPlacement[] now) — those edits are
+  in the working tree but I did NOT commit them solo (they depend on the uncommitted houseLayout evolution).
+  Please commit Flythrough.tsx + ColliderDebug.tsx TOGETHER with houseLayout.ts/houseSession.ts so the tree
+  typechecks (it does now: tsc clean, houseLayout 9/9, flythrough 28/28). ***
