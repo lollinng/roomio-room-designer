@@ -158,13 +158,16 @@ export function FlythroughHud({ controller }: { controller: FlythroughController
     return controller.subscribe(() => force())
   }, [controller])
 
-  // While the panel is open: hide the app's furniture HTML overlays, and LOCK
-  // all furniture so it can't be nudged while authoring the camera path. Prior
-  // lock states are restored on close.
+  // While the panel is open AND not in Edit-furniture mode: hide the app's
+  // furniture HTML overlays and LOCK all furniture so it can't be nudged while
+  // authoring the camera path. Toggling "Edit furniture" (or closing) lifts this
+  // and restores prior lock states, so normal select/move/rotate/delete works.
   const open = controller?.snapshot().open ?? false
+  const edit = controller?.snapshot().editMode ?? false
+  const lockActive = open && !edit
   useEffect(() => {
-    document.body.classList.toggle('flythrough-active', open)
-    if (open) {
+    document.body.classList.toggle('flythrough-active', lockActive)
+    if (lockActive) {
       const st = useStore.getState()
       // deselect so no selection wireframe/handles linger in the flythrough view
       st.selectFurniture(null)
@@ -188,7 +191,7 @@ export function FlythroughHud({ controller }: { controller: FlythroughController
       }
     }
     return () => document.body.classList.remove('flythrough-active')
-  }, [open])
+  }, [lockActive])
 
   // live-update the scrubber/time during playback or export without re-rendering
   useEffect(() => {
@@ -217,8 +220,9 @@ export function FlythroughHud({ controller }: { controller: FlythroughController
     )
   }
 
-  const banner =
-    s.mode === 'walk'
+  const banner = s.editMode
+    ? '<b>Edit furniture</b> — click an item to select it, then move / rotate (front knob) / delete (trash). Toggle off to resume the camera path.'
+    : s.mode === 'walk'
       ? (s.isRecording
           ? '<b>Recording walk</b> — move with WASD; your path is being traced. Stop &amp; build when done.'
           : '<b>Walk</b> — click to look around · WASD to move · collides with walls &amp; furniture')
@@ -231,11 +235,16 @@ export function FlythroughHud({ controller }: { controller: FlythroughController
       <div className="bar">
         <div className="group">
           <span className="label">Flythrough</span>
-          <button className={s.mode === 'director' ? 'active' : ''} onClick={() => controller.setMode('director')}>Director</button>
-          <button className={s.mode === 'walk' ? 'active' : ''} onClick={() => controller.setMode('walk')}>Walk</button>
+          <button className={s.mode === 'director' && !s.editMode ? 'active' : ''} onClick={() => { if (s.editMode) controller.toggleEdit(); controller.setMode('director') }}>Director</button>
+          <button className={s.mode === 'walk' ? 'active' : ''} onClick={() => { if (s.editMode) controller.toggleEdit(); controller.setMode('walk') }} disabled={s.editMode}>Walk</button>
           <button className="close" onClick={() => { controller.closePanel(); force() }}>✕ Close</button>
         </div>
-        {s.mode === 'director' && (
+        <div className="group">
+          <button className={s.editMode ? 'active' : ''} onClick={() => controller.toggleEdit()} title="Edit room furniture without leaving the flythrough">
+            ✏️ {s.editMode ? 'Done editing' : 'Edit furniture'}
+          </button>
+        </div>
+        {s.mode === 'director' && !s.editMode && (
           <div className="group">
             <button className={s.pov ? 'active' : ''} onClick={() => controller.togglePov()}>⤢ {s.pov ? 'Top-down' : 'Camera POV'}</button>
           </div>
@@ -272,7 +281,7 @@ export function FlythroughHud({ controller }: { controller: FlythroughController
         )}
       </div>
 
-      {s.mode === 'director' && s.hasCurve && (
+      {s.mode === 'director' && s.hasCurve && !s.editMode && (
         <div className="transport">
           <button onClick={() => controller.playPause()}>{s.isPlaying ? '❚❚ Pause' : '▶ Play'}</button>
           <input ref={scrubRef} type="range" min={0} max={1} step={0.001} defaultValue={s.progress}

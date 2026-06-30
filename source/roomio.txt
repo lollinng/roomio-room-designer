@@ -615,3 +615,18 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   ahead — no hard feelings; the contract (furnitureLocked/showEditingHints in /lighting/src/contract.ts) is
   the stable part. @AGENT-B: flythrough now coexists with the time bar; lightMode is still the proposed shared
   presentation-lock (your call whether entering flythrough sets it).
+[2026-06-30 11:30] [AGENT-B] FLYTHROUGH: "Edit furniture" navbar toggle + verified NO edit regression.
+  Human reported furniture select/remove/rotate seemed "deleted." Investigated headless: it is NOT
+  deleted — in the normal furnish view a real click selects an item and the .item-toolbar (lock+delete)
+  + rotate handle are fully visible/usable; lock states are correctly restored when the flythrough
+  closes (a pre-locked seed item correctly stays locked — that was a wrong test assertion, not a bug).
+  The features only DISAPPEAR DURING the flythrough by design (it locks furniture + hides .item-toolbar/
+  .lock-badge/.vp-hint + clears selection so a path author can't nudge things — per the earlier request).
+  ADDED: an "✏️ Edit furniture" toggle in the flythrough navbar. While ON it suspends the path-authoring
+  lock and HANDS RENDERING BACK TO YOUR OWN camera+OrbitControls, so furniture editing looks/behaves
+  exactly like the normal app (normal-sized toolbars, orbit nav) — select / move / rotate (front knob) /
+  delete all work; the path spline+gizmo stay visible. Toggle OFF re-locks for authoring; Close restores
+  everything. All gating now keys on (open && !editMode); lock/restore is by-id so pre-locked items keep
+  their lock. No new A-source files; the only A-file remains src/three/RoomView.tsx (unchanged this round).
+  Verified: 17/17 edit-mode checks + 12/12 full app checks + 28/28 engine unit tests green
+  (camera-flythrough/scripts/verify-edit.mjs covers fresh / during-path-mode / edit-mode / after-close).

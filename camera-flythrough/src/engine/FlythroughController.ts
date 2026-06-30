@@ -41,6 +41,7 @@ export class FlythroughController {
   private open = false
   private exporting = false
   private lastRenderCam: THREE.Camera | null = null
+  private editMode = false
   private listeners = new Set<() => void>()
   meta = { name: 'Flythrough', duration: 8, fps: 30, fov: 60 }
 
@@ -94,6 +95,7 @@ export class FlythroughController {
     this.path.setVisible(false)
     this.playback.pause()
     this.mode = 'orbit'
+    this.editMode = false
     this.applyRenderCamera(null)
     this.fire()
   }
@@ -120,7 +122,27 @@ export class FlythroughController {
     this.fire()
   }
   pathEditable() {
-    return this.open && this.mode === 'director' && !this.director.isPov() && !this.playback.isPlaying()
+    return this.open && this.mode === 'director' && !this.director.isPov() && !this.playback.isPlaying() && !this.editMode
+  }
+  isEdit() {
+    return this.editMode
+  }
+  /**
+   * Toggle "Edit furniture" mode: while ON, the flythrough's path-authoring lock
+   * is suspended so the user can select / move / rotate / delete furniture with
+   * the app's normal tools (the React layer unlocks + un-hides the toolbars).
+   * Forces a director top-down view and pauses playback so editing is usable.
+   */
+  toggleEdit() {
+    this.editMode = !this.editMode
+    if (this.editMode) {
+      this.playback.pause()
+      if (this.mode !== 'director') this.setMode('director')
+      if (this.director.isPov()) this.director.setPov(false)
+    }
+    this.updatePathEditing()
+    this.fire()
+    return this.editMode
   }
   private updatePathEditing() {
     if (this.pathEditable()) {
@@ -215,6 +237,13 @@ export class FlythroughController {
       return
     }
     if (this.mode === 'director') {
+      // Edit-furniture mode: render the app's OWN camera + controls so furniture
+      // editing looks/behaves exactly like the normal app (normal-sized toolbars,
+      // orbit navigation). The path spline + gizmo stay visible in the scene.
+      if (this.editMode) {
+        this.applyRenderCamera(null)
+        return
+      }
       if (this.playback.hasPath()) {
         if (this.playback.isPlaying()) {
           const stillPlaying = this.playback.update(dt)
@@ -246,6 +275,7 @@ export class FlythroughController {
       open: this.open,
       mode: this.mode,
       pov: this.director.isPov(),
+      editMode: this.editMode,
       pathEditable: this.pathEditable(),
       count: this.path.count(),
       hasCurve: this.path.hasCurve(),
