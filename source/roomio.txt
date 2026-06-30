@@ -1318,3 +1318,34 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   default ships modest IBL on top of your fill, no regression. (2) attach emissive fixture meshes to your
   bare point/spot bulbs so they glow+bloom in-app (I read light pos/color/type from your store). (3) window
   RectAreaLights driven by RoomDesign.openings / your window helpers. Treat ISSUE -> AGENT-G as priority.
+
+[2026-07-01 01:19] [AGENT-H] MILESTONES H0–H5 BUILT + ACCEPTANCE VERIFIED (all in /texturing; commits on the
+  currently-checked-out branch, my paths only). The brief's §8 acceptance passes end to end:
+   - PIPELINE (pure, node-tested — 62/62): T1 crop (normalize B's downscaled-space bbox onto the original
+     photo + clean-patch auto-select) → T2 seamless tile (offset+heal, borders exact) → de-light (homomorphic
+     flatten, chroma-preserving + mean-preserving) → derive albedo(sRGB)/roughness(per-material band)/normal
+     (+Y/OpenGL). Adversarially reviewed (9 agents; 2 confirmed de-light bugs fixed + regression-pinned).
+   - APPLY (T3): slot targeting picks the fabric BODY+cushions and skips legs/metal/glass — precise via
+     userData.role, else a LINEAR-lightness heuristic (legs are shade ~0.5×) robust across dark/pale/saturated
+     colors. World-space tiling (repeat = dominantFaceCm/repeat_cm). MeshStandard map/roughnessMap/normalMap
+     on a CLONED material → exact revert. User repeat_cm + rotation controls. Preview → accept → revert.
+   - HARNESS verified 9/9 headless (SwiftShader, screenshots): fabric photo → 3-seater sofa fabric slot (7
+     meshes, feet untextured), wraps with weave + responds to the sun, NO dots/stretching; tiling density
+     raises repeat 5.25→14; revert restores the default; wood photo → table TOP (legs untextured).
+   - UV GUARANTEE: corpus is all primitives (auto-UV) → no "only dots"; world-space tiling solves scale.
+     REMAINING (H1 polish): a TRIPLANAR fallback for the 2 anisotropic/odd meshes (freestanding tub, open
+     lamp-shade cone) whose default UVs stretch — building next; not on the sofa/table acceptance path.
+   - PERSIST (H5): additive FurnitureItem.texture (references, not bytes) round-trips through C's persistence
+     (verified save→JSON→reload→resolve); bytes in a content-addressed asset store (roomio.asset.<sha256>,
+     dedup + GC). App-side: back it with IndexedDB; sharing/export of referenced bytes is an open C decision.
+  *** @AGENT-D / @AGENT-A: the real-app wiring is a small additive drop-in — full spec in
+      texturing/INTEGRATION.md: (1) `FurnitureItem.texture?: AppliedTexture` on src/types.ts (1 line); (2)
+      ScanRoom keeps the uploaded image + detect.ts surfaces result image dims (additive, type-only) so H
+      crops client-side from B's bbox — NO change to B; (3) a group ref on FurnitureModel + re-apply on the
+      useMemo rebuild to mount applyTextureToGroup; (4) a "Texture this item" control in the ItemEditor panel.
+      Happy to wire it on the human-authorized in-app basis B/C/E/G used, or hand D the diff. ***
+  @AGENT-G: still want your re-enhance trigger (so envMapIntensity re-applies to a freshly-textured mesh at
+  runtime) — until then I re-apply maps on change and your enhancer picks up MeshStandard on traversal/quality
+  toggle. @AGENT-C: bless the roomio.asset.<hash> namespace + the export-bytes-vs-degrade decision when you can.
+  @AGENT-D: my LEARNINGS.md Agent H section is in the working tree alongside G's unstaged section — please
+  reconcile both on merge (same situation G flagged). New paths = /texturing/** only.

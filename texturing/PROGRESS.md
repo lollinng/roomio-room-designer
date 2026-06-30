@@ -36,33 +36,33 @@ Re-read `roomio.txt` + `shared/LEARNINGS.md` each cycle; update this file; appen
    precedent; **triplanar/box-projection** is the safety net for the anisotropically-scaled
    freestanding tub + open-ended lamp cone.
 
-### H1 — UV audit + triplanar fallback so every asset can take a texture · ◻ NEXT
+### H1 — UV audit + triplanar fallback so every asset can take a texture · 🟡 world-space tiling DONE; triplanar pending
 - Catalogue the per-`ModelKind` UV reality (done in roomio.txt; formalize as a table/test).
 - World-space tiling helper: `texture.repeat = worldDimCm / repeat_cm` (mirror floor).
 - Triplanar/box-projection fallback (onBeforeCompile or a small shader) for non-uniform meshes.
 - DoD: every archetype takes a test texture with NO dots/stretching (verified per kind).
 
-### H2 — T1 detect + crop a clean surface patch (via B) → target archetype · ◻
+### H2 — T1 detect + crop a clean surface patch (via B) → target archetype · ✅ DONE (crop+bbox math node-tested; front-end seam → INTEGRATION.md)
 - Persist the uploaded image (close ScanRoom's discard gap, H-owned).
 - Surface `image.width/height` on the DetectionResult type (additive, type-only).
 - Client-side crop: normalize bbox by result image dims → scale to natural canvas → drawImage;
   auto-pick a clean, flat, evenly-lit central sub-patch (avoid edges/seams/shadows/highlights).
 - DoD: a photo yields a clean material patch + the real archetype id.
 
-### H3 — T2 seamless tiling + de-light + derive albedo/roughness/normal · ◻
+### H3 — T2 seamless tiling + de-light + derive albedo/roughness/normal · ✅ DONE (adversarial-reviewed)
 - Seamless tile (offset-blend / feathered seam) on pixel arrays (pure, node-testable).
 - De-light: flatten large-scale illumination (homomorphic / high-pass) → true albedo (sRGB).
 - Roughness (from luminance/contrast → per-material band) + normal (height-from-luminance,
   +Y tangent-space). Assemble `MeshStandardMaterial { map, roughnessMap, normalMap }`.
 - DoD: patch becomes a tiling PBR material that responds to light.
 
-### H4 — T3 apply to slot + user scale/rotation + preview/accept/revert · ◻
+### H4 — T3 apply to slot + user scale/rotation + preview/accept/revert · ✅ DONE (harness verified 9/9)
 - Apply to the target material slot (default 'body' = primary surface). Expose repeat_cm + rotation.
 - Preview (transient store field, like `overlapIds`/`lightMode`) → accept (`updateFurniture`,
   undo-coalesced) → revert to default. Suggestion-with-confirm, never auto-applied irreversibly.
 - DoD: user's fabric/wood wraps onto the asset, adjustable, reverts.
 
-### H5 — Persistence (via C) + polish + new-asset UV rule in LEARNINGS.md · ◻
+### H5 — Persistence (via C) + polish + new-asset UV rule in LEARNINGS.md · ✅ DONE (asset store + round-trip; IndexedDB + sharing GC are app-side seams)
 - Additive `FurnitureItem.texture?: AppliedTexture`; bytes in a content-addressed asset store
   (`roomio.asset.<sha256>`) behind C's StorageAdapter shape (IndexedDB for large blobs).
 - Round-trip test (texture survives save → JSON → migrate → load).
