@@ -28,6 +28,8 @@ export interface PlacedRoom {
 const DOOR_WIDTH_CM = 90
 const DOOR_HEIGHT_CM = 205
 const ROOM_GAP_CM = 0 // touching, so the shared wall is exact
+/** sill (cm) at/below which an opening reaches the floor → walkable (door); above = window (solid at floor). */
+const WALKABLE_SILL_CM = 15
 
 /** Pick the vertical wall on the given side (max/min midX), i.e. the +x / -x edge. */
 function sideWall(walls: Wall[], side: 'left' | 'right'): Wall | undefined {
@@ -175,7 +177,10 @@ export function houseColliders(placed: PlacedRoom[]): HouseColliders {
     wallThickness = p.design.wallThickness
     const allOpenings = [...p.design.openings, ...p.extraOpenings]
     for (const w of deriveWalls(p.design.corners)) {
-      const ops = allOpenings.filter((o) => o.wallId === w.id)
+      // Only FLOOR-REACHING openings (doors / open connectors, sill ≈ 0) are
+      // walkable gaps. A WINDOW has wall below its sill, so at the floor plane
+      // (where the walker is) it's SOLID — you must not walk through a window.
+      const ops = allOpenings.filter((o) => o.wallId === w.id && o.sill <= WALKABLE_SILL_CM)
       for (const seg of splitWall(w, ops)) {
         const s = offsetWall(seg, off)
         // thin wall box: length along the wall (local +x), thickness across it.

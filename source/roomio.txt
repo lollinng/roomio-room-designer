@@ -1038,3 +1038,42 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   No further action needed — kitchen/bathroom now read distinctly by default. (FYI the only console noise is a
   pre-existing React warning: a span mixing `border` + `borderColor` shorthand somewhere in the rooms UI —
   not from this work; worth a quick fix by whoever owns that chip.)
+
+[2026-06-30 22:20] [AGENT-F] KITCHEN & BATHROOM AMENITIES (human-directed: "very less amenities from other rooms
+  apart from living/bedroom — add proper amenities, multiple shower types: jacuzzi / wall-hanged / bathtub").
+  Found an in-flight partial pass on A's files (counter/toilet/shower builders + 3 catalog entries, mis-filed
+  under storage/misc because CATEGORIES/CATEGORY_ORDER weren't extended) — BUILT ON it (did not clobber), fixed it,
+  and completed the set. Now 12 fixtures across two NEW palette categories:
+   - bathroom: Toilet, Sink Vanity, Walk-in Shower (wall-mounted head + glass), Alcove Bathtub, Freestanding Tub,
+     Jacuzzi Whirlpool.
+   - kitchen: Counter & Cabinets, Island, Sink Base, Range/Stove, Refrigerator, Range Hood (wall-mounted).
+  CHANGES:
+   - src/types.ts: FurnitureCategory += 'kitchen' | 'bathroom'.
+   - src/data/archetypes.ts: ModelKind + MODEL_KINDS += vanity/bathtub/tubFreestanding/jacuzzi/island/stove/
+     fridge/rangeHood (counter/toilet/shower already there); CATEGORIES + CATEGORY_ORDER += Kitchen, Bathroom.
+   - src/three/Furniture3D.tsx: 8 new parametric builders (Box/Cyl primitives, local-space convention) + switch
+     cases. Tubs share a filled-basin stylization; kitchen-sink + bath-vanity reuse the 'vanity' body (intentional).
+   - src/data/archetypes.catalog.json: 91 -> 103 (6 kitchen + 6 bathroom, real-world dims + min/max guardrails;
+     range hood mount:"wall"). Fixed the 3 pre-existing entries' categories.
+   - shared/archetypes.json: re-synced from the catalog (103 ids) so the DETECTOR can emit the new fixtures.
+   - multi-room/src/data/roomTypes.ts: kitchen + bathroom essentials now point at the REAL ids (were null/
+     placeholder — closes the asset gap Agent C flagged); tests repurposed (roomTypes.test.ts, acceptance.test.ts:
+     catalog-count assert relaxed to >=91; "kitchen/bath now fully modeled, no gaps").
+  Verified: root 200 + multi-room 49 + detection 29 green; root & multi-room typecheck clean; catalog/shared parity
+  (103==103, 0 set diff); zero model fallthroughs; min<=def<=max on all 103; live-app data check (addFurnitureCentered
+  succeeds for all 12). Adversarial 3-lens review = SHIP, no blockers (only taste nits). NOTE: 3D visuals couldn't be
+  screenshotted here (headless Chrome has no WebGL) — verified by geometry math + the data layer; renders in the app.
+  NOTICE -> AGENT-A: extended your catalog + Furniture3D + types (built on the in-flight counter/toilet/shower work).
+  NOTICE -> AGENT-C: your kitchen/bath room-type essentials now resolve to real fixtures (asset gap closed).
+  NOTICE -> AGENT-B: shared/archetypes.json grew to 103 ids (additive) — closed-set classifier may now emit them.
+  NOTICE -> AGENT-D: ~7 files for merge; all additive/green.
+
+[2026-06-30 22:36] [AGENT-E] BUGFIX — could WALK THROUGH a WINDOW in the multi-room flythrough (human:
+  "shows window but it's a door and I can walk through"). Cause: houseColliders.splitWall removed the wall
+  span for EVERY opening, including windows. A window has wall below its sill, so at the floor plane (where
+  the walker is) it must be SOLID — only floor-reaching openings (doors / open connectors, sill ≈ 0) are
+  walkable gaps. Fix (src/three/houseLayout.ts): only split walls around openings with sill ≤ 15 cm; windows
+  (sill > 0) stay solid in collision, matching the visible sill wall. Test added: walking into a window is
+  blocked, while the doorway still lets you through. 9/9 houseLayout + typecheck + house verify green.
+  (Cosmetic follow-up: HouseView renders window openings as plain holes; could render glass via A's
+  OpeningMesh — not a functional issue.)

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { layoutHouse, houseBoundsCm, houseColliders } from './houseLayout'
 import { newDesign } from '../store'
-import { bbox } from '../geometry/walls'
+import { bbox, deriveWalls } from '../geometry/walls'
+import type { Opening } from '../types'
 import { resolveWalk } from '../../camera-flythrough/src/engine/collision'
 import type { RoomDesign } from '../types'
 
@@ -71,6 +72,24 @@ describe('houseLayout — interconnected floor plan', () => {
     const boundaryX = placed[0].centerCm.x + bb0.w / 2 // shared wall, house cm
     const end = walkRight(cols, { x: boundaryX - 120, z: 0 }) // z=0 is the doorway
     expect(end.x).toBeGreaterThan(boundaryX + 20) // crossed into room B through the doorway
+  })
+
+  it('houseColliders: you CANNOT walk through a window (sill > 0 → solid at the floor)', () => {
+    const a = room('a')
+    // put a window on a's right (shared) wall, away from the centred doorway
+    const rightWall = deriveWalls(a.corners)
+      .filter((w) => Math.abs(w.dirX) < 0.25)
+      .reduce((m, w) => (w.midX > m.midX ? w : m))
+    const win: Opening = { id: 'win', kind: 'window', style: 'windowSingle', wallId: rightWall.id, t: 0.2, width: 100, height: 120, sill: 90 }
+    a.openings = [win]
+    const placed = layoutHouse([a, room('b')])
+    const cols = houseColliders(placed)
+    const bb0 = bbox(placed[0].design.corners)
+    const boundaryX = placed[0].centerCm.x + bb0.w / 2
+    // z of the window (t=0.2 along the wall) in house cm
+    const winZ = rightWall.a.z + rightWall.dirZ * (0.2 * rightWall.length) + (placed[0].centerCm.z - bb0.cz)
+    const end = walkRight(cols, { x: boundaryX - 120, z: winZ })
+    expect(end.x).toBeLessThan(boundaryX) // window is solid at floor — blocked
   })
 
   it('houseColliders: a SOLID part of the shared wall still blocks you', () => {
