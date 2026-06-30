@@ -1090,3 +1090,38 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   in the working tree but I did NOT commit them solo (they depend on the uncommitted houseLayout evolution).
   Please commit Flythrough.tsx + ColliderDebug.tsx TOGETHER with houseLayout.ts/houseSession.ts so the tree
   typechecks (it does now: tsc clean, houseLayout 9/9, flythrough 28/28). ***
+
+[2026-06-30 22:55] [AGENT-F] 3BHK FLAT STRUCTURE + DRAG-TO-MOVE (human: rooms are "straight as fuck" — wanted
+  proper 3BHK flats + the option to move rooms; default = standard Indian floor plan, researched). NOTE: converged
+  with a parallel pass already on these files — both moved layoutHouse to a position-aware RoomPlacement[] API;
+  I built ON that (no clobber) and added the rest. Net (tsc clean, root 201, multi-room 49, houseLayout 9/9):
+   - LAYOUT (houseLayout.ts): layoutHouse now (a) honors an explicit per-room pos, (b) 2D-grid-packs un-positioned
+     rooms (⌈√n⌉/row) instead of a straight strip, (c) cuts doorways between ANY rooms sharing a wall edge (vertical
+     OR horizontal), with a REALISM rule that suppresses bedroom↔bedroom and bath↔bath doors (private rooms are
+     reached from the hall, not each other). RoomPlacement carries {design, pos?, type?}.
+   - STORE (houseSession.ts): RoomEntry gains pos?; moveRoom(id,pos) (seeds all positions so the rest stay put);
+     loadFlat3BHK() builds a research-grounded standard Indian 3BHK — Foyer/Living/Dining/Kitchen (public front) +
+     Hallway spine + Master(+ensuite)/Bedroom2/Bedroom3 + common bath (private rear). Sizes from NBC 2016 minimums
+     + Indian listing/builder plans (web research; sources logged). Verified: 0 room overlaps, 9 realistic doorways,
+     bedroom↔bedroom suppressed, all 10 rooms connected.
+   - UI: RoomsBar "🏠 3BHK flat" button (loads the template + switches to house view). HouseView: drag a room's
+     floor to reposition it — invisible ground plane tracks the pointer → moveRoom; OrbitControls suspended mid-drag.
+   - CALLERS updated to the new API: RoomView, ColliderDebug, Flythrough (all pass {design,pos,type}).
+   NOTE: 3D drag couldn't be screenshot-verified here (headless Chrome has no WebGL) — logic/geometry verified +
+   tsc/tests green; the drag feel needs a quick in-app check. Template rooms ship unfurnished (structure first);
+   per-room furnish/suggestions still apply. NOTICE -> AGENT-C/E: extended your house session + layout + view.
+
+[2026-07-01 00:10] [AGENT-E] UX — implemented the docs/UX_RECOMMENDATIONS.md points:
+  (1) progressive disclosure: catalog categories now collapsible (default open) + Suggestions + lighting
+      already done; (2/8) empty-state onboarding card on a new room ("Your room is empty — let's furnish
+      it!" + Scan CTA); (3) consolidated the scattered viewport chips into ONE top-centre toolbar
+      (Plan view · Whole-house · Colliders); (4) "⬓ Plan view" snaps a top-down 2D floor-plan view;
+      (5) aria-label/aria-expanded/aria-pressed on the toggles. (6/7/9 already satisfied — noted in doc.)
+  Verified live (verify-uxpass.mjs): empty-state present, category collapse 103→91, toolbar aria present,
+  plan-view snap works; typecheck clean.
+  COMMITTED solo (self-contained): src/wizard/Furnish.tsx (catalog collapse + empty state),
+  src/three/houseViewMode.ts (planNonce), docs/ + verify script.
+  *** @AGENT-D INTEGRATION: src/three/RoomView.tsx now also has the consolidated toolbar + PlanViewSnap +
+  the requestPlanView wiring — but RoomView is entangled with the in-flight multi-room cluster (RoomPlacement
+  mapping) so I did NOT commit it solo. Please commit RoomView.tsx with the houseLayout/houseSession/
+  Flythrough/ColliderDebug cluster (tree typechecks: tsc clean). ***

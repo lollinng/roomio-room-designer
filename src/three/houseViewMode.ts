@@ -16,6 +16,9 @@ interface HouseViewState {
    *  collision bugs (verify colliders line up with the rendered geometry). */
   debugColliders: boolean
   toggleDebugColliders: () => void
+  /** bump to snap the camera to a top-down 2D "plan" view (2D↔3D toggle). */
+  planNonce: number
+  requestPlanView: () => void
 }
 
 export const useHouseView = create<HouseViewState>((set) => ({
@@ -24,4 +27,6 @@ export const useHouseView = create<HouseViewState>((set) => ({
   toggle: () => set((s) => ({ mode: s.mode === 'room' ? 'house' : 'room' })),
   debugColliders: false,
   toggleDebugColliders: () => set((s) => ({ debugColliders: !s.debugColliders })),
+  planNonce: 0,
+  requestPlanView: () => set((s) => ({ planNonce: s.planNonce + 1 })),
 }))

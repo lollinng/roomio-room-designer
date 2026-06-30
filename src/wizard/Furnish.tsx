@@ -163,6 +163,84 @@ function ItemEditor({ item }: { item: FurnitureItem }) {
   )
 }
 
+/** A welcoming, guided empty state so a brand-new room isn't a blank box. */
+function EmptyRoomWelcome({ onScan }: { onScan: () => void }) {
+  return (
+    <div
+      style={{
+        border: '1.5px dashed #d9d5cd',
+        borderRadius: 14,
+        padding: 18,
+        marginBottom: 16,
+        background: '#fbfaf7',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 26, marginBottom: 6 }}>🛋️</div>
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4, color: 'var(--ink)' }}>
+        Your room is empty — let’s furnish it!
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 12 }}>
+        Tap a piece from the catalog below to drop it in, or scan a real room photo to auto-fill it.
+        The 💡 Suggestions above call out what every room needs.
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={onScan}>
+        📷 Scan a room photo
+      </button>
+    </div>
+  )
+}
+
+/** A collapsible catalog category (progressive disclosure — default open). */
+function CatalogCategory({
+  label,
+  items,
+  onAdd,
+}: {
+  label: string
+  items: typeof ARCHETYPES
+  onAdd: (id: string) => void
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div>
+      <button
+        type="button"
+        className="section-label"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        title={open ? `Collapse ${label}` : `Expand ${label}`}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          width: '100%',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          font: 'inherit',
+          color: 'inherit',
+          textAlign: 'left',
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.55 }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="catalog-grid">
+          {items.map((a) => (
+            <button key={a.id} className="catalog-card" onClick={() => onAdd(a.id)}>
+              <span className="catalog-icon">{a.icon}</span>
+              <span>{a.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Furnish() {
   const sel = useStore((s) => s.selectedFurnitureId)
   const furniture = useStore((s) => s.design.furniture)
@@ -188,28 +266,14 @@ export function Furnish() {
 
       <Suggestions />
 
+      {furniture.length === 0 && !scanning && <EmptyRoomWelcome onScan={() => setScanning(true)} />}
+
       {selected && <ItemEditor item={selected} />}
 
       {CATEGORY_ORDER.map((cat) => {
         const items = ARCHETYPES.filter((a) => a.category === cat.id)
         if (!items.length) return null
-        return (
-          <div key={cat.id}>
-            <div className="section-label">{cat.label}</div>
-            <div className="catalog-grid">
-              {items.map((a) => (
-                <button
-                  key={a.id}
-                  className="catalog-card"
-                  onClick={() => addFurnitureCentered(a.id)}
-                >
-                  <span className="catalog-icon">{a.icon}</span>
-                  <span>{a.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )
+        return <CatalogCategory key={cat.id} label={cat.label} items={items} onAdd={addFurnitureCentered} />
       })}
 
       {showEditingHints(lightMode) && (

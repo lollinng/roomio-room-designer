@@ -4,10 +4,21 @@ Compiled by Agent E from web research on UI/UX best practices for 3D room/home�
 web apps (2026). Each point is tied to a source and mapped to Roomio's actual UI. Ordered
 roughly by impact / effort.
 
-## ✅ Done in this pass
-- **Collapsible Suggestions panel (progressive disclosure).** The suggestions panel is now a
-  collapsible accordion — **default open**, click the header to collapse/expand. Reduces left‑panel
-  clutter while keeping guidance one click away. *(NN/g progressive disclosure & desktop accordions.)*
+## ✅ Implemented
+- **Progressive disclosure (1).** Collapsible **Suggestions** panel, **catalog categories**
+  (Sofas/Beds/…), and the **lighting** panel — all default OPEN, click the header to collapse.
+  *(NN/g progressive disclosure & desktop accordions.)*
+- **Empty‑state onboarding (2, 8).** A brand‑new room shows a friendly "🛋️ Your room is empty —
+  let's furnish it!" card with a Scan CTA, alongside the necessity Suggestions. *(UserOnboard / Smashing.)*
+- **Consolidated viewport toolbar (3).** Plan view · Whole‑house · Colliders are now one coherent
+  top‑centre pill group (was scattered chips). *(minimum‑code / uxplaybook — consistency = trust.)*
+- **2D plan view (4).** A "⬓ Plan view" button snaps the camera to a top‑down floor‑plan view —
+  the lightweight 2D side of the 2D↔3D pattern. *(Planner 5D / Witmodel.)*
+- **Accessibility (5).** Toggle buttons carry `aria-label` / `aria-expanded` / `aria-pressed` + titles.
+  *(uxplaybook 2026 — WCAG 2.2.)* (A fuller contrast/keyboard audit remains.)
+- **Already satisfied (6, 7, 9).** Fast 3D — sun is the only shadow caster, lights capped (lighting
+  pass). Data‑seeding — persona presets pre‑furnish rooms. Direct‑manipulation clarity — rotate knob,
+  lock badge, move‑hint already present and consistent across edit modes.
 
 ## High impact
 1. **Progressive disclosure everywhere dense.** Apply the same collapse pattern to other heavy
