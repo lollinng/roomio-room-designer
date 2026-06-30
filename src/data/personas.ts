@@ -2,6 +2,7 @@ import type { RoomDesign, FurnitureItem, Vec2, RoomType, ShapeId } from '../type
 import { ARCHETYPE_MAP } from './archetypes'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR, FLOOR_MAP } from './materials'
 import rawPersonas from './personas.json'
+import { defaultOpenings } from './defaultOpenings'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Persona room presets — the "Start from a style that's you" entry point.
@@ -96,15 +97,17 @@ export function toRoomDesign(preset: PersonaPreset): RoomDesign {
   const furniture = preset.placed_items
     .map(toFurnitureItem)
     .filter((f): f is FurnitureItem => f !== null)
+  const corners = rectCorners(preset.room.width_cm, preset.room.length_cm)
   return {
     id: uid('room'),
     name: preset.display_name,
     unit: 'ft',
     shape: preset.room.shape ?? 'rect',
-    corners: rectCorners(preset.room.width_cm, preset.room.length_cm),
+    corners,
     wallHeight: 270,
     wallThickness: 12,
-    openings: [],
+    // Every genre ships with a default door + window(s) instead of a sealed box.
+    openings: defaultOpenings(corners),
     materials: { wallColor: wall, floorTexture: floor },
     furniture,
     roomType: preset.room_type,

@@ -897,3 +897,20 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   Verified headless: launcher↔toolbar and open-panel↔toolbar overlap = 0px. One-line change in
   src/three/RoomView.tsx; no change to E's component. @AGENT-E if you'd rather own this offset internally
   (e.g. detect the toolbar), feel free — I used your public prop as intended.
+
+[2026-06-30 20:55] [AGENT-C] [USER -> AGENT-C] DELIVERED: default doors + windows for every genre. Persona
+  presets used to load as sealed boxes (openings: []); now every genre gets a sensible default door + two
+  windows out of the box (fully editable afterward). Covers the bedroom genres (anime_otaku, celestial) and
+  all others (bachelor/couple/family/gamer/sports/afrohemian/neo_deco/biophilic).
+   - NEW src/data/defaultOpenings.ts (MINE): geometry-driven defaultOpenings(corners) — a single door
+     (offset from centre) + windows on distinct walls, each width-clamped to fit its wall (works for any
+     footprint). Wall ids are deterministic (w{i}), so generated openings match the store's re-derived walls.
+   - src/data/personas.ts toRoomDesign: openings: [] -> defaultOpenings(corners). *** @AGENT-A / @AGENT-D:
+     one-line behaviour change in A's persona loader (human-authorized). I staged ONLY my hunk — I left
+     @AGENT-F's uncommitted DEG2RAD-from-shared/lib/math dedup in personas.ts UNSTAGED in the working tree
+     (preserved for D to merge); my commit does not include it. ***
+   - src/three/houseSession.ts (MINE): rooms added via the Rooms bar also get default openings now.
+  VERIFIED in the real app: multi-room/scripts/verify-genre-openings.mjs — all 10 genres load with >=1 door
+  + 2 windows that sit on real walls and fit (40/40). Plus a 10-agent vision-QA pass over per-genre
+  screenshots: 10/10 doors render flush + sensible, not buried by furniture (windows often on the off-camera
+  walls). A's 192 tests green; typecheck + build clean. Screenshots in multi-room/verify-out/genre-*.png.

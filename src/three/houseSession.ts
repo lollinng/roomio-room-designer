@@ -13,6 +13,7 @@ import { create } from 'zustand'
 import { useStore, newDesign } from '../store'
 import type { RoomDesign, ShapeId } from '../types'
 import { presetCorners } from '../geometry/presets'
+import { defaultOpenings } from '../data/defaultOpenings'
 import { ROOM_TYPE_INFO, ROOM_TYPE_LIST, type RoomType } from '../../multi-room/src/index'
 
 export interface RoomEntry {
@@ -89,11 +90,14 @@ export const useHouse = create<HouseSession>((set, get) => ({
   addRoom: (type, shape = 'rect') => {
     get().ensureInit()
     get().syncActive()
+    const corners = presetCorners(shape)
     const d: RoomDesign = {
       ...newDesign(shape),
       name: nameForType(type, get().rooms),
       roomType: toDesignRoomType(type),
-      corners: presetCorners(shape),
+      corners,
+      // a freshly added room also gets a default door + window(s), not a sealed box
+      openings: defaultOpenings(corners),
     }
     set((s) => ({ rooms: [...s.rooms, { id: d.id, type, design: d }], activeId: d.id }))
     useStore.getState().loadDesign(d) // loads into the editor (stage → furnish)
