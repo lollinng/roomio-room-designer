@@ -123,6 +123,10 @@ export const PBR_CONVENTIONS = {
     type: 'TangentSpaceNormalMap (three default)',
     orientation: '+Y (OpenGL / Y-up green channel)',
     normalScaleDefault: [1, 1] as [number, number],
+    // green channel is authored in image space → upload via CanvasTexture/ImageData (flipY=true,
+    // same as albedo). If a DataTexture path is used (flipY defaults false), set flipY=true or
+    // negate green, else relief inverts.
+    uploadFlipY: true,
   },
   roughnessBands: {
     fabric: [0.8, 0.95] as [number, number],
