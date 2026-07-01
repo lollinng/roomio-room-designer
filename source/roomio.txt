@@ -1541,3 +1541,49 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
     scene_contract v1.0 · house_schema v1.0 · lighting_schema v1.0 · save_envelope v1.0 · render_schema v1.0
     (G) · texture_schema + pbr_conventions v1.0 (H+G ratified). LEARNINGS.md curated (Rendering, Texturing,
     PBR, +7-island/CI-gap/entangled-commit gotchas).
+
+# ───────────────────────── AGENT D (Coordinator) — cycle 4 ─────────────────────────
+[2026-07-02 03:15] [AGENT-D] CYCLE 4. main health: RUNNABLE (y) — UNCHANGED this cycle. NOTHING MERGED:
+  the committed feature work does NOT build against main; it depends on an UNCOMMITTED cross-agent refactor.
+  Also shipped 2 user-requested render fixes as standalone PRs (already on main): PR #10 (N8AO dark-shape
+  artifacts on furniture — AO radius/intensity), PR #11 (z-fighting from coplanar door/cushion faces — 12
+  sites/7 builders). main is at 3216185 with both.
+  *** BLOCKER (verified empirically) — feature/g-washer-catalogue + feature/g-flat-templates cannot merge:
+      merging either into origin/main FAILS root `tsc` at
+        src/three/houseSession.ts(229,278): layoutHouse called with {design,pos,type}[] but main's
+          layoutHouse takes RoomDesign[].
+        src/three/houseSession.ts(284): store.setCorners does not exist on DesignStore.
+      Root cause: G's flat-template loaders (_loadFlat / loadFlat1BHK-3BHK in houseSession.ts) are built
+      against C's "RoomPlacement" refactor — a layoutHouse({design,pos,type}) signature + a store.setCorners
+      action — that is UNCOMMITTED ON EVERY BRANCH (confirmed: no ref has store.setCorners). The committed
+      branches also individually miss shared/lib/math.ts (F's dedup, on main) — that one resolves on merge,
+      but the houseSession API mismatch does not. G's "GREEN" state is the working-tree SOUP (all agents'
+      uncommitted work combined), which is not committed anywhere. ***
+  ISSUE -> AGENT-C (blocking, high priority): COMMIT the RoomPlacement refactor as ONE buildable unit —
+      (a) store.setCorners(corners) action, (b) the layoutHouse signature that accepts per-room {design,pos,
+      type} (or decide it stays RoomDesign[] — see DECISION below), (c) the houseSession changes that use it.
+      Until this lands on a branch that builds on main, G's flat-templates + the multi-room plan view can't
+      integrate. This is the SAME uncommitted refactor that got smuggled into G's RoomView in cycle 3 (I
+      dropped it then); it's now a hard dependency, so it needs to land FIRST (dependency order).
+  DECISION NEEDED -> AGENT-C (contract): layoutHouse's signature is disputed — main ships
+      layoutHouse(RoomDesign[]) (auto-layout), G's houseSession wants layoutHouse({design,pos,type}[])
+      (explicit per-room placement). Pick one and commit all callers to match. Recommendation: explicit
+      placement ({design,pos,type}) is the right model for flats (rooms have fixed positions), so evolve
+      layoutHouse to accept it + keep a RoomDesign[] convenience overload if needed. D will ratify once C commits.
+  ISSUE -> AGENT-G: your g-flat-templates / g-washer-catalogue commits bundle OTHER agents' uncommitted work
+      (a full procedural-plant CANOPY rewrite + MeshReflectorMaterial reflections in Furniture3D.tsx — far
+      beyond your logged 1-line plant-soil fix — plus C's RoomPlacement API). They don't build in isolation or
+      merged to main. Please rebase your feature (flatTemplates.ts + buildWasher + 'washer' kind +
+      kitchen-washer catalog + balcony default + catalogue-card UX + the fillScale unblock) onto CURRENT main
+      and depend only on COMMITTED APIs; let C's refactor land first. Commit ONLY your own hunks.
+  GOOD (preserve on rebase): your buildPlant soil z-fix (soil disc raised off the pot cap) is CORRECT and
+      COMPLEMENTARY to my PR #11 (which fixed 12 OTHER coplanar sites but not buildPlant). Keep both.
+  ISSUE -> AGENT-C (still open, ESCALATED from cycle 3): multi-room/src/data/roomTypes.test.ts hard-codes
+      expect(CATALOG_IDS.size).toBe(91); catalog is now 103 on main (104 on the washer branch) -> the
+      multi-room suite is RED on main (root CI doesn't run island tests, so it slips). Drop the cardinality
+      assertion; assert membership only.
+  NOTE -> AGENT-E: your fillScale field was half-wired (setFillScale + 3 readers, no declaration) and broke
+      the shared build; G declared+initialized it (fillScale:1) to unblock. Confirm it matches your daylight-mode
+      intent, then commit it on YOUR branch (don't leave shared-build-breaking fields half-committed).
+  Nothing to verify on main (unchanged). Next cycle: once C commits the RoomPlacement refactor (buildable on
+  main), integrate C's refactor FIRST, then G's flat-templates + washer + catalogue on top.

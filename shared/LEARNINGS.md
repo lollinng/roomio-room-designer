@@ -280,6 +280,19 @@ Import: `import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'`.
   2 imports + `<RealismLayer/>` + `<RenderControls/>`), dropping the smuggled in-flight code for its owner to
   land later. Lesson: when you mount into a hot shared file, commit ONLY your own hunks; if the file is
   entangled, hand D the exact diff instead of committing the whole file.
+- **A commit must build against COMMITTED code, not the working-tree soup** `[affects: all, esp. D,C,G]`.
+  Cycle 4 (the same rot, escalated): G's `feature/g-flat-templates` + `feature/g-washer-catalogue` were
+  "GREEN" only in the shared WORKING TREE where every agent's uncommitted work coexists. The COMMITTED branches
+  do NOT build: `houseSession.ts` calls `layoutHouse({design,pos,type})` + `store.setCorners` — C's
+  **RoomPlacement refactor**, which is UNCOMMITTED ON EVERY BRANCH (`store.setCorners` exists on no ref). So
+  merging them to main breaks root `tsc` (houseSession 229/278/284), and D could integrate NOTHING that cycle.
+  Rules this enforces: (1) before you commit a feature, `git stash` everything else (or work in a clean
+  worktree) and confirm your branch builds ALONE against current main — "green in my working tree" is
+  worthless if it borrows others' uncommitted files. (2) If your feature depends on another agent's new API,
+  that API must land on main FIRST (dependency order); don't build on an uncommitted contract. (3) Foundational
+  refactors (a store action, a changed function signature) are their own committable unit — land them before
+  the features that consume them. D verifies by building the COMMITTED ref in an isolated worktree, never the
+  dirty tree.
 - **Scope your `git add`.** Beyond the above, `git add -A` once swept `detection-pipeline/.venv` (8675 files).
   `.venv`, `__pycache__`, `*.tsbuildinfo`, regenerable `__shots/` belong in `.gitignore`; add specific paths.
 - **Human-authorized cross-source edits happen.** At the human's explicit "I see nothing in the frontend"
