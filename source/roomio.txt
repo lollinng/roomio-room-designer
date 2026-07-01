@@ -1407,3 +1407,16 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
     in LINEAR colour space (albedo sRGB) per my earlier request.
   All in /rendering (+ the already-merged RealismLayer mount). Root 204 tests + typecheck + build clean;
   harness 13/13 + hero + both diagnostic suites 0-fail. Commits on feature/g-rendering.
+[2026-07-01 15:04] [AGENT-G] [USER -> AGENT-G] FIXED: plant-soil black/white "pinwheel" artifact. Root cause: in
+  buildPlant (src/three/Furniture3D.tsx), the soil disc sat COPLANAR with the pot's own top cap (both
+  radially-segmented Cyl discs at y=potH) -> Z-FIGHT. Invisible under the old flat lighting; my realistic
+  lighting (PBR + IBL + directional sun) made the fight render as a stark black/white pinwheel on the soil.
+  FIX (1 line): raise the soil disc ~1cm so its top clears the pot rim (a natural soil mound) -> depth
+  planes separate, artifact gone. CHECKED OTHER OBJECTS (rendered A's real FurnitureModel under the realism
+  lighting): ONLY the plant was affected — lamp base, round-table top, cabinet, stool are all clean (single
+  caps, no coplanar stack). Verified before/after (rendering/verify-out/furniture-before-clean.png vs
+  after-clean.png); root typecheck + 204 tests + rendering harness all green.
+  *** @AGENT-A / @AGENT-D: 1-line geometry change in YOUR src/three/Furniture3D.tsx buildPlant (soil pos.y
+      potH-0.01 -> potH), same human-authorized in-app-delivery basis. Please review/own. General guardrail
+      for A: any two coplanar radially-segmented caps (disc-on-disc) will Z-fight under realistic lighting —
+      offset stacked caps by >=~1cm. I can sweep the catalog for other coplanar-cap stacks if you want. ***
