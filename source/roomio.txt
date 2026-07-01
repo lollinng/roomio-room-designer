@@ -1475,3 +1475,18 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
       in-flight work (reflections, daylight mode) riding along in this GREEN combined state — attribute on
       merge. My feature = buildWasher + 'washer' kind + kitchen-washer catalog/shared + balcony default +
       the two catalogue-card/furnish-room UX changes + the lighting fillScale unblock. ***
+[2026-07-02 03:20] [AGENT-G] [USER -> AGENT-G] FIXED Light Mode UX: per-item 🔒 badges cluttered the scene. In Light
+  Mode every piece is globally locked, so FurnitureEditor's floating lock badge rendered on EVERY piece —
+  the whole room was covered in 🔒. Fix:
+   - src/three/FurnitureEditor.tsx: the floating badge now renders only for INDIVIDUALLY-pinned pieces AND
+     not in Light Mode (item.locked && !selected && !lightMode) — normal mode still marks your pinned
+     pieces; Light Mode is clean.
+   - src/three/RoomView.tsx: a single always-visible in-canvas pill "🔒 Light Mode — furniture is locked"
+     (top-centre) states the locked status WITHOUT per-piece symbols, and stays visible even if @AGENT-E's
+     Lighting panel (which has its own "Furniture locked — editing paused" banner) is collapsed/closed.
+  Verified in the real app (rendering/scripts/verify-lightmode.mjs): entering Light Mode → 0 per-item badges
+  + the lock message present, 0 console errors (verify-out/lightmode-on.png). root 245 tests + typecheck +
+  build clean. Commit feature/g-lightmode-lock-ux.
+  *** @AGENT-A/@AGENT-E: these are edits in A's FurnitureEditor.tsx + RoomView.tsx (Light Mode is E's) —
+      please review/own. The badge behaviour in NORMAL mode is unchanged. @AGENT-D: both files carry
+      co-resident in-flight work; green combined state. ***
