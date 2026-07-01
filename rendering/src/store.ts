@@ -17,6 +17,10 @@ export interface RenderStore {
   /** Scene electric lights on/off (task/accent room lights + emissive bulb glow). Ambient fill +
    *  sun/daylight remain, so "off" dims the room rather than going pitch black. Default on. */
   lightsOn: boolean
+  /** Per-lamp overrides keyed by furniture id: `true` = that individual lamp is switched off.
+   *  A lamp fixture is lit iff `lightsOn && !lampOff[id]` — the global toggle is the master
+   *  (off = daylight mode, every lamp dark), this lets EACH lamp be turned off on its own. */
+  lampOff: Record<string, boolean>
   /** True while a path-traced hero still is accumulating — suspends the raster post pipeline. */
   heroActive: boolean
   /** Accumulated path-trace samples (0..settings.heroRender.samples) — drives the progress UI. */
@@ -32,6 +36,9 @@ export interface RenderStore {
   setAO: (patch: Partial<AOSettings>) => void
   setLightsOn: (b: boolean) => void
   toggleLights: () => void
+  /** Turn an individual lamp (furniture id) off/on. */
+  setLampOff: (id: string, off: boolean) => void
+  toggleLamp: (id: string) => void
   setHeroEnabled: (b: boolean) => void
   setHeroActive: (b: boolean) => void
   setHeroSamples: (n: number) => void
@@ -43,6 +50,7 @@ export interface RenderStore {
 export const useRender = create<RenderStore>((set) => ({
   settings: DEFAULT_RENDER_SETTINGS,
   lightsOn: true,
+  lampOff: {},
   heroActive: false,
   heroSamples: 0,
   heroSupported: true,
@@ -76,6 +84,8 @@ export const useRender = create<RenderStore>((set) => ({
 
   setLightsOn: (b) => set({ lightsOn: b }),
   toggleLights: () => set((s) => ({ lightsOn: !s.lightsOn })),
+  setLampOff: (id, off) => set((s) => ({ lampOff: { ...s.lampOff, [id]: off } })),
+  toggleLamp: (id) => set((s) => ({ lampOff: { ...s.lampOff, [id]: !s.lampOff[id] } })),
   setHeroActive: (b) => set(b ? { heroActive: true, heroSamples: 0 } : { heroActive: false }),
   setHeroSamples: (n) => set({ heroSamples: n }),
   setHeroSupported: (b) => set({ heroSupported: b }),

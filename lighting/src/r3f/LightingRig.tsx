@@ -27,6 +27,9 @@ export interface LightingRigProps {
 
 export function LightingRig({ houseHalfExtentM, baseIntensity, activeRoomId }: LightingRigProps) {
   const rooms = useLighting((s) => s.rooms)
+  // Global flat-fill multiplier — G drives this down for "lamps off → daylight only" so the room
+  // falls into shadow from the window instead of the always-on fill keeping it uniformly lit.
+  const fillScale = useLighting((s) => s.fillScale)
 
   const entries =
     activeRoomId != null
@@ -48,8 +51,8 @@ export function LightingRig({ houseHalfExtentM, baseIntensity, activeRoomId }: L
     <>
       {/* Global ambient fill so no surface is pure black (pairs with the sun's shadows).
           Sized so a roofed/sun-blocked interior is still comfortably lit, never a dark box. */}
-      <hemisphereLight color={skyColor} groundColor={groundColor} intensity={hemiIntensity} />
-      <ambientLight intensity={0.32} />
+      <hemisphereLight color={skyColor} groundColor={groundColor} intensity={hemiIntensity * fillScale} />
+      <ambientLight intensity={0.32 * fillScale} />
 
       {/* Per-room task/accent lights (only the active room in single-room mode). */}
       {entries.map(([id, r]) => (

@@ -36,6 +36,8 @@ import { useRender } from '../../rendering/src/store'
 // Agent G: window-as-light-source when the lamps are off (per-window area light + emissive sky pane).
 import { WindowDaylight } from './WindowDaylight'
 import { ARCHETYPE_MAP } from '../data/archetypes'
+// 2D top-down floor-plan arranger — the intuitive way to reposition rooms (replaces the 3D drag).
+import { PlanArranger } from './PlanArranger'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
@@ -296,6 +298,9 @@ export function RoomView({ children }: { children?: ReactNode }) {
     {/* Agent G: render quality / exposure / IBL / beauty-shot panel. Bottom, clear of A's left
         panel (~440px) and B's bottom-right flythrough launcher. */}
     <RenderControls anchorLeftPx={452} anchorBottomPx={12} lamps={lamps} />
+    {/* 2D floor-plan arranger — only in whole-house mode. Bottom-right, raised above B's flythrough
+        launcher. Drag room rectangles here (not in 3D) to reposition them; the 3D view updates live. */}
+    {houseMode && <PlanArranger placed={placed} bounds={houseBounds} anchorRightPx={14} anchorBottomPx={72} />}
     {/* Consolidated viewport toolbar (one coherent group, top-centre):
         2D plan view · whole-house toggle (2+ rooms) · collider-debug. */}
     <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 8 }}>

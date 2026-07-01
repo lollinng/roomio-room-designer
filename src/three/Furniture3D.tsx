@@ -119,7 +119,7 @@ function buildSofa(W: number, D: number, H: number, color: string): JSX.Element 
   for (let i = 0; i < nCush; i++) {
     const x = -baseW / 2 + gap * (i + 1) + cushW * (i + 0.5)
     cushions.push(
-      <Box key={`c${i}`} size={[cushW, cushH, cushD]} pos={[x, cushY, baseZ]} color={cushColor} roughness={0.85} />,
+      <Box key={`c${i}`} size={[cushW, cushH, cushD]} pos={[x, cushY + 0.002, baseZ]} color={cushColor} roughness={0.85} />,
     )
   }
 
@@ -214,9 +214,9 @@ function buildSectional(W: number, D: number, H: number, color: string): JSX.Ele
       <Box size={[armW, backH * 0.78, D]} pos={[W / 2 - armW / 2, footH + (backH * 0.78) / 2, 0]} color={color} roughness={0.8} />
 
       {/* cushions: 2 on main run + 1 on chaise */}
-      <Box size={[mainSeatW * 0.46, cushH, mainSeatD * 0.9]} pos={[-armW / 2 - mainSeatW * 0.24, cushY, mainSeatZ]} color={cushColor} roughness={0.85} />
-      <Box size={[mainSeatW * 0.46, cushH, mainSeatD * 0.9]} pos={[-armW / 2 + mainSeatW * 0.24, cushY, mainSeatZ]} color={cushColor} roughness={0.85} />
-      <Box size={[chaiseW * 0.86, cushH, chaiseD * 0.9]} pos={[chaiseX, cushY, chaiseZ]} color={cushColor} roughness={0.85} />
+      <Box size={[mainSeatW * 0.46, cushH, mainSeatD * 0.9]} pos={[-armW / 2 - mainSeatW * 0.24, cushY + 0.002, mainSeatZ]} color={cushColor} roughness={0.85} />
+      <Box size={[mainSeatW * 0.46, cushH, mainSeatD * 0.9]} pos={[-armW / 2 + mainSeatW * 0.24, cushY + 0.002, mainSeatZ]} color={cushColor} roughness={0.85} />
+      <Box size={[chaiseW * 0.86, cushH, chaiseD * 0.9]} pos={[chaiseX, cushY + 0.002, chaiseZ]} color={cushColor} roughness={0.85} />
     </group>
   )
 }
@@ -260,15 +260,15 @@ function buildBed(W: number, D: number, H: number, color: string): JSX.Element {
       {/* mattress */}
       <Box size={[mattW, mattressH, mattD]} pos={[0, mattY, mattZ]} color={linen} roughness={0.9} />
       {/* duvet */}
-      <Box size={[mattW * 0.98, duvetH, duvetD]} pos={[0, duvetY, duvetZ]} color={color} roughness={0.88} />
+      <Box size={[mattW * 0.98, duvetH, duvetD]} pos={[0, duvetY + 0.002, duvetZ]} color={color} roughness={0.88} />
       {/* pillows */}
       {pillowGap > 0 ? (
         <>
-          <Box size={[pillowW, pillowH, pillowD]} pos={[-pillowGap / 2, pillowY, pillowZ]} color={pillowColor} roughness={0.92} />
-          <Box size={[pillowW, pillowH, pillowD]} pos={[pillowGap / 2, pillowY, pillowZ]} color={pillowColor} roughness={0.92} />
+          <Box size={[pillowW, pillowH, pillowD]} pos={[-pillowGap / 2, pillowY + 0.002, pillowZ]} color={pillowColor} roughness={0.92} />
+          <Box size={[pillowW, pillowH, pillowD]} pos={[pillowGap / 2, pillowY + 0.002, pillowZ]} color={pillowColor} roughness={0.92} />
         </>
       ) : (
-        <Box size={[Math.min(mattW * 0.8, 0.6), pillowH, pillowD]} pos={[0, pillowY, pillowZ]} color={pillowColor} roughness={0.92} />
+        <Box size={[Math.min(mattW * 0.8, 0.6), pillowH, pillowD]} pos={[0, pillowY + 0.002, pillowZ]} color={pillowColor} roughness={0.92} />
       )}
     </group>
   )
@@ -920,7 +920,7 @@ function buildBench(W: number, D: number, H: number, color: string): JSX.Element
       {/* seat slab */}
       <Box size={[W, seatT, D]} pos={[0, seatTop - seatT / 2, 0]} color={color} roughness={0.6} />
       {/* thin cushion */}
-      <Box size={[W * 0.96, 0.03, D * 0.9]} pos={[0, seatTop + 0.015, 0]} color={cushColor} roughness={0.88} />
+      <Box size={[W * 0.96, 0.03, D * 0.9]} pos={[0, seatTop + 0.017, 0]} color={cushColor} roughness={0.88} />
       {/* backrest when tall */}
       {hasBack && (
         <Box size={[W, H - seatTop, Math.min(0.05, D * 0.12)]} pos={[0, seatTop + (H - seatTop) / 2, -D / 2 + Math.min(0.05, D * 0.12) / 2]} color={color} roughness={0.6} />
@@ -1125,7 +1125,7 @@ function buildTubFreestanding(W: number, D: number, H: number, color: string): J
         <cylinderGeometry args={[1, 0.86, H, 32]} />
         <meshStandardMaterial color={color} roughness={0.16} metalness={0.05} />
       </mesh>
-      <mesh position={[0, H - H * 0.36, 0]} scale={[(W / 2) * 0.84, 1, (D / 2) * 0.84]}>
+      <mesh position={[0, H - H * 0.36 - 0.003, 0]} scale={[(W / 2) * 0.84, 1, (D / 2) * 0.84]}>
         <cylinderGeometry args={[1, 0.92, H * 0.72, 32]} />
         <meshStandardMaterial color={inner} roughness={0.13} />
       </mesh>
@@ -1183,7 +1183,7 @@ function buildIsland(W: number, D: number, H: number, color: string): JSX.Elemen
   for (let i = 0; i < nDoors; i++) {
     const cx = -W / 2 + 0.02 + doorW * (i + 0.5)
     doors.push(
-      <Box key={`d${i}`} size={[doorW - 0.02, bodyH * 0.86, 0.012]} pos={[cx, toeH + bodyH / 2, -D / 2 + 0.006]} color={door} roughness={0.5} />,
+      <Box key={`d${i}`} size={[doorW - 0.02, bodyH * 0.86, 0.012]} pos={[cx, toeH + bodyH / 2, -D / 2 - 0.002]} color={door} roughness={0.5} />,
     )
   }
   return (
@@ -1264,7 +1264,7 @@ function buildWasher(W: number, D: number, H: number, color: string): JSX.Elemen
       <Box size={[W, bodyH, D]} pos={[0, footH + bodyH / 2, 0]} color={color} roughness={0.32} metalness={0.18} />
       <Box size={[W, 0.02, D]} pos={[0, footH + bodyH + 0.01, 0]} color={shade(color, 0.94)} roughness={0.3} />
       {/* control-panel strip (top front) + display + program dial */}
-      <Box size={[W * 0.96, panelH, 0.012]} pos={[0, panelY, faceZ + 0.006]} color={shade(color, 0.86)} roughness={0.4} />
+      <Box size={[W * 0.96, panelH, 0.012]} pos={[0, panelY, faceZ + 0.002]} color={shade(color, 0.86)} roughness={0.4} />
       <Box size={[W * 0.22, panelH * 0.4, 0.006]} pos={[W * 0.18, panelY, faceZ + 0.013]} color={GLASS} roughness={0.15} />
       <Cyl rTop={panelH * 0.32} rBottom={panelH * 0.32} height={0.02} rotation={[Math.PI / 2, 0, 0]} pos={[-W * 0.28, panelY, faceZ + 0.015]} color={METAL} segments={20} metalness={0.5} />
       {/* detergent drawer (top-left front) + handle */}

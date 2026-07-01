@@ -9,9 +9,17 @@ import { useRender } from '../store'
 import { getHeroExporter } from '../r3f/heroBus'
 import type { RenderQuality } from '../types'
 
+/** One switchable lamp fixture in the room (furniture id + display label). */
+export interface LampEntry {
+  id: string
+  label: string
+}
+
 export interface RenderControlsProps {
   anchorLeftPx?: number
   anchorBottomPx?: number
+  /** Lamp fixtures in the active room, for the per-lamp on/off toggles. */
+  lamps?: LampEntry[]
 }
 
 const QUALITIES: RenderQuality[] = ['high', 'medium', 'low']
@@ -29,7 +37,7 @@ function pill(active: boolean): CSSProperties {
   }
 }
 
-export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: RenderControlsProps) {
+export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12, lamps = [] }: RenderControlsProps) {
   const [open, setOpen] = useState(true)
   const quality = useRender((s) => s.settings.quality)
   const exposure = useRender((s) => s.settings.toneMapping.exposure)
@@ -39,6 +47,8 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
   const setEnvIntensity = useRender((s) => s.setEnvIntensity)
   const lightsOn = useRender((s) => s.lightsOn)
   const toggleLights = useRender((s) => s.toggleLights)
+  const lampOff = useRender((s) => s.lampOff)
+  const toggleLamp = useRender((s) => s.toggleLamp)
   const heroActive = useRender((s) => s.heroActive)
   const heroSamples = useRender((s) => s.heroSamples)
   const heroSupported = useRender((s) => s.heroSupported)
@@ -116,6 +126,55 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
             <span>{lightsOn ? '💡 Lights on' : '🌙 Lights off'}</span>
             <span style={{ opacity: 0.6, fontWeight: 400 }}>{lightsOn ? 'tap to turn off' : 'tap to turn on'}</span>
           </button>
+
+          {/* Per-lamp switches: turn EACH lamp off on its own (the master toggle above is all-off →
+              daylight). Disabled while the master is off, since every lamp is already dark then. */}
+          {lamps.length > 0 && (
+            <div>
+              <div style={{ opacity: 0.65, marginBottom: 5, display: 'flex', justifyContent: 'space-between' }}>
+                <span>Lamps</span>
+                <span style={{ opacity: 0.7 }}>{lamps.filter((l) => lightsOn && !lampOff[l.id]).length}/{lamps.length} on</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {lamps.map((l) => {
+                  const on = lightsOn && !lampOff[l.id]
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => toggleLamp(l.id)}
+                      disabled={!lightsOn}
+                      aria-pressed={on}
+                      title={
+                        !lightsOn
+                          ? 'Turn the lights on to switch individual lamps'
+                          : on
+                            ? `Turn off ${l.label}`
+                            : `Turn on ${l.label}`
+                      }
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 9px',
+                        borderRadius: 7,
+                        border: '1px solid rgba(0,0,0,0.12)',
+                        background: on ? '#fff7e6' : '#f2f2f0',
+                        color: '#23211e',
+                        font: '600 11px ui-sans-serif, system-ui, sans-serif',
+                        cursor: lightsOn ? 'pointer' : 'not-allowed',
+                        opacity: lightsOn ? 1 : 0.5,
+                      }}
+                    >
+                      <span>
+                        {on ? '💡' : '🌙'} {l.label}
+                      </span>
+                      <span style={{ opacity: 0.55, fontWeight: 400 }}>{on ? 'on' : 'off'}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div>
             <div style={{ opacity: 0.65, marginBottom: 5 }}>Quality</div>
