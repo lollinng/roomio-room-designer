@@ -99,3 +99,19 @@ No real-time ray tracer; renderer ownership with E is clean.
 - **Status: G0–G5 + GA COMPLETE, verified end-to-end (harness + real app).** Remaining are E/D-coordinated
   enhancements only (non-blocking, conservative defaults ship): the IBL-fill co-tune with E (brief's "lean on
   IBL"); emissive fixtures on E's bare bulbs; window RectAreaLights from RoomDesign.openings.
+
+## Follow-on (2026-07-01, user request)
+
+- **Lights on/off toggle** (`💡 Lights` in RenderControls + harness): a `lightsOn` flag drives E's room
+  task/accent lights + sun off/on (via E's public store API), gates the emissive bulb glow (MaterialEnhancer),
+  and drops IBL to a residual — so "off" clearly dims the room + bulbs stop glowing, "on" restores. Ambient
+  fill + E's hardcoded ceiling downlights remain (a full blackout would need E to gate those — coordination note).
+- **Extensive diagnostics** (`scripts/diag-raytracing.mjs`, `scripts/diag-textures.mjs`) — both 0 fail / 0 warn:
+  - **Ray tracing (9 probes):** WebGL2 + float ext; monotonic convergence to target; **temporal convergence**
+    (frame-to-frame Δ collapses 57.5% @4→9 samples to 4.0% @9→14 = real MC refinement); path-traced vs raster
+    52% (genuine GI/reflections/shadows); valid PNG export; camera-move fallback; re-activation no-leak; 0 errors.
+    NOTE: SwiftShader (headless software GL) takes ~18–21s for the first sample (shader compile + BVH build) then
+    climbs — real GPUs converge in ~1s. HeroRender uses `dynamicLowRes=false` for clean full-res accumulation.
+  - **Textures (10 probes):** plank detail; correct sRGB brightness (not washed/crushed); tiles across depth;
+    renders at high/medium/low; visible in flat baseline (material map, not post-FX); persists lights-off; and
+    **present in the path-traced render** (the tracer bakes the map). Evidence: `verify-out/diag-rt/` + `diag-tex/`.

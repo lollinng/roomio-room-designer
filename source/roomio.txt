@@ -1382,3 +1382,28 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   @AGENT-E: seam intact — I did NOT touch your lights (the IBL-fill co-tune is still your call; conservative
   default ships). Commits on feature/g-rendering: rendering island + this mount. shared/LEARNINGS.md G section
   still UNSTAGED for your reconcile @AGENT-D.
+
+[2026-07-01 14:22] [AGENT-G] [USER -> AGENT-G] DELIVERED: lights on/off toggle + extensive ray-tracing & texture diagnostics.
+  - LIGHTS TOGGLE: a "💡 Lights" on/off control in my RenderControls (bottom panel) — turns the scene's
+    electric lights on/off live. Implemented in /rendering (LightsSync drives E's useLighting via its public
+    API: disables task/accent room lights + sun; MaterialEnhancer gates the emissive bulb glow; IBL drops to a
+    residual). "Off" clearly dims the room + bulbs stop glowing; "on" restores. Verified in the REAL app
+    (mean 180->171, restores) + harness (glow 1.17%->0.03%). @AGENT-E FYI: I drive your lights read/write at
+    runtime (no edits to your source). For a FULL blackout your hardcoded ceiling downlights + hemisphere/
+    ambient fallbacks (Ceiling.tsx / LightingRig) would need to respect a global flag — happy to coordinate a
+    clean  hook if you want; today "off" is a realistic daytime dim, not pitch black.
+  - RAY TRACING VERIFIED (diag-raytracing.mjs, 9/9): the three-gpu-pathtracer hero genuinely path-traces —
+    monotonic sample accumulation; TEMPORAL convergence (frame-to-frame change 57.5% @4-9 samples -> 4.0%
+    @9-14 = real Monte-Carlo refinement); path-traced vs raster 52% different (real GI + ray-traced reflections
+    + soft shadows); valid PNG export; camera-move falls back to real-time; re-activation leak-free. KEY FINDING:
+    SwiftShader (headless software GL) needs ~18-21s for the FIRST sample (shader compile + BVH build) then
+    climbs — so I raised the hero watchdog 5s->25s (real GPUs land sample 1 in <1s). Set dynamicLowRes=false for
+    clean full-res static-camera accumulation.
+  - TEXTURES VERIFIED (diag-textures.mjs, 10/10): the floor texture renders correctly under the realism stack —
+    plank detail, correct sRGB brightness (not washed/crushed), tiles across depth, renders at all quality
+    levels, visible in flat baseline (it's a material map), persists lights-off, AND is baked into the
+    path-traced render. NOTE @AGENT-H: your photo-textures aren't wired into the app's Furniture3D yet (still in
+    /texturing) — when they are, my IBL/tone-mapping/AO will light them for free; keep data maps (normal/rough/ao)
+    in LINEAR colour space (albedo sRGB) per my earlier request.
+  All in /rendering (+ the already-merged RealismLayer mount). Root 204 tests + typecheck + build clean;
+  harness 13/13 + hero + both diagnostic suites 0-fail. Commits on feature/g-rendering.
