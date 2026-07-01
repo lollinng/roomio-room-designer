@@ -26,6 +26,12 @@ import { useHouseView } from './houseViewMode'
 import { HouseView } from './HouseView'
 import { ColliderDebug } from './ColliderDebug'
 import { layoutHouse, houseBoundsCm } from './houseLayout'
+// Agent G realistic rendering (drop-in): PBR + HDR-IBL + ACESFilmic tone mapping + AO + emissive
+// bulbs/bloom + area lights, layered ON TOP of E's lighting. Mounts as <Canvas> children (no Canvas-
+// prop changes: `flat` is KEPT so the post EffectComposer owns tone mapping). RenderControls is the
+// quality/exposure/beauty-shot panel. See rendering/INTEGRATION.md.
+import { RealismLayer } from '../../rendering/src/r3f/RealismLayer'
+import { RenderControls } from '../../rendering/src/ui/RenderControls'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
@@ -146,6 +152,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
       onCreated={(s) => setOrigCam(s.camera)}
     >
       <color attach="background" args={['#cdccc9']} />
+      <RealismLayer />
       {houseMode ? (
         <Suspense fallback={null}>
           <HouseView placed={placed} bounds={houseBounds} />
@@ -192,6 +199,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
     {/* anchorRightPx clears the .vp-tools view toolbar (right:18px + 40px wide ⇒ 58px)
         so the "💡 Light Mode" launcher/panel doesn't overlap the undo/redo/fit/home buttons. */}
     <LightingControls roomId={designId} hasWindows={hasWindows} anchorRightPx={66} />
+    <RenderControls anchorLeftPx={452} anchorBottomPx={12} />
     {/* Whole-house / single-room toggle (only meaningful with 2+ rooms) + a
         collider-debug toggle (visualise the flythrough's collision footprints,
         to test for "invisible wall" bugs). */}
