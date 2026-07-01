@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useLayoutEffect } from 'react'
 import * as THREE from 'three'
+import { MeshReflectorMaterial } from '@react-three/drei'
 import type { ModelKind } from '../data/archetypes'
 
 // ---------------------------------------------------------------------------
@@ -516,46 +517,258 @@ function buildLamp(W: number, D: number, H: number, color: string): JSX.Element 
   )
 }
 
-function buildPlant(W: number, D: number, H: number, color: string): JSX.Element {
-  // pot uses a warm terracotta-ish tone derived from a fixed base; foliage uses
-  // the piece color (which defaults to a green).
-  const potColor = '#a8623f'
-  const foliage = color
-  const foliageDark = shade(color, 0.7)
-  const potH = Math.min(H * 0.32, 0.34)
-  const potTopR = Math.min(W, D) / 2
-  const potBotR = potTopR * 0.7
-  const foliageBottom = potH * 0.85
-  const foliageH = H - foliageBottom
-  const clusterR = Math.min(W, D) / 2
+// --- Realistic potted plant / tree -----------------------------------------
+// Instead of a lollipop (few spheres + a cone), the foliage is a canopy of many
+// individually-oriented, gently-curved, two-sided leaves (instanced so 150+ of
+// them cost one draw call). A woody tapered trunk + branches (tall "tree") or a
+// few slender arching stems (short "plant") give real structure. Everything is
+// MeshStandard so it reads correctly under IBL AND the path tracer.
+
+// A single lanceolate leaf in local space: base at origin, tip at +Y (length 1),
+// width along X, with a drooping curl (−Z with length) and a midrib channel
+// (edges dip in −Z) so each leaf catches light on a curved surface — the single
+// biggest cue that separates "foliage" from "flat green cards". Shared by all plants.
+const LEAF_GEOMETRY: THREE.BufferGeometry = (() => {
+  const hw = 0.17 // half-width relative to unit length
+  const s = new THREE.Shape()
+  s.moveTo(0, 0)
+  s.bezierCurveTo(hw, 0.16, hw * 0.9, 0.62, 0, 1) // base -> tip (right edge)
+  s.bezierCurveTo(-hw * 0.9, 0.62, -hw, 0.16, 0, 0) // tip -> base (left edge)
+  const g = new THREE.ShapeGeometry(s, 14)
+  const p = g.attributes.position
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i)
+    const y = p.getY(i)
+    p.setZ(i, -0.16 * y * y - 0.22 * Math.abs(x)) // droop + midrib channel
+  }
+  p.needsUpdate = true
+  g.computeVertexNormals()
+  return g
+})()
+
+// Shared foliage material — WHITE base so per-instance instanceColor supplies the
+// true leaf color; slightly waxy (moderate roughness) and two-sided.
+const LEAF_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
+  roughness: 0.52,
+  metalness: 0,
+  side: THREE.DoubleSide,
+})
+
+// Small deterministic PRNG so a plant's leaf layout is stable across re-renders
+// (no popping) yet varies per size/color configuration.
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashStr(str: string): number {
+  let h = 2166136261
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+interface LeafInstance {
+  pos: THREE.Vector3
+  quat: THREE.Quaternion
+  scale: number
+  color: THREE.Color
+}
+
+// Instanced canopy: places `leaves` and pushes their matrices + colors once.
+function LeafCanopy({ leaves }: { leaves: LeafInstance[] }): JSX.Element {
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useLayoutEffect(() => {
+    const mesh = ref.current
+    if (!mesh) return
+    const dummy = new THREE.Object3D()
+    for (let i = 0; i < leaves.length; i++) {
+      const lf = leaves[i]
+      dummy.position.copy(lf.pos)
+      dummy.quaternion.copy(lf.quat)
+      dummy.scale.setScalar(lf.scale)
+      dummy.updateMatrix()
+      mesh.setMatrixAt(i, dummy.matrix)
+      mesh.setColorAt(i, lf.color)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+    mesh.computeBoundingSphere()
+  }, [leaves])
+
+  // dispose={null}: geometry/material are shared module singletons — never dispose them here.
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[LEAF_GEOMETRY, LEAF_MATERIAL, leaves.length]}
+      castShadow
+      receiveShadow
+      dispose={null}
+    />
+  )
+}
+
+function PlantModel({ W, D, H, color }: { W: number; D: number; H: number; color: string }): JSX.Element {
+  const { leaves, pot, stems } = useMemo(() => {
+    const rnd = mulberry32(hashStr(`${color}|${W.toFixed(2)}|${D.toFixed(2)}|${H.toFixed(2)}`))
+    const rng = (lo: number, hi: number) => lo + (hi - lo) * rnd()
+
+    const halfFoot = Math.min(W, D) / 2
+    const woody = H >= 1.45 // tall "potted tree" vs short bushy "potted plant"
+
+    // Planter: narrower than the canopy (which fills the footprint), with a rim lip.
+    const potH = Math.min(H * 0.3, 0.34)
+    const potTopR = halfFoot * (woody ? 0.44 : 0.56)
+    const potBotR = potTopR * 0.74
+    const rimR = potTopR * 1.06
+
+    // Canopy volume fills the footprint; sits above a bare trunk (tree) or just above soil (plant).
+    const canR = halfFoot * 0.98
+    const canBottom = woody ? H * 0.5 : potH + 0.03
+    const canTop = H
+    const canH = Math.max(0.1, canTop - canBottom)
+
+    // Trunk / stems ------------------------------------------------------------
+    const trunkColor = '#5a4632'
+    const stems: JSX.Element[] = []
+    const trunkTopY = woody ? canBottom + canH * 0.28 : potH + Math.min(0.14, H * 0.14)
+    const trunkR = Math.max(0.012, potTopR * (woody ? 0.16 : 0.05))
+    // Main trunk (slightly tapered).
+    stems.push(
+      <Cyl
+        key="trunk"
+        rTop={trunkR * 0.72}
+        rBottom={trunkR}
+        height={trunkTopY - potH * 0.7}
+        pos={[0, potH * 0.7 + (trunkTopY - potH * 0.7) / 2, 0]}
+        color={trunkColor}
+        segments={12}
+        roughness={0.92}
+      />,
+    )
+
+    // Leaf sizing — needed up front so the canopy can be bounded to the footprint.
+    const nLeaves = woody ? 210 : 100
+    const leafLen = canR * (woody ? 0.46 : 0.5)
+    // Hard cap on how far any leaf ANCHOR may sit from the vertical axis. Leaves extend
+    // ~leafLen outward from their anchor, so we pull the cap in by that much: this keeps
+    // the whole canopy inside the piece footprint and OUT of adjacent walls.
+    const maxAnchorR = Math.max(halfFoot * 0.3, halfFoot * 0.9 - leafLen * 0.55)
+    const clampRadius = (v: THREE.Vector3, rMax: number) => {
+      const hr = Math.hypot(v.x, v.z)
+      if (hr > rMax) {
+        const s = rMax / hr
+        v.x *= s
+        v.z *= s
+      }
+      return v
+    }
+
+    // Lobe centers — irregular clusters the leaves gather around (not one solid ball).
+    // Woody trees get a wide, tall crown; short plants stay compact and centered over the pot.
+    const nLobes = woody ? 5 : 3
+    const lobeRadLo = woody ? 0.24 : 0.0
+    const lobeRadHi = woody ? 0.6 : 0.28
+    const lobeYLo = woody ? 0.2 : 0.12
+    const lobeYHi = woody ? 0.95 : 0.72
+    const lobes: { c: THREE.Vector3; r: number }[] = []
+    for (let k = 0; k < nLobes; k++) {
+      const ang = (k / nLobes) * Math.PI * 2 + rng(-0.5, 0.5)
+      const rad = Math.min(maxAnchorR * 0.7, canR * rng(lobeRadLo, lobeRadHi))
+      const y = canBottom + canH * rng(lobeYLo, lobeYHi)
+      lobes.push({
+        c: new THREE.Vector3(Math.cos(ang) * rad, y, Math.sin(ang) * rad),
+        r: canR * rng(0.5, 0.72),
+      })
+    }
+
+    // A stem from the trunk top to EVERY lobe so no foliage cluster ever floats detached —
+    // thick woody branches for trees, slender stems for short plants.
+    const top = new THREE.Vector3(0, trunkTopY, 0)
+    for (let k = 0; k < lobes.length; k++) {
+      const to = lobes[k].c
+      const mid = top.clone().lerp(to, 0.5)
+      const len = Math.max(0.02, top.distanceTo(to))
+      const dir = to.clone().sub(top).normalize()
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
+      const euler = new THREE.Euler().setFromQuaternion(quat)
+      stems.push(
+        <Cyl
+          key={`br${k}`}
+          rTop={trunkR * (woody ? 0.28 : 0.5)}
+          rBottom={trunkR * (woody ? 0.6 : 0.8)}
+          height={len}
+          pos={[mid.x, mid.y, mid.z]}
+          rotation={[euler.x, euler.y, euler.z]}
+          color={trunkColor}
+          segments={8}
+          roughness={0.92}
+        />,
+      )
+    }
+
+    // Leaves -------------------------------------------------------------------
+    const baseCol = new THREE.Color(color)
+    const up = new THREE.Vector3(0, 1, 0)
+    const leaves: LeafInstance[] = []
+    for (let i = 0; i < nLeaves; i++) {
+      const lobe = lobes[Math.floor(rnd() * lobes.length)]
+      // A point near the lobe's surface, biased upward/outward so gaps show through.
+      const dir = new THREE.Vector3(rng(-1, 1), rng(-0.35, 1), rng(-1, 1)).normalize()
+      const pos = lobe.c.clone().addScaledVector(dir, lobe.r * rng(0.72, 1.06))
+      clampRadius(pos, maxAnchorR) // keep the canopy inside the footprint (out of walls)
+      if (pos.y < canBottom) pos.y = canBottom + rng(0, 0.05)
+      if (pos.y > H) pos.y = H
+
+      // Growth direction: outward from the lobe, tilted up; leaf's local +Y aligns to it.
+      const grow = dir.clone().addScaledVector(up, 0.35).normalize()
+      const quat = new THREE.Quaternion().setFromUnitVectors(up, grow)
+      // Random roll about the growth axis so leaves don't all face the same way.
+      quat.multiply(new THREE.Quaternion().setFromAxisAngle(up, rng(0, Math.PI * 2)))
+
+      // Color: upper/outer leaves lighter (sunlit), inner darker; slight hue jitter.
+      const light = 0.68 + Math.max(0, dir.y) * 0.28 + rng(0, 0.22)
+      const col = baseCol.clone()
+      if (light >= 1) col.lerp(new THREE.Color('#ffffff'), Math.min(0.35, light - 1))
+      else col.multiplyScalar(light)
+      col.offsetHSL(rng(-0.02, 0.02), rng(-0.06, 0.05), 0)
+
+      leaves.push({ pos, quat, scale: leafLen * rng(0.72, 1.12), color: col })
+    }
+
+    const pot = (
+      <group>
+        {/* tapered planter body */}
+        <Cyl rTop={potTopR} rBottom={potBotR} height={potH} pos={[0, potH / 2, 0]} color={'#b06a44'} segments={28} roughness={0.72} />
+        {/* rim lip */}
+        <Cyl rTop={rimR} rBottom={rimR} height={potH * 0.12} pos={[0, potH - potH * 0.06, 0]} color={'#9c5c39'} segments={28} roughness={0.7} />
+        {/* soil, mounded slightly proud of the rim so the two discs don't coplanar Z-fight */}
+        <Cyl rTop={potTopR * 0.9} rBottom={potTopR * 0.9} height={0.02} pos={[0, potH + 0.005, 0]} color={'#3a2a1e'} segments={24} roughness={1} />
+      </group>
+    )
+
+    return { leaves, pot, stems }
+  }, [W, D, H, color])
 
   return (
     <group>
-      {/* pot (truncated cone) */}
-      <Cyl rTop={potTopR} rBottom={potBotR} height={potH} pos={[0, potH / 2, 0]} color={potColor} segments={20} roughness={0.8} />
-      {/* soil — sit its top slightly ABOVE the pot's top cap (both are radially-segmented discs; when
-          coplanar they Z-FIGHT into a black/white pinwheel, made stark by realistic lighting). Raising
-          the soil ~1cm proud of the rim (a natural soil mound) separates the two planes and fixes it. */}
-      <Cyl rTop={potTopR * 0.92} rBottom={potTopR * 0.92} height={0.02} pos={[0, potH, 0]} color={'#3a2a1e'} segments={20} roughness={1} />
-      {/* foliage: cluster of spheres + a top cone */}
-      <mesh position={[0, foliageBottom + foliageH * 0.35, 0]} castShadow receiveShadow>
-        <sphereGeometry args={[clusterR * 0.95, 16, 14]} />
-        <meshStandardMaterial color={foliage} roughness={0.85} />
-      </mesh>
-      <mesh position={[-clusterR * 0.45, foliageBottom + foliageH * 0.55, clusterR * 0.25]} castShadow>
-        <sphereGeometry args={[clusterR * 0.6, 14, 12]} />
-        <meshStandardMaterial color={foliageDark} roughness={0.85} />
-      </mesh>
-      <mesh position={[clusterR * 0.4, foliageBottom + foliageH * 0.58, -clusterR * 0.2]} castShadow>
-        <sphereGeometry args={[clusterR * 0.65, 14, 12]} />
-        <meshStandardMaterial color={foliage} roughness={0.85} />
-      </mesh>
-      <mesh position={[0, foliageBottom + foliageH * 0.85, 0]} castShadow>
-        <coneGeometry args={[clusterR * 0.6, foliageH * 0.5, 14]} />
-        <meshStandardMaterial color={foliageDark} roughness={0.85} />
-      </mesh>
+      {pot}
+      {stems}
+      <LeafCanopy leaves={leaves} />
     </group>
   )
+}
+
+function buildPlant(W: number, D: number, H: number, color: string): JSX.Element {
+  return <PlantModel W={W} D={D} H={H} color={color} />
 }
 
 function buildTv(W: number, D: number, H: number, color: string): JSX.Element {
@@ -724,10 +937,26 @@ function buildMirror(W: number, D: number, H: number, color: string): JSX.Elemen
     <group>
       {/* frame slab */}
       <Box size={[W, H, frameT]} pos={[0, H / 2, 0]} color={color} roughness={0.5} />
-      {/* reflective panel on +z */}
-      <mesh position={[0, H / 2, frameT / 2 + 0.003]} castShadow receiveShadow>
-        <boxGeometry args={[W - frameW * 2, H - frameW * 2, 0.008]} />
-        <meshStandardMaterial color={'#ccd8de'} roughness={0.06} metalness={0.7} />
+      {/* Reflective panel on +z. A plain PBR material only mirrors the IBL env map (a generic
+          blur) — NOT the actual room. So we use a PLANAR REFLECTOR (drei MeshReflectorMaterial):
+          it renders the scene from a mirrored virtual camera into a texture each frame, so the
+          mirror shows the real furniture in front of it — the standard real-time mirror technique.
+          High metalness / near-zero roughness also make the path-traced beauty shot render it as a
+          true mirror (three-gpu-pathtracer reads these PBR props; MeshReflectorMaterial extends
+          MeshStandardMaterial). The plane faces +z (local front). */}
+      <mesh position={[0, H / 2, frameT / 2 + 0.004]}>
+        <planeGeometry args={[W - frameW * 2, H - frameW * 2]} />
+        <MeshReflectorMaterial
+          mirror={1}
+          resolution={1024}
+          blur={[0, 0]}
+          mixBlur={0}
+          mixStrength={1.2}
+          roughness={0.03}
+          metalness={0.95}
+          color="#f4f7f8"
+          depthScale={0}
+        />
       </mesh>
       {/* back support strut (leans the mirror) */}
       <mesh position={[0, H * 0.42, -frameT / 2 - 0.04]} rotation={[0.16, 0, 0]} castShadow>
@@ -784,7 +1013,7 @@ function buildCounter(W: number, D: number, H: number, color: string): JSX.Eleme
         const cx = -W / 2 + 0.02 + doorW * (i + 0.5)
         return (
           <group key={i}>
-            <Box size={[doorW - 0.02, bodyH - 0.06, 0.012]} pos={[cx, toeH + bodyH / 2, D / 2 - 0.006]} color={shade(color, 1.05)} roughness={0.5} />
+            <Box size={[doorW - 0.02, bodyH - 0.06, 0.012]} pos={[cx, toeH + bodyH / 2, D / 2 + 0.005]} color={shade(color, 1.05)} roughness={0.5} />
             <Cyl rTop={0.007} rBottom={0.007} height={0.1} pos={[cx + doorW * 0.32, toeH + bodyH / 2, D / 2 + 0.008]} color={METAL} segments={8} roughness={0.3} metalness={0.7} />
           </group>
         )
@@ -1013,6 +1242,42 @@ function buildFridge(W: number, D: number, H: number, color: string): JSX.Elemen
   )
 }
 
+/** Front-load washing machine: cuboid body + round glass PORTHOLE door (metal ring + dark drum) +
+ *  top control-panel strip (display + program dial) + detergent drawer + top lid + feet.
+ *  Front faces +z (LOCAL space: footprint centered, base at y=0). */
+function buildWasher(W: number, D: number, H: number, color: string): JSX.Element {
+  const footH = Math.min(0.04, H * 0.05)
+  const bodyH = H - footH
+  const panelH = Math.min(0.14, bodyH * 0.18)
+  const doorR = Math.min(W * 0.34, bodyH * 0.3)
+  const doorY = footH + bodyH * 0.42
+  const faceZ = D / 2
+  const panelY = footH + bodyH - panelH / 2 - 0.02
+  const drawerY = panelY - panelH * 0.85
+  return (
+    <group>
+      {/* feet */}
+      {([[-1, -1], [1, -1], [-1, 1], [1, 1]] as [number, number][]).map(([sx, sz], i) => (
+        <Cyl key={i} rTop={0.02} rBottom={0.02} height={footH} pos={[sx * (W / 2 - 0.05), footH / 2, sz * (D / 2 - 0.05)]} color={DARK} segments={8} metalness={0.3} />
+      ))}
+      {/* body + top lid */}
+      <Box size={[W, bodyH, D]} pos={[0, footH + bodyH / 2, 0]} color={color} roughness={0.32} metalness={0.18} />
+      <Box size={[W, 0.02, D]} pos={[0, footH + bodyH + 0.01, 0]} color={shade(color, 0.94)} roughness={0.3} />
+      {/* control-panel strip (top front) + display + program dial */}
+      <Box size={[W * 0.96, panelH, 0.012]} pos={[0, panelY, faceZ + 0.006]} color={shade(color, 0.86)} roughness={0.4} />
+      <Box size={[W * 0.22, panelH * 0.4, 0.006]} pos={[W * 0.18, panelY, faceZ + 0.013]} color={GLASS} roughness={0.15} />
+      <Cyl rTop={panelH * 0.32} rBottom={panelH * 0.32} height={0.02} rotation={[Math.PI / 2, 0, 0]} pos={[-W * 0.28, panelY, faceZ + 0.015]} color={METAL} segments={20} metalness={0.5} />
+      {/* detergent drawer (top-left front) + handle */}
+      <Box size={[W * 0.3, panelH * 0.7, 0.02]} pos={[-W * 0.3, drawerY, faceZ + 0.006]} color={shade(color, 1.05)} roughness={0.5} />
+      <Box size={[W * 0.2, 0.01, 0.012]} pos={[-W * 0.3, drawerY, faceZ + 0.018]} color={METAL} metalness={0.5} />
+      {/* porthole: recessed metal ring + dark drum + proud glass disc, facing +z */}
+      <Cyl rTop={doorR} rBottom={doorR} height={0.03} rotation={[Math.PI / 2, 0, 0]} pos={[0, doorY, faceZ - 0.01]} color={shade(color, 0.88)} segments={32} roughness={0.35} metalness={0.4} />
+      <Cyl rTop={doorR * 0.62} rBottom={doorR * 0.62} height={0.02} rotation={[Math.PI / 2, 0, 0]} pos={[0, doorY, faceZ - 0.03]} color={DARK} segments={28} />
+      <Cyl rTop={doorR * 0.74} rBottom={doorR * 0.74} height={0.02} rotation={[Math.PI / 2, 0, 0]} pos={[0, doorY, faceZ + 0.012]} color={GLASS} segments={32} roughness={0.08} metalness={0.1} />
+    </group>
+  )
+}
+
 /** Range hood: wide canopy + chimney duct (wall-mounted above a cooktop). */
 function buildRangeHood(W: number, D: number, H: number, color: string): JSX.Element {
   const canopyH = H * 0.45
@@ -1107,6 +1372,8 @@ export function FurnitureModel({
         return buildFridge(W, D, H, color)
       case 'rangeHood':
         return buildRangeHood(W, D, H, color)
+      case 'washer':
+        return buildWasher(W, D, H, color)
       default:
         return buildBox(W, D, H, color)
     }

@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { HarnessScene } from './Scene'
+import { FurnitureProbe } from './FurnitureProbe'
 import { RealismLayer } from '../r3f/RealismLayer'
 import { RenderControls } from '../ui/RenderControls'
 import { useRender } from '../store'
@@ -18,6 +19,7 @@ import type { RenderQuality } from '../types'
 const params = new URLSearchParams(location.search)
 const startFlat = params.get('flat') != null
 const startQuality = (params.get('q') as RenderQuality | null) ?? 'high'
+const probe = params.get('probe') === 'furniture' // render A's real furniture for new-furniture QA
 
 function btn(active: boolean): CSSProperties {
   return {
@@ -66,14 +68,14 @@ function App() {
         flat
         dpr={[1, 2]}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
-        camera={{ position: [4.2, 3.0, 4.6], fov: 40, near: 0.1, far: 200 }}
+        camera={{ position: probe ? [1.6, 1.4, 2.6] : [4.2, 3.0, 4.6], fov: 40, near: 0.1, far: 200 }}
       >
         <color attach="background" args={['#cdccc9']} />
-        <HarnessScene lightsOn={lightsOn} />
+        {probe ? <FurnitureProbe /> : <HarnessScene lightsOn={lightsOn} />}
         <RealismLayer enabled={realism} />
         <OrbitControls
           makeDefault
-          target={[0, 0.7, 0]}
+          target={probe ? [0, 0.45, 0] : [0, 0.7, 0]}
           enableDamping
           dampingFactor={0.13}
           maxPolarAngle={Math.PI / 2.05}
@@ -101,8 +103,8 @@ function App() {
         </span>
       </div>
 
-      {/* the app-facing render panel (also exercised here) */}
-      <RenderControls />
+      {/* the app-facing render panel (also exercised here) — hidden in probe mode for a clear view */}
+      {!probe && <RenderControls />}
     </>
   )
 }

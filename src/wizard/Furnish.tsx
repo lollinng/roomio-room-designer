@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo, useRef, useEffect, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useStore } from '../store'
 import { useLighting } from '../../lighting/src/store'
 import { showEditingHints } from '../../lighting/src/contract'
-import { ARCHETYPES, ARCHETYPE_MAP, CATEGORY_ORDER } from '../data/archetypes'
+import { ARCHETYPES, ARCHETYPE_MAP, CATEGORY_ORDER, type Archetype } from '../data/archetypes'
 import { formatLenShort } from '../units'
-import type { FurnitureItem } from '../types'
+import type { FurnitureItem, FurnitureCategory } from '../types'
 import { ScanRoom } from './ScanRoom'
 import { Suggestions } from './Suggestions'
+import { useHouse } from '../three/houseSession'
+import { defaultFurnitureFor } from '../data/flatTemplates'
 // Agent C (multi-room): in-app "add rooms" — switch between rooms of the house.
 import { RoomsBar } from '../three/RoomsBar'
 
@@ -77,8 +79,7 @@ function ItemEditor({ item }: { item: FurnitureItem }) {
             onClick={() => updateFurniture(item.id, { locked: !item.locked })}
             title={item.locked ? 'Unlock to move' : 'Lock in place'}
             style={{
-              border: '1.5px solid',
-              borderColor: item.locked ? '#111' : '#d9d5cd',
+              border: `1.5px solid ${item.locked ? '#111' : '#d9d5cd'}`,
               background: item.locked ? '#111' : '#fff',
               color: item.locked ? '#fff' : 'var(--ink-2)',
               fontSize: 12,
@@ -163,80 +164,460 @@ function ItemEditor({ item }: { item: FurnitureItem }) {
   )
 }
 
-/** A welcoming, guided empty state so a brand-new room isn't a blank box. */
-function EmptyRoomWelcome({ onScan }: { onScan: () => void }) {
+/** One 2-column grid of catalog cards. Each card adds an instance on click and,
+ *  once ≥1 is placed, shows a live count with a "−" to remove the most recent. */
+function CatalogGrid({
+  items,
+  counts,
+  onAdd,
+  onRemoveLast,
+}: {
+  items: Archetype[]
+  counts: Record<string, number>
+  onAdd: (id: string) => void
+  onRemoveLast: (id: string) => void
+}) {
+  // IKEA-style cards: show a color swatch + W×D×H dimensions so "does it fit?" is answered before
+  // placing (fit is the #1 question in a spatial planner). Data already lives on every Archetype.
+  const unit = useStore((s) => s.design.unit)
   return (
-    <div
-      style={{
-        border: '1.5px dashed #d9d5cd',
-        borderRadius: 14,
-        padding: 18,
-        marginBottom: 16,
-        background: '#fbfaf7',
-        textAlign: 'center',
-      }}
-    >
-      <div style={{ fontSize: 26, marginBottom: 6 }}>🛋️</div>
-      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4, color: 'var(--ink)' }}>
-        Your room is empty — let’s furnish it!
-      </div>
-      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 12 }}>
-        Tap a piece from the catalog below to drop it in, or scan a real room photo to auto-fill it.
-        The 💡 Suggestions above call out what every room needs.
-      </div>
-      <button className="btn btn-primary btn-sm" onClick={onScan}>
+    <div className="catalog-grid">
+      {items.map((a) => {
+        const n = counts[a.id] ?? 0
+        const dims = `${formatLenShort(a.w, unit)} × ${formatLenShort(a.d, unit)} × ${formatLenShort(a.h, unit)}`
+        return (
+          <div
+            key={a.id}
+            className={`catalog-card${n > 0 ? ' added' : ''}`}
+            data-testid={`catalog-card-${a.id}`}
+          >
+            <button className="catalog-card__add" onClick={() => onAdd(a.id)} title={`Add ${a.name} · ${dims} (W×D×H)`}>
+              <span className="catalog-icon" style={{ position: 'relative' }}>
+                {a.icon}
+                <span
+                  aria-hidden
+                  style={{
+                    position: 'absolute', right: -2, bottom: -2, width: 10, height: 10, borderRadius: '50%',
+                    background: a.color, border: '1.5px solid #fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.12)',
+                  }}
+                />
+              </span>
+              <span className="catalog-card__name">{a.name}</span>
+              <span
+                className="catalog-card__dims"
+                style={{ fontSize: 10.5, opacity: 0.6, fontVariantNumeric: 'tabular-nums', marginTop: 1 }}
+                aria-label={`${dims} width by depth by height`}
+              >
+                {dims}
+              </span>
+            </button>
+            {n > 0 ? (
+              <span className="catalog-card__stepper">
+                <button
+                  className="catalog-card__minus"
+                  onClick={() => onRemoveLast(a.id)}
+                  title={`Remove one ${a.name}`}
+                  aria-label={`Remove one ${a.name}`}
+                >
+                  −
+                </button>
+                <span
+                  className="catalog-card__count"
+                  data-testid={`catalog-count-${a.id}`}
+                  aria-label={`${n} in room`}
+                >
+                  {n}
+                </span>
+              </span>
+            ) : (
+              <span className="catalog-card__plus" aria-hidden>
+                ＋
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Catalogue tab — category-first browsing (NN/g + Baymard): big identifying
+ * category tiles are the primary content; tapping one drills into that topic's
+ * pieces (navigation → browsing kept separate). A persistent search is the
+ * escape hatch that flattens results across every category.
+ */
+function CataloguePanel({
+  counts,
+  onAdd,
+  onRemoveLast,
+  hints,
+}: {
+  counts: Record<string, number>
+  onAdd: (id: string) => void
+  onRemoveLast: (id: string) => void
+  hints: boolean
+}) {
+  const [scanning, setScanning] = useState(false)
+  const [cat, setCat] = useState<FurnitureCategory | null>(null)
+  const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = query.trim().toLowerCase()
+  const searching = q.length > 0
+
+  const catList = CATEGORY_ORDER.filter((c) => ARCHETYPES.some((a) => a.category === c.id))
+  const activeCat = cat ? CATEGORY_ORDER.find((c) => c.id === cat) : null
+
+  // IKEA "furnish this room" one-tap: the active room's type has a research-grounded starter set
+  // (defaultFurnitureFor); drop the whole coordinated set in one tap, snapped by the §7 solver.
+  const rooms = useHouse((s) => s.rooms)
+  const activeId = useHouse((s) => s.activeId)
+  const activeType = rooms.find((r) => r.id === activeId)?.type ?? 'living'
+  const starterCount = defaultFurnitureFor(activeType, [
+    { x: 0, z: 0 }, { x: 400, z: 0 }, { x: 400, z: 300 }, { x: 0, z: 300 },
+  ]).length
+  const furnishThisRoom = () => {
+    const st = useStore.getState()
+    const corners = st.design.corners
+    const pieces = defaultFurnitureFor(activeType, corners)
+    if (!pieces.length) return
+    if (st.design.furniture.length > 0 && !confirm(`Add a starter ${activeType} set (${pieces.length} pieces) on top of what's here?`)) return
+    for (const p of pieces) st.addFurniture(p.archetype, p.x, p.z)
+    st.selectFurniture(null)
+  }
+
+  return (
+    <div>
+      <button
+        className="btn btn-ghost"
+        style={{ width: '100%', justifyContent: 'center', marginBottom: 14 }}
+        onClick={() => setScanning((v) => !v)}
+      >
         📷 Scan a room photo
+      </button>
+      {scanning && <ScanRoom onClose={() => setScanning(false)} />}
+
+      {starterCount > 0 && (
+        <button
+          className="btn btn-primary"
+          style={{ width: '100%', justifyContent: 'center', marginBottom: 14 }}
+          onClick={furnishThisRoom}
+          data-testid="furnish-this-room"
+          title={`Drop in a starter ${activeType} set (${starterCount} coordinated pieces), then tweak`}
+        >
+          ✨ Furnish this room ({activeType})
+        </button>
+      )}
+
+      <div className="catalog-search">
+        <span aria-hidden style={{ opacity: 0.5, fontSize: 14 }}>
+          🔍
+        </span>
+        <input
+          ref={inputRef}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search all furniture…"
+          aria-label="Search furniture"
+          data-testid="catalog-search"
+        />
+        {query && (
+          <button
+            className="catalog-search__clear"
+            onClick={() => {
+              setQuery('')
+              inputRef.current?.focus()
+            }}
+            title="Clear search"
+            aria-label="Clear search"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {searching ? (
+        (() => {
+          const items = ARCHETYPES.filter((a) => a.name.toLowerCase().includes(q))
+          return items.length ? (
+            <CatalogGrid items={items} counts={counts} onAdd={onAdd} onRemoveLast={onRemoveLast} />
+          ) : (
+            <div className="catalog-empty">No furniture matches “{query}”.</div>
+          )
+        })()
+      ) : cat === null ? (
+        <>
+          <div className="section-label" style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span>Browse by category</span>
+            <span className="sub">{ARCHETYPES.length} pieces</span>
+          </div>
+          <div className="cat-tile-grid">
+            {catList.map((c) => {
+              const n = ARCHETYPES.filter((a) => a.category === c.id).length
+              return (
+                <button
+                  key={c.id}
+                  className="cat-tile"
+                  style={{ background: `linear-gradient(150deg, ${c.tint} 0%, #ffffff 92%)` }}
+                  onClick={() => setCat(c.id)}
+                  data-testid={`cat-tile-${c.id}`}
+                  aria-label={`${c.label}, ${n} pieces`}
+                >
+                  <span className="cat-tile__icon" aria-hidden>
+                    {c.icon}
+                  </span>
+                  <span className="cat-tile__meta">
+                    <span className="cat-tile__label">{c.label}</span>
+                    <span className="cat-tile__count">{n} pieces</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="catalogue-drill">
+            <button
+              className="catalogue-back"
+              onClick={() => setCat(null)}
+              data-testid="catalogue-back"
+              aria-label="Back to all categories"
+            >
+              ‹ Categories
+            </button>
+            <span className="catalogue-drill__title">
+              <span aria-hidden style={{ marginRight: 6 }}>
+                {activeCat?.icon}
+              </span>
+              {activeCat?.label}
+              <span className="catalogue-drill__n"> · {ARCHETYPES.filter((a) => a.category === cat).length}</span>
+            </span>
+          </div>
+          <CatalogGrid
+            items={ARCHETYPES.filter((a) => a.category === cat)}
+            counts={counts}
+            onAdd={onAdd}
+            onRemoveLast={onRemoveLast}
+          />
+        </>
+      )}
+
+      {hints && (
+        <p className="hint" style={{ marginTop: 16 }}>
+          Pick a category, then tap a piece to drop it in. Added pieces show a count you can adjust
+          with <b>−</b>. Select any piece to fine-tune it in the <b>Design</b> tab.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** A welcoming, guided empty state so a brand-new room isn't a blank box. */
+function EmptyRoomWelcome({ onBrowse }: { onBrowse: () => void }) {
+  return (
+    <div className="lb-empty">
+      <div style={{ fontSize: 26, marginBottom: 6 }}>🛋️</div>
+      <div className="lb-empty__title">Your room is empty — let’s furnish it!</div>
+      <div className="lb-empty__sub">
+        Open the catalogue to browse furniture by category and drop pieces in. The 💡 Suggestions
+        above call out what every room needs.
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={onBrowse}>
+        Browse catalogue →
       </button>
     </div>
   )
 }
 
-/** A collapsible catalog category (progressive disclosure — default open). */
-function CatalogCategory({
-  label,
-  items,
-  onAdd,
+/** Shown on the Design tab when nothing is selected — points to how to edit / add. */
+function SelectPrompt({ onBrowse }: { onBrowse: () => void }) {
+  return (
+    <div className="lb-empty">
+      <div style={{ fontSize: 22, marginBottom: 6 }}>👆</div>
+      <div className="lb-empty__title">Nothing selected</div>
+      <div className="lb-empty__sub">
+        Click a piece in the scene — or open <b>In&nbsp;Room</b> — to edit it here. Add new furniture
+        from the <b>Catalogue</b>.
+      </div>
+      <button className="btn btn-ghost btn-sm" onClick={onBrowse}>
+        Open catalogue
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Design tab (default) — the contextual inspector. Selecting a piece shows ONLY
+ * that piece's editor (so the default view stays focused); with nothing selected
+ * it surfaces room-level Suggestions and a guided empty/select state.
+ */
+function DesignPanel({
+  selected,
+  roomEmpty,
+  onBrowse,
 }: {
-  label: string
-  items: typeof ARCHETYPES
-  onAdd: (id: string) => void
+  selected: FurnitureItem | undefined
+  roomEmpty: boolean
+  onBrowse: () => void
 }) {
-  const [open, setOpen] = useState(true)
+  const selectFurniture = useStore((s) => s.selectFurniture)
+  if (selected) {
+    return (
+      <div>
+        <button className="panel-back" onClick={() => selectFurniture(null)} data-testid="editor-done">
+          ‹ Done editing
+        </button>
+        <ItemEditor item={selected} />
+      </div>
+    )
+  }
   return (
     <div>
-      <button
-        type="button"
-        className="section-label"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        title={open ? `Collapse ${label}` : `Expand ${label}`}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          width: '100%',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: 0,
-          font: 'inherit',
-          color: 'inherit',
-          textAlign: 'left',
-        }}
-      >
-        <span>{label}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.55 }}>{open ? '▾' : '▸'}</span>
-      </button>
-      {open && (
-        <div className="catalog-grid">
-          {items.map((a) => (
-            <button key={a.id} className="catalog-card" onClick={() => onAdd(a.id)}>
-              <span className="catalog-icon">{a.icon}</span>
-              <span>{a.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <Suggestions />
+      {roomEmpty ? <EmptyRoomWelcome onBrowse={onBrowse} /> : <SelectPrompt onBrowse={onBrowse} />}
+    </div>
+  )
+}
+
+/**
+ * "In Room" tab — every piece placed in this room (a scene/objects list). Click
+ * one to select it, which jumps to the Design tab to edit; × removes it.
+ */
+function PlacedPanel({ onBrowse }: { onBrowse: () => void }) {
+  const furniture = useStore((s) => s.design.furniture)
+  const selectFurniture = useStore((s) => s.selectFurniture)
+  const removeFurniture = useStore((s) => s.removeFurniture)
+
+  if (furniture.length === 0) {
+    return (
+      <div className="lb-empty" data-testid="products-used">
+        <div style={{ fontSize: 22, marginBottom: 6 }}>📦</div>
+        <div className="lb-empty__title">Nothing placed yet</div>
+        <div className="lb-empty__sub">Add furniture from the catalogue and it’ll show up here.</div>
+        <button className="btn btn-primary btn-sm" onClick={onBrowse}>
+          Browse catalogue →
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div data-testid="products-used">
+      <div className="section-label" style={{ marginTop: 0 }}>
+        Products used · {furniture.length}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {furniture.map((item) => {
+          const arch = ARCHETYPE_MAP[item.archetype]
+          return (
+            <div key={item.id} style={prodRow}>
+              <button
+                onClick={() => selectFurniture(item.id)}
+                title="Select to edit (rotate / resize / recolor)"
+                style={prodMain}
+                data-testid="placed-item"
+              >
+                <span style={{ fontSize: 15 }}>{arch?.icon ?? '📦'}</span>
+                <span style={{ ...prodSwatch, background: item.color }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {arch?.name ?? item.archetype}
+                </span>
+                {item.locked && (
+                  <span title="Locked" style={{ marginLeft: 'auto', fontSize: 11 }}>
+                    🔒
+                  </span>
+                )}
+              </button>
+              <button onClick={() => removeFurniture(item.id)} title="Remove this piece" style={prodX}>
+                ×
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const prodRow: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  border: '1.5px solid #e6e3dd',
+  borderRadius: 10,
+  background: '#fff',
+  overflow: 'hidden',
+}
+const prodMain: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flex: 1,
+  minWidth: 0,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  padding: '8px 10px',
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--ink-1, #23211e)',
+}
+const prodSwatch: CSSProperties = { width: 14, height: 14, borderRadius: 4, border: '1px solid rgba(0,0,0,.15)', flex: 'none' }
+const prodX: CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: '#b0392f',
+  fontSize: 16,
+  fontWeight: 700,
+  cursor: 'pointer',
+  padding: '4px 10px',
+  flex: 'none',
+}
+
+type Tab = 'design' | 'catalogue' | 'placed'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'design', label: 'Design' },
+  { id: 'catalogue', label: 'Catalogue' },
+  { id: 'placed', label: 'In Room' },
+]
+
+/** The left-bar section switcher — a real ARIA tab pattern (each tab controls a panel). */
+function TabBar({ tab, setTab, placedCount }: { tab: Tab; setTab: (t: Tab) => void; placedCount: number }) {
+  const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return
+    e.preventDefault()
+    const i = TABS.findIndex((t) => t.id === tab)
+    let ni = i
+    if (e.key === 'ArrowRight') ni = (i + 1) % TABS.length
+    else if (e.key === 'ArrowLeft') ni = (i - 1 + TABS.length) % TABS.length
+    else if (e.key === 'Home') ni = 0
+    else ni = TABS.length - 1
+    setTab(TABS[ni].id)
+    e.currentTarget.querySelector<HTMLButtonElement>(`[data-tab="${TABS[ni].id}"]`)?.focus()
+  }
+  return (
+    <div className="lb-tabs" role="tablist" aria-label="Furnish panel sections" onKeyDown={onKey}>
+      {TABS.map((t) => {
+        const active = tab === t.id
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={active}
+            aria-controls="lb-panel"
+            tabIndex={active ? 0 : -1}
+            data-tab={t.id}
+            className={`lb-tab${active ? ' active' : ''}`}
+            onClick={() => setTab(t.id)}
+            data-testid={`tab-${t.id}`}
+          >
+            {t.label}
+            {t.id === 'placed' && placedCount > 0 && <span className="lb-tab__badge">{placedCount}</span>}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -245,43 +626,71 @@ export function Furnish() {
   const sel = useStore((s) => s.selectedFurnitureId)
   const furniture = useStore((s) => s.design.furniture)
   const addFurnitureCentered = useStore((s) => s.addFurnitureCentered)
+  const removeFurniture = useStore((s) => s.removeFurniture)
+  const selectFurniture = useStore((s) => s.selectFurniture)
   const lightMode = useLighting((s) => s.lightMode)
-  const [scanning, setScanning] = useState(false)
+  const [tab, setTab] = useState<Tab>('design')
 
   const selected = sel ? furniture.find((f) => f.id === sel) : undefined
+
+  // Contextual-inspector behaviour (à la Figma / IKEA Kreativ): selecting a piece
+  // — in the 3D scene or the "In Room" list — jumps to the Design tab so its
+  // editor is what you see. Adding from the catalogue does NOT select (see onAdd),
+  // so it never pulls you off the Catalogue tab.
+  useEffect(() => {
+    if (sel) setTab('design')
+  }, [sel])
+
+  // Live per-archetype counts drive the "N in room" badges on catalog cards.
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const f of furniture) m[f.archetype] = (m[f.archetype] ?? 0) + 1
+    return m
+  }, [furniture])
+
+  // Add a piece WITHOUT yanking the panel: addFurnitureCentered() internally
+  // selects the new item (which would flip us to the Design tab and hide the
+  // catalogue). The card's count badge already confirms the add, so restore the
+  // prior selection and stay put. Select a piece deliberately to edit it.
+  const onAdd = (id: string) => {
+    const prevSel = useStore.getState().selectedFurnitureId
+    addFurnitureCentered(id)
+    // Always restore the prior selection so a catalogue add never changes what's
+    // selected (and so never yanks us off the Catalogue tab).
+    selectFurniture(prevSel)
+  }
+  // Remove the most-recently-added instance of an archetype (the stepper "−").
+  const onRemoveLast = (archetypeId: string) => {
+    for (let i = furniture.length - 1; i >= 0; i--) {
+      if (furniture[i].archetype === archetypeId) {
+        removeFurniture(furniture[i].id)
+        return
+      }
+    }
+  }
+
+  const goCatalogue = () => setTab('catalogue')
 
   return (
     <div>
       <RoomsBar />
 
-      <button
-        className="btn btn-ghost"
-        style={{ width: '100%', justifyContent: 'center', marginBottom: 18 }}
-        onClick={() => setScanning((v) => !v)}
-      >
-        📷 Scan a room photo
-      </button>
+      <TabBar tab={tab} setTab={setTab} placedCount={furniture.length} />
 
-      {scanning && <ScanRoom onClose={() => setScanning(false)} />}
-
-      <Suggestions />
-
-      {furniture.length === 0 && !scanning && <EmptyRoomWelcome onScan={() => setScanning(true)} />}
-
-      {selected && <ItemEditor item={selected} />}
-
-      {CATEGORY_ORDER.map((cat) => {
-        const items = ARCHETYPES.filter((a) => a.category === cat.id)
-        if (!items.length) return null
-        return <CatalogCategory key={cat.id} label={cat.label} items={items} onAdd={addFurnitureCentered} />
-      })}
-
-      {showEditingHints(lightMode) && (
-        <p className="hint">
-          Click a piece to add it, then drag, rotate, resize and recolor it. Furniture snaps to walls
-          and won't pass through them.
-        </p>
-      )}
+      <div role="tabpanel" id="lb-panel" aria-labelledby={`tab-${tab}`} className="lb-tabpanel">
+        {tab === 'design' && (
+          <DesignPanel selected={selected} roomEmpty={furniture.length === 0} onBrowse={goCatalogue} />
+        )}
+        {tab === 'catalogue' && (
+          <CataloguePanel
+            counts={counts}
+            onAdd={onAdd}
+            onRemoveLast={onRemoveLast}
+            hints={showEditingHints(lightMode)}
+          />
+        )}
+        {tab === 'placed' && <PlacedPanel onBrowse={goCatalogue} />}
+      </div>
     </div>
   )
 }

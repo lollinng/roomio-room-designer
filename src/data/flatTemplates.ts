@@ -107,7 +107,8 @@ export const FURNITURE_PLAN: Partial<Record<RoomType, Array<{ a: string; at: Anc
     { a: 'decor-lamp-table', at: 'back' },
   ],
   balcony: [
-    { a: 'chair-lounge', at: 'left' },
+    { a: 'kitchen-washer', at: 'back-left' }, // utility balconies host the washing machine
+    { a: 'chair-lounge', at: 'front-right' },
     { a: 'table-side', at: 'center' },
     { a: 'decor-plant', at: 'right' },
   ],
