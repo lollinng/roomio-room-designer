@@ -21,6 +21,15 @@ import { setHeroExporter } from './heroBus'
 // The path tracer is HEAVY and only needed on demand, so it is code-split (dynamic import on first
 // activation) — it never bloats the app's main bundle.
 
+// Grace period before declaring the GPU unable to path-trace. The first renderSample includes a big
+// shader compile + BVH build, so allow a generous window; overridable for diagnostics via a global.
+function heroWatchdogMs(): number {
+  // 25s: real GPUs land the first sample in <1s; software GL (SwiftShader) takes ~18s for the first
+  // sample (shader compile + BVH build) then climbs — so 25s lets slow-but-working GPUs through and
+  // only bails on a GPU that genuinely can't drive the tracer. Overridable for diagnostics.
+  return (typeof window !== 'undefined' && (window as unknown as { __heroWatchdogMs?: number }).__heroWatchdogMs) || 25000
+}
+
 function matricesClose(a: THREE.Matrix4, b: THREE.Matrix4, eps = 1e-5): boolean {
   const ae = a.elements
   const be = b.elements
@@ -101,7 +110,7 @@ export function HeroRender() {
           useRender.getState().setHeroSupported(false)
           useRender.getState().setHeroActive(false)
         }
-      }, 5000)
+      }, heroWatchdogMs())
     })()
 
     return () => {

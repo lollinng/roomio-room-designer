@@ -172,7 +172,11 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {converged ? '✓ Converged' : 'Rendering…'} {Math.min(heroSamples, heroTarget)}/{heroTarget} samples
+                  {converged
+                    ? `✓ Converged ${heroTarget}/${heroTarget} samples`
+                    : heroSamples === 0
+                      ? 'Preparing… (building scene)'
+                      : `Rendering… ${heroSamples}/${heroTarget} samples`}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {converged && (
