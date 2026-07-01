@@ -533,8 +533,10 @@ function buildPlant(W: number, D: number, H: number, color: string): JSX.Element
     <group>
       {/* pot (truncated cone) */}
       <Cyl rTop={potTopR} rBottom={potBotR} height={potH} pos={[0, potH / 2, 0]} color={potColor} segments={20} roughness={0.8} />
-      {/* soil */}
-      <Cyl rTop={potTopR * 0.92} rBottom={potTopR * 0.92} height={0.02} pos={[0, potH - 0.01, 0]} color={'#3a2a1e'} segments={20} roughness={1} />
+      {/* soil — sit its top slightly ABOVE the pot's top cap (both are radially-segmented discs; when
+          coplanar they Z-FIGHT into a black/white pinwheel, made stark by realistic lighting). Raising
+          the soil ~1cm proud of the rim (a natural soil mound) separates the two planes and fixes it. */}
+      <Cyl rTop={potTopR * 0.92} rBottom={potTopR * 0.92} height={0.02} pos={[0, potH, 0]} color={'#3a2a1e'} segments={20} roughness={1} />
       {/* foliage: cluster of spheres + a top cone */}
       <mesh position={[0, foliageBottom + foliageH * 0.35, 0]} castShadow receiveShadow>
         <sphereGeometry args={[clusterR * 0.95, 16, 14]} />
