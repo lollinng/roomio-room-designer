@@ -78,6 +78,26 @@ try {
   ok(s && s.mean > 25 && s.darkFrac < 0.85, `app canvas renders lit (mean ${s?.mean.toFixed(1)}, dark ${(s?.darkFrac * 100).toFixed(1)}%)`)
   writeFileSync(`${OUT}/10-app-realism.png`, await page.screenshot({ encoding: 'binary' }))
 
+  // (2a) TEXTURES: A's procedural floor texture renders with visible detail under the realism layer.
+  const floor = await page.evaluate(() => {
+    const c = document.querySelector('canvas')
+    const W = 480, H = 300
+    const o = document.createElement('canvas'); o.width = W; o.height = H
+    const x = o.getContext('2d'); x.drawImage(c, 0, 0, W, H)
+    const d = x.getImageData(0, 0, W, H).data
+    let edge = 0, sum = 0, n = 0
+    for (let y = Math.floor(H * 0.6); y < Math.floor(H * 0.92); y++) {
+      for (let xx = Math.floor(W * 0.35); xx < Math.floor(W * 0.85); xx++) {
+        const i = (y * W + xx) * 4, i2 = ((y + 2) * W + xx) * 4
+        const L1 = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+        const L2 = 0.299 * d[i2] + 0.587 * d[i2 + 1] + 0.114 * d[i2 + 2]
+        edge += Math.abs(L1 - L2); sum += L1; n++
+      }
+    }
+    return { edge: edge / n, mean: sum / n }
+  })
+  ok(floor.edge > 1.2 && floor.mean > 30 && floor.mean < 235, `floor texture renders with detail under realism (edge ${floor.edge.toFixed(2)}, mean ${floor.mean.toFixed(1)})`)
+
   // (2b) the LIGHTS TOGGLE works in the app: clicking it dims the scene (E's room lights go off).
   const clickLights = () => page.evaluate(() => {
     const b = [...document.querySelectorAll('button')].find((x) => /Lights (on|off)/.test(x.textContent || ''))

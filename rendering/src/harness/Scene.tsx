@@ -5,12 +5,52 @@
 // (hemisphere + ambient fill, a directional sun, point "bulbs") so the RealismLayer is enhancing
 // the same kind of lighting it will in the app.
 
+import { useMemo } from 'react'
 import * as THREE from 'three'
 import { AreaLight } from '../r3f/AreaLight'
 
 const RW = 4
 const RD = 5
 const WH = 2.7
+
+// Procedural wood-plank floor texture (canvas → CanvasTexture), authored in sRGB — mirrors how A's
+// real floor textures work. Verifies that a TEXTURED PBR material renders correctly under the realism
+// stack (correct colour space, lit by IBL, tone-mapped without washout).
+function makeFloorTexture(): THREE.CanvasTexture {
+  const S = 256
+  const c = document.createElement('canvas')
+  c.width = S
+  c.height = S
+  const ctx = c.getContext('2d')!
+  const planks = 6
+  const ph = S / planks
+  const tones = ['#b39069', '#a5825c', '#bd9a71', '#9c7852']
+  for (let i = 0; i < planks; i++) {
+    ctx.fillStyle = tones[i % tones.length]
+    ctx.fillRect(0, i * ph, S, ph)
+    // plank seam
+    ctx.strokeStyle = 'rgba(60,40,20,0.55)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(0, i * ph, S, ph)
+    // grain streaks
+    ctx.strokeStyle = 'rgba(90,65,40,0.25)'
+    ctx.lineWidth = 1
+    for (let g = 0; g < 5; g++) {
+      const y = i * ph + ((g + 1) * ph) / 6
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(S, y + (g % 2 ? 3 : -3))
+      ctx.stroke()
+    }
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(RW / 1.2, RD / 1.2) // ~1.2 m per tile → physically-scaled planks
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 8
+  return tex
+}
 
 interface FurnProps {
   position: [number, number, number]
@@ -38,12 +78,13 @@ function Furn({ position, size, color, roughness = 0.7, metalness = 0, emissive,
 }
 
 export function HarnessScene({ lightsOn = true }: { lightsOn?: boolean }) {
+  const floorTex = useMemo(() => makeFloorTexture(), [])
   return (
     <group>
-      {/* floor */}
+      {/* floor — textured (procedural sRGB plank map) to verify textures render under the realism stack */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[RW, RD]} />
-        <meshStandardMaterial color="#b9a98f" roughness={0.82} metalness={0} side={THREE.DoubleSide} />
+        <meshStandardMaterial map={floorTex} color="#ffffff" roughness={0.82} metalness={0} side={THREE.DoubleSide} />
       </mesh>
       {/* back wall (-z) */}
       <mesh position={[0, WH / 2, -RD / 2]} receiveShadow>

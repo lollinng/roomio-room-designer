@@ -107,6 +107,28 @@ async function main() {
     ok(realism.mean > 20 && realism.mean < 250, `realism frame is not black/blown (mean ${realism.mean.toFixed(1)})`)
     ok(realism.darkFrac < 0.9, `realism frame is not mostly black (darkFrac ${(realism.darkFrac * 100).toFixed(1)}%)`)
 
+    // 1a) TEXTURES: the textured floor renders with visible plank detail (high-frequency spatial
+    // variation) AND at a sensible brightness (correct sRGB colour space — not washed white/black).
+    const floor = await page.evaluate(() => {
+      const c = document.querySelector('canvas')
+      const W = 480, H = 300
+      const o = document.createElement('canvas'); o.width = W; o.height = H
+      const x = o.getContext('2d'); x.drawImage(c, 0, 0, W, H)
+      const d = x.getImageData(0, 0, W, H).data
+      let edge = 0, sum = 0, n = 0
+      for (let y = Math.floor(H * 0.6); y < Math.floor(H * 0.9); y++) {
+        for (let xx = Math.floor(W * 0.12); xx < Math.floor(W * 0.62); xx++) {
+          const i = (y * W + xx) * 4, i2 = ((y + 2) * W + xx) * 4
+          const L1 = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+          const L2 = 0.299 * d[i2] + 0.587 * d[i2 + 1] + 0.114 * d[i2 + 2]
+          edge += Math.abs(L1 - L2); sum += L1; n++
+        }
+      }
+      return { edge: edge / n, mean: sum / n }
+    })
+    ok(floor.edge > 1.5, `textured floor shows plank detail (vert edge ${floor.edge.toFixed(2)})`)
+    ok(floor.mean > 40 && floor.mean < 230, `floor texture at sane brightness — sRGB not washed (mean ${floor.mean.toFixed(1)})`)
+
     // 1b) Turn the LIGHTS OFF — both the light AND the bloom glow must drop together.
     await page.evaluate('window.__rendering.setLights(false)')
     await sleep(900)
