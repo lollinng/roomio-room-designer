@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from functools import lru_cache
 from typing import Optional
 
@@ -18,6 +19,16 @@ import numpy as np
 from sklearn.cluster import KMeans
 
 from config import PALETTE_PATH
+
+# iPhone photos are HEIC/HEIF. Register the PIL opener when the plugin is installed
+# so load_image_rgb() can decode them by content; if it's absent we degrade to prior
+# behavior (HEIC simply won't decode) rather than crash.
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except Exception:
+    pass
 
 
 # ───────────────────────────── palette ─────────────────────────────
@@ -176,6 +187,53 @@ def load_image_rgb(path: str) -> Optional[np.ndarray]:
         if bgr is None:
             return None
         return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+
+# Image formats Ollama's built-in loader (stb_image) decodes directly. Anything
+# else (HEIC/HEIF, WEBP, …) must be re-encoded before we hand it to the VLM.
+_VLM_SAFE_FORMATS = {"JPEG", "JPG", "PNG", "BMP", "GIF"}
+
+
+def downscale_max(rgb: np.ndarray, max_dim: int) -> np.ndarray:
+    """Downscale an RGB array so its longest side is <= max_dim (no-op if already)."""
+    h, w = rgb.shape[:2]
+    longest = max(h, w)
+    if max_dim <= 0 or longest <= max_dim:
+        return rgb
+    scale = max_dim / float(longest)
+    return cv2.resize(
+        rgb,
+        (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
+        interpolation=cv2.INTER_AREA,
+    )
+
+
+def vlm_readable_path(
+    image_path: str, rgb: np.ndarray, force_reencode: bool = False
+) -> tuple[str, Optional[str]]:
+    """Return (path_to_hand_the_VLM, temp_path_to_delete_or_None).
+
+    Ollama cannot read HEIC/HEIF/WEBP. We detect the source format by CONTENT
+    (the upload server names every request `.jpg` regardless of bytes); when it
+    isn't directly readable — or when the caller downscaled the working image
+    (`force_reencode`) — we re-encode the already-decoded `rgb` array to a temp
+    JPEG. `rgb` is the pipeline's working image, so VLM pixel bboxes line up with
+    the crops used for color. The caller deletes the returned temp path.
+    """
+    if not force_reencode:
+        fmt = None
+        try:
+            from PIL import Image
+            with Image.open(image_path) as im:
+                fmt = (im.format or "").upper()
+        except Exception:
+            fmt = None
+        if fmt in _VLM_SAFE_FORMATS:
+            return image_path, None
+    tmp = tempfile.NamedTemporaryFile(prefix="roomio_vlm_", suffix=".jpg", delete=False)
+    tmp.close()
+    cv2.imwrite(tmp.name, cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+    return tmp.name, tmp.name
 
 
 if __name__ == "__main__":

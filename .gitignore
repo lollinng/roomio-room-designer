@@ -6,3 +6,7 @@ dist-ssr
 .vite
 *.log
 *.tsbuildinfo
+scripts/fb-cookies.txt
+scripts/fb-cookies.json
+scripts/.last-scrape.png
+public/listings.json

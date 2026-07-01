@@ -7,4 +7,5 @@ numpy>=1.26,<3          # array math
 opencv-python-headless>=4.9   # image IO + crops (headless: no GUI/Qt deps, CI-safe)
 scikit-learn>=1.4       # k-means for dominant-color extraction
 Pillow>=10.0            # robust image decode + EXIF orientation
+pillow-heif>=0.16       # decode iPhone HEIC/HEIF uploads (registers a PIL opener)
 jsonschema>=4.0         # validate our own output against shared/detection_schema.json

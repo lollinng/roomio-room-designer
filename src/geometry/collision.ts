@@ -62,11 +62,6 @@ function dot2(ax: number, az: number, bx: number, bz: number): number {
   return ax * bx + az * bz
 }
 
-/** Clamp a value to [lo, hi]. */
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v
-}
-
 /** Normalize an angle to (-PI, PI]. */
 function normalizeAngle(a: number): number {
   let r = a % (Math.PI * 2)

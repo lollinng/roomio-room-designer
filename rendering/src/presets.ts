@@ -32,7 +32,7 @@ const PRESETS: Record<RenderQuality, RenderSettings> = {
     quality: 'high',
     post: {
       bloom: { enabled: true, threshold: 1.0, strength: 0.85, radius: 0.65 },
-      ao: { enabled: true, type: 'N8AO', intensity: 2.5, radius: 1.0 },
+      ao: { enabled: true, type: 'N8AO', intensity: 1.3, radius: 0.45 },
       multisampling: 4,
     },
   },
@@ -42,7 +42,7 @@ const PRESETS: Record<RenderQuality, RenderSettings> = {
     post: {
       bloom: { enabled: true, threshold: 1.0, strength: 0.6, radius: 0.55 },
       // lighter AO: less intensity + smaller radius + halfRes (set in the rig)
-      ao: { enabled: true, type: 'N8AO', intensity: 1.8, radius: 0.85 },
+      ao: { enabled: true, type: 'N8AO', intensity: 1.0, radius: 0.4 },
       multisampling: 2,
     },
   },

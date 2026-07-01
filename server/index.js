@@ -35,10 +35,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.join(__dirname, '..')
 
 const app = express()
-app.use(express.json({ limit: '2mb' }))
-// Room photos arrive as base64 data URLs which blow past the 2mb default, so the
-// /api/detect POST gets its own larger JSON parser.
+// Room photos arrive as base64 data URLs that blow past the 2mb default, so the
+// /api/detect POST gets its own larger JSON parser. It MUST be registered BEFORE
+// the global 2mb parser: body-parser skips a request whose body is already parsed,
+// so /api/detect gets 15mb while every other route keeps the tighter 2mb cap.
+// (Registered after, the global parser would reject a >2mb photo before this ran.)
 app.use('/api/detect', express.json({ limit: '15mb' }))
+app.use(express.json({ limit: '2mb' }))
 app.use(cookieParser())
 
 // --- Helpers ----------------------------------------------------------------
@@ -278,6 +281,23 @@ const ID_RE = /^[A-Za-z0-9_-]+$/
 /** Strip an optional "data:image/...;base64," prefix and return the raw base64. */
 const stripDataUrlPrefix = (s) => s.replace(/^data:[^;,]*;base64,/, '').replace(/^data:[^,]*,/, '')
 
+/**
+ * Sniff a request image's true extension from its magic bytes (defaults to .jpg).
+ * The browser's data URL claims JPEG even for iPhone HEIC, so name the request file
+ * by its real content — the watcher + pipeline then see the actual format.
+ */
+const sniffImageExt = (buf) => {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return '.jpg'
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return '.png'
+  if (buf.length >= 2 && buf[0] === 0x42 && buf[1] === 0x4d) return '.bmp'
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return '.webp'
+  if (buf.length >= 12 && buf.toString('ascii', 4, 8) === 'ftyp') {
+    const brand = buf.toString('ascii', 8, 12).toLowerCase()
+    if (['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'].includes(brand)) return '.heic'
+  }
+  return '.jpg'
+}
+
 // POST /api/detect — accept a room photo, queue it for detection, return its id.
 app.post(
   '/api/detect',
@@ -298,9 +318,10 @@ app.post(
       return res.status(400).json({ error: 'invalid base64 image' })
     }
 
+    const ext = sniffImageExt(bytes)
     const id = randomUUID()
-    const imageRel = `shared/requests/${id}.jpg`
-    const imagePath = path.join(REQUESTS_DIR, `${id}.jpg`)
+    const imageRel = `shared/requests/${id}${ext}`
+    const imagePath = path.join(REQUESTS_DIR, `${id}${ext}`)
     const sidecarPath = path.join(REQUESTS_DIR, `${id}.request.json`)
 
     // Write via tmp + rename so the watcher never observes a half-written file.

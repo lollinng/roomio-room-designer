@@ -29,7 +29,9 @@ from pipeline import process, validate_result  # noqa: E402
 class TestCorpus(unittest.TestCase):
     def test_loads_and_fallback_valid(self):
         c = load_corpus()
-        self.assertEqual(len(c.valid_ids), 23)
+        # Corpus is JSON-driven and grows as Agent A extends the catalog (23 → 91 → …),
+        # so assert a sensible floor rather than an exact count that drifts.
+        self.assertGreaterEqual(len(c.valid_ids), 23)
         self.assertTrue(c.is_valid(c.fallback_id))
         self.assertEqual(c.fallback_id, "misc-box")
 

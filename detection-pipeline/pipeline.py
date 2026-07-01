@@ -8,14 +8,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
 from classify import classify
-from color import crop_region, dominant_color, load_image_rgb
-from config import CONTRACT_VERSION, RESULTS_DIR, SCHEMA_PATH
+from color import crop_region, dominant_color, downscale_max, load_image_rgb, vlm_readable_path
+from config import CONTRACT_VERSION, MAX_VLM_IMAGE_DIM, RESULTS_DIR, SCHEMA_PATH
 from detect import detect
 
 
@@ -66,28 +67,45 @@ def process(
         image = load_image_rgb(image_path)
         if image is None:
             return _error_result(request_id, image_path, f"could not read image: {image_path}")
+        orig_h, orig_w = image.shape[:2]
+        # Cap working resolution: 24 MP iPhone photos overflow the VLM context and
+        # waste compute. Downscale once and use it for BOTH detection and color so
+        # pixel bboxes stay consistent. No-op for images already within the cap.
+        image = downscale_max(image, MAX_VLM_IMAGE_DIM)
         H, W = image.shape[:2]
+        downscaled = (H != orig_h or W != orig_w)
 
-        detections, model_used = detect(image_path, W, H, model=model, backend=detector)
-        if not model_used:
-            res = _error_result(request_id, image_path,
-                                "no local vision model available — pull qwen2.5vl:7b or moondream via Ollama")
-            res["image"].update({"width": W, "height": H})
-            return res
+        # Ollama can't decode HEIC/HEIF/WEBP; hand the detector a re-encoded JPEG
+        # when the source isn't directly readable OR we downscaled it (cleaned up
+        # below). Color analysis operates on the decoded `image` array directly.
+        vlm_path, _vlm_tmp = vlm_readable_path(image_path, image, force_reencode=downscaled)
+        try:
+            detections, model_used = detect(vlm_path, W, H, model=model, backend=detector)
+            if not model_used:
+                res = _error_result(request_id, image_path,
+                                    "no local vision model available — pull qwen2.5vl:7b or moondream via Ollama")
+                res["image"].update({"width": W, "height": H})
+                return res
 
-        proposals = []
-        for det in detections:
-            prop = classify(det, image_path=image_path, model=model_used, refine=refine)
-            if prop is None:
-                continue  # non-furniture → skip
-            crop = crop_region(image, det.bbox)
-            color = dominant_color(crop)
-            prop.update({
-                "color_hex": color["hex"],
-                "color_name": color["name"],
-                "bbox": [float(v) for v in det.bbox],
-            })
-            proposals.append(prop)
+            proposals = []
+            for det in detections:
+                prop = classify(det, image_path=vlm_path, model=model_used, refine=refine)
+                if prop is None:
+                    continue  # non-furniture → skip
+                crop = crop_region(image, det.bbox)
+                color = dominant_color(crop)
+                prop.update({
+                    "color_hex": color["hex"],
+                    "color_name": color["name"],
+                    "bbox": [float(v) for v in det.bbox],
+                })
+                proposals.append(prop)
+        finally:
+            if _vlm_tmp:
+                try:
+                    os.unlink(_vlm_tmp)
+                except OSError:
+                    pass
 
         result = {
             "version": CONTRACT_VERSION,

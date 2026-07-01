@@ -1,4 +1,4 @@
-// Verify the UX pass: empty-state onboarding, collapsible catalog categories,
+// Verify the UX pass: empty-state onboarding, category filter chips,
 // consolidated toolbar (Plan view / Colliders), and the top-down plan-view snap.
 import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
@@ -28,14 +28,17 @@ try {
   ok(await hasText(p, "Your room is empty"), 'empty-state onboarding card shown for a new room')
   writeFileSync(OUT + 'ux-1-panel.png', await p.screenshot())
 
-  // UX1: collapsible catalog category (click "Sofas" → cards drop)
+  // UX1: category filter chips (click "Sofas" → grid narrows to sofas; "All" restores)
   const before = await cards()
-  ok(before > 0, `catalog cards present (${before})`)
+  ok(before > 0, `catalog cards present in default All view (${before})`)
   await clickText('Sofas')
   await sleep(300)
   const after = await cards()
-  ok(after < before, `collapsing a category hides its cards (${before} → ${after})`)
-  await clickText('Sofas') // reopen
+  ok(after < before && after > 0, `selecting a category filters the grid (${before} → ${after})`)
+  await clickText('All')
+  await sleep(300)
+  const restored = await cards()
+  ok(restored === before, `selecting All restores the full catalog (${after} → ${restored})`)
 
   // UX3: consolidated toolbar present with aria-labels
   const aria = await p.evaluate(() => ({

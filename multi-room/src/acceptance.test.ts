@@ -70,7 +70,7 @@ describe('Acceptance — the full multi-room scenario', () => {
     const kg = kitchenGuidance(house.rooms.find((r) => r.room_id === kitchen.room_id)!)
     expect(kg.guidance.join(' ')).toMatch(/work triangle/i)
     expect(essentialsFor('kitchen').length).toBeGreaterThan(0)
-    expect(missingAssetsFor('kitchen').length).toBeGreaterThan(0) // fixtures → asset request
+    expect(missingAssetsFor('kitchen').length).toBe(0) // fixtures now modeled (counter/sink/stove/fridge/island)
 
     // 4) archway into a bathroom → dismissible privacy warning (AC1)
     const bath = roomFromInterior(rect('Bathroom'), 'bathroom', { x: 0, z: 400 })

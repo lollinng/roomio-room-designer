@@ -18,7 +18,9 @@ import {
 // card, rounded corners, subtle #e6e3dd borders.
 
 const POLL_INTERVAL_MS = 1500
-const MAX_POLLS = 40
+// ~120s budget: the first scan after the watcher/model is cold (model load + a
+// large photo) can take over a minute; a 60s cap timed those out spuriously.
+const MAX_POLLS = 80
 
 const BORDER = '#e6e3dd'
 
@@ -276,7 +278,11 @@ export function ScanRoom({ onClose }: { onClose: () => void }) {
       {/* ---- Empty / error state ---- */}
       {showEmptyMsg && (
         <p style={{ marginTop: 16, fontSize: 14, color: 'var(--ink-2)' }}>
-          Couldn't detect anything — add furniture manually.
+          {result?.status === 'error'
+            ? "Couldn't read that photo — it may be an unsupported format. Try a JPEG or PNG."
+            : errorMsg
+              ? errorMsg
+              : "Couldn't detect anything — add furniture manually."}
         </p>
       )}
 
