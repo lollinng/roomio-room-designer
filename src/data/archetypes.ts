@@ -42,6 +42,7 @@ export type ModelKind =
   | 'stove'
   | 'fridge'
   | 'rangeHood'
+  | 'washer'
 
 /**
  * How a piece occupies space vertically:
@@ -91,7 +92,7 @@ const MODEL_KINDS: ModelKind[] = [
   'cabinet', 'openShelf', 'rug', 'lamp', 'plant', 'box',
   'tv', 'desk', 'ottoman', 'stool', 'bench', 'mirror',
   'counter', 'toilet', 'shower', 'vanity', 'bathtub', 'tubFreestanding',
-  'jacuzzi', 'island', 'stove', 'fridge', 'rangeHood',
+  'jacuzzi', 'island', 'stove', 'fridge', 'rangeHood', 'washer',
 ]
 const CATEGORIES: FurnitureCategory[] = ['sofa', 'bed', 'table', 'chair', 'storage', 'kitchen', 'bathroom', 'decor', 'misc']
 const MOUNTS: Mount[] = ['floor', 'wall', 'surface']
@@ -142,14 +143,43 @@ export function isMounted(id: string): boolean {
   return mountOf(id) !== 'floor'
 }
 
-export const CATEGORY_ORDER: { id: FurnitureCategory; label: string }[] = [
-  { id: 'sofa', label: 'Sofas' },
-  { id: 'bed', label: 'Beds' },
-  { id: 'table', label: 'Tables' },
-  { id: 'chair', label: 'Chairs' },
-  { id: 'storage', label: 'Storage' },
-  { id: 'kitchen', label: 'Kitchen' },
-  { id: 'bathroom', label: 'Bathroom' },
-  { id: 'decor', label: 'Decor' },
-  { id: 'misc', label: 'Other' },
+/**
+ * cm — floor pieces at or below this height are flat floor COVERINGS (rugs,
+ * carpets, mats) you physically step onto, not obstacles you walk into. The
+ * catalog has a wide gap here — rugs are 1.5 cm, the next-lowest furniture is
+ * 20 cm — so this threshold separates coverings from real furniture cleanly
+ * while still catching any future flat mat added to the catalog.
+ */
+export const WALKABLE_FLOOR_MAX_H = 10
+
+/**
+ * True for a flat floor covering (rug / carpet / mat) that a first-person
+ * walker should pass OVER rather than collide with. Keyed on the live item
+ * height when supplied (a resized piece is judged by its actual height), with
+ * the archetype's `rug` model as a definitive fallback so a mis-sized rug is
+ * still treated as walkable. Wall/surface-mounted pieces are never coverings.
+ */
+export function isWalkableFloor(id: string, h?: number): boolean {
+  const a = ARCHETYPE_MAP[id]
+  if (a && a.mount !== 'floor') return false
+  if (a?.model === 'rug') return true
+  const height = h ?? a?.h
+  return typeof height === 'number' && height <= WALKABLE_FLOOR_MAX_H
+}
+
+/**
+ * Furniture categories in display order. `icon` + `tint` drive the big, image-like
+ * category tiles in the Furnish catalogue (identifying imagery + a soft per-category
+ * wash), so users pick a topic visually instead of scrolling every piece.
+ */
+export const CATEGORY_ORDER: { id: FurnitureCategory; label: string; icon: string; tint: string }[] = [
+  { id: 'sofa', label: 'Sofas', icon: '🛋️', tint: '#e9edf2' },
+  { id: 'bed', label: 'Beds', icon: '🛏️', tint: '#f1ece3' },
+  { id: 'table', label: 'Tables', icon: '🍽️', tint: '#efe9df' },
+  { id: 'chair', label: 'Chairs', icon: '🪑', tint: '#e9eee9' },
+  { id: 'storage', label: 'Storage', icon: '🗄️', tint: '#edeae2' },
+  { id: 'kitchen', label: 'Kitchen', icon: '🍳', tint: '#f0ebe3' },
+  { id: 'bathroom', label: 'Bathroom', icon: '🛁', tint: '#e7edf1' },
+  { id: 'decor', label: 'Decor', icon: '🪴', tint: '#e9efe8' },
+  { id: 'misc', label: 'Other', icon: '📦', tint: '#efece6' },
 ]

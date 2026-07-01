@@ -14,7 +14,8 @@
     "check:auth": "node scripts/auth-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:detect": "node scripts/detect-check.mjs"
+    "check:detect": "node scripts/detect-check.mjs",
+    "scrape:listings": "node scripts/scrape-listings.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",

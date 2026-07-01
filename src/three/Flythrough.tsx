@@ -3,6 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber'
 import type * as THREE from 'three'
 import { useStore } from '../store'
 import { bbox, deriveWalls } from '../geometry/walls'
+import { isWalkableFloor } from '../data/archetypes'
 import { setSceneHandle, type SceneHandle } from './sceneBus'
 // Multi-room: when the whole-house overview is active, the walker must collide
 // against the WHOLE house (all rooms at their footprints, doorways walkable),
@@ -10,8 +11,7 @@ import { setSceneHandle, type SceneHandle } from './sceneBus'
 // room's geometry sitting at the wrong coordinates).
 import { useHouseView } from './houseViewMode'
 import { useHouse } from './houseSession'
-import { layoutHouse, houseColliders, houseBoundsCm } from './houseLayout'
-import type { RoomDesign } from '../types'
+import { layoutHouse, houseColliders, houseBoundsCm, type RoomPlacement } from './houseLayout'
 import { FlythroughController } from '../../camera-flythrough/src/engine/FlythroughController'
 import { downloadPath, readPathFile } from '../../camera-flythrough/src/engine/pathIO'
 
@@ -26,13 +26,13 @@ import { downloadPath, readPathFile } from '../../camera-flythrough/src/engine/p
  * as found on close (overlay objects are removed, user camera + controls restored).
  */
 
-/** In whole-house mode with >1 room, the designs to lay out (active room live). */
-function houseModeDesigns(): RoomDesign[] | null {
+/** In whole-house mode with >1 room, the placements to lay out (active room live). */
+function housePlacements(): RoomPlacement[] | null {
   const rooms = useHouse.getState().rooms
   if (useHouseView.getState().mode !== 'house' || rooms.length <= 1) return null
   const activeId = useHouse.getState().activeId
   const live = useStore.getState().design
-  return rooms.map((r) => (r.id === activeId ? live : r.design))
+  return rooms.map((r) => ({ design: r.id === activeId ? live : r.design, pos: r.pos, type: r.type }))
 }
 
 export function SceneBridge({ onController }: { onController: (c: FlythroughController | null) => void }) {
@@ -55,23 +55,27 @@ export function SceneBridge({ onController }: { onController: (c: FlythroughCont
         return { width: gl.domElement.clientWidth, height: gl.domElement.clientHeight }
       },
       getColliders: () => {
-        const houseDesigns = houseModeDesigns()
-        if (houseDesigns) return houseColliders(layoutHouse(houseDesigns))
+        const housePlace = housePlacements()
+        if (housePlace) return houseColliders(layoutHouse(housePlace))
         const d = useStore.getState().design
         const walls = useStore.getState().walls ?? deriveWalls(d.corners)
         const b = bbox(d.corners)
         return {
           walls,
-          furniture: d.furniture.map((f) => ({ cx: f.x, cz: f.z, w: f.w, d: f.d, rot: f.rotation })),
+          // Flat floor coverings (rugs/carpets) are walkable — you step onto them,
+          // so they must not act as collision footprints in the first-person walk.
+          furniture: d.furniture
+            .filter((f) => !isWalkableFloor(f.archetype, f.h))
+            .map((f) => ({ cx: f.x, cz: f.z, w: f.w, d: f.d, rot: f.rotation })),
           polygon: d.corners,
           wallThickness: d.wallThickness,
           bounds: { minX: b.minX, minZ: b.minZ, maxX: b.maxX, maxZ: b.maxZ },
         }
       },
       frame: () => {
-        const houseDesigns = houseModeDesigns()
-        const b = houseDesigns
-          ? houseBoundsCm(layoutHouse(houseDesigns))
+        const housePlace = housePlacements()
+        const b = housePlace
+          ? houseBoundsCm(layoutHouse(housePlace))
           : bbox(useStore.getState().design.corners)
         return { cx: b.cx, cz: b.cz }
       },

@@ -16,6 +16,7 @@ import { bbox, deriveWalls } from '../geometry/walls'
 import { useHouse } from './houseSession'
 import { useHouseView } from './houseViewMode'
 import { layoutHouse, houseColliders, houseBoundsCm, type OBB } from './houseLayout'
+import { isWalkableFloor } from '../data/archetypes'
 
 interface DebugBox {
   pos: [number, number, number]
@@ -36,15 +37,19 @@ export function ColliderDebug() {
     let fr: { cx: number; cz: number }
 
     if (mode === 'house' && rooms.length > 1) {
-      const designs = rooms.map((r) => (r.id === activeId ? design : r.design))
-      const placed = layoutHouse(designs)
+      const placed = layoutHouse(
+        rooms.map((r) => ({ design: r.id === activeId ? design : r.design, pos: r.pos, type: r.type })),
+      )
       obbs = houseColliders(placed).furniture // walls + furniture, all as OBBs
       const b = houseBoundsCm(placed)
       fr = { cx: b.cx, cz: b.cz }
     } else {
       const b = bbox(design.corners)
       fr = { cx: b.cx, cz: b.cz }
-      obbs = design.furniture.map((f) => ({ cx: f.x, cz: f.z, w: f.w, d: f.d, rot: f.rotation }))
+      // mirror getColliders(): flat floor coverings (rugs) are walkable, not colliders
+      obbs = design.furniture
+        .filter((f) => !isWalkableFloor(f.archetype, f.h))
+        .map((f) => ({ cx: f.x, cz: f.z, w: f.w, d: f.d, rot: f.rotation }))
       // show the single room's walls as boxes too (collider is half-planes, but
       // the footprint is what matters for "is the wall where I think it is")
       for (const w of deriveWalls(design.corners)) {

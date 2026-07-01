@@ -23,14 +23,34 @@ const EMISSIVE_BOOST = 8
 
 interface RoomioMatData {
   __roomioBaseEmissive?: number
+  /** Tagged by WindowDaylight on the emissive "sky" pane so the lights-off gate NEVER zeroes it —
+   *  the window is the daylight source when the lamps are off, so it must keep glowing. */
+  __roomioWindow?: boolean
 }
 
-function enhanceScene(scene: THREE.Object3D, envMapIntensity: number, lightsOn: boolean) {
+/** Walk up the object tree to find the owning lamp's furniture id (tagged by FurnitureGizmo). */
+function findLampId(obj: THREE.Object3D | null): string | undefined {
+  for (let o = obj; o; o = o.parent) {
+    const id = (o.userData as { __roomioLampId?: string }).__roomioLampId
+    if (id) return id
+  }
+  return undefined
+}
+
+function enhanceScene(
+  scene: THREE.Object3D,
+  envMapIntensity: number,
+  lightsOn: boolean,
+  lampOff: Record<string, boolean>,
+) {
   scene.traverse((obj) => {
     const mesh = obj as THREE.Mesh
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined
     if (!mat) return
     const mats = Array.isArray(mat) ? mat : [mat]
+    // Which lamp (if any) owns this mesh — so its emissive shade can be gated per-lamp.
+    let lampId: string | undefined
+    let lampResolved = false
     for (const m of mats) {
       const sm = m as THREE.MeshStandardMaterial
       if (!sm.isMeshStandardMaterial) continue
@@ -38,16 +58,28 @@ function enhanceScene(scene: THREE.Object3D, envMapIntensity: number, lightsOn: 
       // (1) scale IBL contribution (uniform set — no recompile)
       sm.envMapIntensity = envMapIntensity
 
-      // (2) lift authored emissive into the HDR bloom range, proportional to its authored value,
-      //     and GATE it on lightsOn so bulbs stop glowing when the scene lights go off. Detection
-      //     keys on the cached base (once seen) so a zeroed-emissive bulb can be restored.
       const ud = sm.userData as RoomioMatData
+
+      // Window "sky" panes are DYNAMICALLY authored by WindowDaylight — its emissiveIntensity already
+      // tracks the sun's elevation (time of day) and this window's facing angle. Leave it EXACTLY as
+      // authored: do NOT stash/boost/gate it. (The old ×8 stash froze the glass at its first-frame
+      // brightness, so a dusk or shaded window stayed blazing.) envMapIntensity was already set above.
+      if (ud.__roomioWindow) continue
+
+      // (2) lift authored emissive into the HDR bloom range, proportional to its authored value,
+      //     and GATE it. A lamp's shade glow is gated on THIS lamp (lightsOn && !lampOff[id]) so
+      //     each lamp switches off independently; other bulbs (TV, etc.) follow the master lightsOn.
       const isBulb =
         ud.__roomioBaseEmissive !== undefined ||
         (!!sm.emissive && sm.emissive.r + sm.emissive.g + sm.emissive.b > 0.01 && sm.emissiveIntensity > 0)
       if (isBulb) {
         if (ud.__roomioBaseEmissive === undefined) ud.__roomioBaseEmissive = sm.emissiveIntensity
-        sm.emissiveIntensity = lightsOn ? ud.__roomioBaseEmissive * EMISSIVE_BOOST : 0
+        if (!lampResolved) {
+          lampId = findLampId(obj)
+          lampResolved = true
+        }
+        const lit = lampId ? lightsOn && !lampOff[lampId] : lightsOn
+        sm.emissiveIntensity = lit ? ud.__roomioBaseEmissive * EMISSIVE_BOOST : 0
       }
     }
   })
@@ -57,17 +89,18 @@ export function MaterialEnhancer() {
   const scene = useThree((s) => s.scene)
   const envMapIntensity = useRender((s) => s.settings.materials.envMapIntensity)
   const lightsOn = useRender((s) => s.lightsOn)
+  const lampOff = useRender((s) => s.lampOff)
   const frame = useRef(0)
 
-  // Immediate apply on mount + whenever the intensity dial or lights toggle changes.
+  // Immediate apply on mount + whenever the intensity dial, master toggle, or a per-lamp toggle changes.
   useEffect(() => {
-    enhanceScene(scene, envMapIntensity, lightsOn)
-  }, [scene, envMapIntensity, lightsOn])
+    enhanceScene(scene, envMapIntensity, lightsOn, lampOff)
+  }, [scene, envMapIntensity, lightsOn, lampOff])
 
   // Catch dynamically added/edited furniture without per-frame cost.
   useFrame(() => {
     frame.current += 1
-    if (frame.current % 24 === 0) enhanceScene(scene, envMapIntensity, lightsOn)
+    if (frame.current % 24 === 0) enhanceScene(scene, envMapIntensity, lightsOn, lampOff)
   })
 
   return null

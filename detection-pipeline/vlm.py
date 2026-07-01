@@ -11,7 +11,7 @@ import re
 from functools import lru_cache
 from typing import Optional
 
-from config import DEFAULT_MODEL, FALLBACK_MODEL
+from config import DEFAULT_MODEL, FALLBACK_MODEL, VLM_NUM_CTX
 
 
 class VLMUnavailable(RuntimeError):
@@ -106,7 +106,7 @@ def chat_image(model: str, prompt: str, image_path: str,
         resp = client.chat(
             model=model,
             messages=[{"role": "user", "content": prompt, "images": [image_path]}],
-            options={"temperature": temperature, "num_predict": num_predict},
+            options={"temperature": temperature, "num_predict": num_predict, "num_ctx": VLM_NUM_CTX},
         )
         msg = getattr(resp, "message", None)
         if msg is not None:

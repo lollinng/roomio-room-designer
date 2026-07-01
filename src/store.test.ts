@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useStore, newDesign } from './store'
 import { ARCHETYPE_MAP } from './data/archetypes'
-import type { FurnitureItem, RoomDesign } from './types'
+import { bbox } from './geometry/walls'
+import type { FurnitureItem, RoomDesign, Vec2 } from './types'
 
 let n = 0
 function place(archetype: string, x: number, z: number, extra: Partial<FurnitureItem> = {}): FurnitureItem {
@@ -78,5 +79,30 @@ describe('mounted pieces follow their host when it moves', () => {
     const lamp = useStore.getState().design.furniture.find((f) => f.id === farLamp.id)!
     expect(lamp.x).toBeCloseTo(480, 5)
     expect(lamp.z).toBeCloseTo(360, 5)
+  })
+})
+
+describe('setCorners — whole-footprint resize (used by the plan-view room resize)', () => {
+  const rect = (w: number, l: number): Vec2[] => [
+    { x: 0, z: 0 }, { x: w, z: 0 }, { x: w, z: l }, { x: 0, z: l },
+  ]
+
+  it('replaces the footprint, re-derives walls, and is undoable', () => {
+    useStore.getState().loadDesign(newDesign('rect'))
+    useStore.getState().setCorners(rect(700, 500))
+    const bb = bbox(useStore.getState().design.corners)
+    expect([bb.w, bb.d]).toEqual([700, 500])
+    expect(useStore.getState().walls).toHaveLength(4) // walls re-derived from the new corners
+    useStore.getState().undo()
+    // undo restores the previous footprint (default rect is not 700×500)
+    const restored = bbox(useStore.getState().design.corners)
+    expect(restored.w === 700 && restored.d === 500).toBe(false)
+  })
+
+  it('rejects a degenerate (near-zero-area) polygon', () => {
+    useStore.getState().loadDesign(newDesign('rect'))
+    const before = useStore.getState().design.corners
+    useStore.getState().setCorners(rect(2, 2)) // area 4 cm² « the 1000 guard
+    expect(useStore.getState().design.corners).toBe(before) // unchanged
   })
 })

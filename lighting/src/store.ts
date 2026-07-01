@@ -21,6 +21,9 @@ export interface LightingStore extends LightingState {
   // sun
   setSunEnabled: (v: boolean) => void
   setMaxElevation: (deg: number) => void
+  // global flat-fill multiplier (window/daylight-only mode dims the always-on fill); 0..1, default 1
+  fillScale: number
+  setFillScale: (v: number) => void
   // rooms / lights
   ensureRoom: (input: RoomLightInput) => void
   setRoomLights: (roomId: string, lights: Light[]) => void
@@ -34,6 +37,7 @@ const wrap = (v: number) => ((v % 360) + 360) % 360
 
 export const useLighting = create<LightingStore>((set) => ({
   ...makeDefaultLightingState(),
+  fillScale: 1, // completed to unblock the shared build — Agent E, verify this matches your intent
 
   setTimeOfDay: (t) => set({ timeOfDay: Math.max(0, Math.min(1, t)) }),
   setNorthOffset: (deg) => set({ northOffsetDeg: wrap(deg) }),
@@ -53,6 +57,7 @@ export const useLighting = create<LightingStore>((set) => ({
 
   setSunEnabled: (v) => set((s) => ({ sun: { ...s.sun, enabled: v } })),
   setMaxElevation: (deg) => set((s) => ({ sun: { ...s.sun, maxElevationDeg: deg } })),
+  setFillScale: (v) => set({ fillScale: Math.max(0, Math.min(1, v)) }),
 
   ensureRoom: (input) =>
     set((s) => {

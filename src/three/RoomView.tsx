@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, ContactShadows } from '@react-three/drei'
 import { useStore } from '../store'
@@ -32,11 +32,32 @@ import { layoutHouse, houseBoundsCm } from './houseLayout'
 // quality/exposure/beauty-shot panel. See rendering/INTEGRATION.md.
 import { RealismLayer } from '../../rendering/src/r3f/RealismLayer'
 import { RenderControls } from '../../rendering/src/ui/RenderControls'
+import { useRender } from '../../rendering/src/store'
+// Agent G: window-as-light-source when the lamps are off (per-window area light + emissive sky pane).
+import { WindowDaylight } from './WindowDaylight'
+import { ARCHETYPE_MAP } from '../data/archetypes'
+// 2D top-down floor-plan arranger — the intuitive way to reposition rooms (replaces the 3D drag).
+import { PlanArranger } from './PlanArranger'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
   update: () => void
 } | null
+
+/** Shared pill style for the consolidated viewport toolbar. */
+function toolbarChip(active: boolean, activeBg = '#111', activeFg = '#fff'): CSSProperties {
+  return {
+    padding: '8px 14px',
+    borderRadius: 999,
+    border: '1px solid rgba(0,0,0,0.12)',
+    background: active ? activeBg : '#fff',
+    color: active ? activeFg : '#23211e',
+    font: '13px ui-sans-serif, system-ui, sans-serif',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+  }
+}
 
 /**
  * Refit the camera on shape change / fitNonce bump. If the loaded design carries
@@ -73,6 +94,25 @@ function CameraFit() {
   return null
 }
 
+/** Snap the camera to a top-down 2D "plan" view when requestPlanView() is called. */
+function PlanViewSnap({ radius }: { radius: number }) {
+  const nonce = useHouseView((s) => s.planNonce)
+  const { camera, controls } = useThree()
+  useEffect(() => {
+    if (nonce === 0) return // skip initial mount
+    const h = Math.max(radius * 2.4, 4)
+    camera.position.set(0.001, h, 0.001) // directly above centre, looking straight down
+    camera.updateProjectionMatrix()
+    const c = controls as unknown as ControlsLike
+    if (c?.target) {
+      c.target.set(0, 0, 0)
+      c.update()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonce])
+  return null
+}
+
 /** Registers a capturer so the UI can read the current camera view at save time. */
 function ViewCapturer() {
   const { camera, controls } = useThree()
@@ -94,8 +134,22 @@ export function RoomView({ children }: { children?: ReactNode }) {
   const corners = useStore((s) => s.design.corners)
   const stage = useStore((s) => s.stage)
   const designId = useStore((s) => s.design.id)
-  const hasWindows = useStore((s) => s.design.openings.some((o) => o.kind === 'window'))
   const wallHeight = useStore((s) => s.design.wallHeight)
+  const furniture = useStore((s) => s.design.furniture)
+
+  // Switchable lamp fixtures in the room, for the Render panel's per-lamp toggles. Only meaningful
+  // while furniture is on screen (furnish stage). Duplicate names get a numeric suffix.
+  const lamps = useMemo(() => {
+    if (stage !== 'furnish') return []
+    const seen: Record<string, number> = {}
+    return furniture
+      .filter((f) => ARCHETYPE_MAP[f.archetype]?.model === 'lamp')
+      .map((f) => {
+        const base = ARCHETYPE_MAP[f.archetype]?.name ?? 'Lamp'
+        seen[base] = (seen[base] ?? 0) + 1
+        return { id: f.id, label: seen[base] > 1 ? `${base} ${seen[base]}` : base }
+      })
+  }, [furniture, stage])
   const [flyController, setFlyController] = useState<FlythroughController | null>(null)
   // Pin OrbitControls to the ORIGINAL camera so drei never rebinds it to (and
   // clobbers) the flythrough's swapped-in cameras. Captured once on Canvas create.
@@ -117,12 +171,16 @@ export function RoomView({ children }: { children?: ReactNode }) {
     })
   }, [designId])
 
-  const { camPos, radius } = useMemo(() => {
+  const { camPos, radius, floorW, floorD } = useMemo(() => {
     const b = bbox(corners)
     const r = Math.max(b.w, b.d, 300) / 100
     return {
       camPos: [r * 0.62, r * 0.72, r * 0.8] as [number, number, number],
       radius: r,
+      // Actual floor footprint in metres — used to size the contact-shadow plane so its
+      // soft shadow stays UNDER the room instead of bleeding onto the background.
+      floorW: Math.max(b.w, 100) / 100,
+      floorD: Math.max(b.d, 100) / 100,
     }
   }, [corners])
 
@@ -133,10 +191,40 @@ export function RoomView({ children }: { children?: ReactNode }) {
   const activeId = useHouse((s) => s.activeId)
   const liveDesign = useStore((s) => s.design)
   const houseMode = viewMode === 'house' && houseRooms.length > 1
+
+  // Light Mode traces sunlight coming through windows, so it's only available when SOME room in the
+  // house actually has a window. Check the live (active) design plus every other saved room.
+  const lightMode = useLighting((s) => s.lightMode)
+  const hasAnyWindow = useMemo(() => {
+    const hasWin = (ops: { kind: string }[] | undefined) => !!ops?.some((o) => o.kind === 'window')
+    if (hasWin(liveDesign.openings)) return true
+    return houseRooms.some((r) => r.id !== activeId && hasWin(r.design.openings))
+  }, [liveDesign, houseRooms, activeId])
+
+  // Lock: drop out of Light Mode automatically if the last window is removed (nothing to trace).
+  useEffect(() => {
+    if (lightMode && !hasAnyWindow) useLighting.getState().toggleLightMode(false)
+  }, [lightMode, hasAnyWindow])
+
+  // Ray-trace the sun: entering Light Mode kicks the path-traced hero still (three-gpu-pathtracer),
+  // which accumulates while the camera is held static and falls back to raster on orbit. Off on exit.
+  useEffect(() => {
+    const r = useRender.getState()
+    if (lightMode) {
+      if (r.heroSupported) r.setHeroActive(true)
+    } else {
+      r.setHeroActive(false)
+    }
+  }, [lightMode])
   const { placed, houseBounds } = useMemo(() => {
     if (!houseMode) return { placed: [], houseBounds: { w: 0, d: 0, cx: 0, cz: 0 } }
-    const designs = houseRooms.map((r) => (r.id === activeId ? liveDesign : r.design))
-    const p = layoutHouse(designs)
+    const p = layoutHouse(
+      houseRooms.map((r) => ({
+        design: r.id === activeId ? liveDesign : r.design,
+        pos: r.pos,
+        type: r.type,
+      })),
+    )
     return { placed: p, houseBounds: houseBoundsCm(p) }
   }, [houseMode, houseRooms, activeId, liveDesign])
   const viewRadius = houseMode ? Math.max(houseBounds.w, houseBounds.d, 300) / 100 : radius
@@ -152,6 +240,8 @@ export function RoomView({ children }: { children?: ReactNode }) {
       onCreated={(s) => setOrigCam(s.camera)}
     >
       <color attach="background" args={['#cdccc9']} />
+      {/* Agent G: realism layer (IBL + material enhance + EffectComposer). One mount covers both
+          single-room and whole-house mode (HouseView renders inside this same Canvas). */}
       <RealismLayer />
       {houseMode ? (
         <Suspense fallback={null}>
@@ -163,16 +253,21 @@ export function RoomView({ children }: { children?: ReactNode }) {
           <LightingRig houseHalfExtentM={radius / 2} activeRoomId={designId} />
           <Suspense fallback={null}>
             <Room />
+            <WindowDaylight />
             <Ceiling cornersWorld={ceilingCorners} heightM={wallHeight / 100} />
             {stage === 'step2' && <EditHandles />}
             {stage === 'step3' && <OpeningEditor />}
             {stage === 'furnish' && <FurnitureEditor />}
             {children}
+            {/* Contact shadow sized to HUG the floor footprint (+15% margin). Previously
+                scale={radius*4.2} made the plane ~4× the room, so its soft blurred shadow
+                spilled far past the walls and banded into concentric "rings" on the empty
+                grey background (worst at grazing / zoomed-out angles — the reported bug). */}
             <ContactShadows
               position={[0, 0.002, 0]}
-              scale={radius * 4.2}
+              scale={[floorW * 1.15, floorD * 1.15]}
               resolution={1024}
-              blur={2.6}
+              blur={2.4}
               opacity={0.38}
               far={6}
             />
@@ -181,6 +276,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
         </>
       )}
       <ColliderDebug />
+      <PlanViewSnap radius={viewRadius} />
       <OrbitControls
         makeDefault
         camera={origCam ?? undefined}
@@ -198,47 +294,62 @@ export function RoomView({ children }: { children?: ReactNode }) {
     <FlythroughHud controller={flyController} />
     {/* anchorRightPx clears the .vp-tools view toolbar (right:18px + 40px wide ⇒ 58px)
         so the "💡 Light Mode" launcher/panel doesn't overlap the undo/redo/fit/home buttons. */}
-    <LightingControls roomId={designId} hasWindows={hasWindows} anchorRightPx={66} />
-    <RenderControls anchorLeftPx={452} anchorBottomPx={12} />
-    {/* Whole-house / single-room toggle (only meaningful with 2+ rooms) + a
-        collider-debug toggle (visualise the flythrough's collision footprints,
-        to test for "invisible wall" bugs). */}
-    {houseRooms.length > 1 && (
-      <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 8 }}>
+    <LightingControls hasWindows={hasAnyWindow} anchorRightPx={66} />
+    {/* Agent G: render quality / exposure / IBL / beauty-shot panel. Bottom, clear of A's left
+        panel (~440px) and B's bottom-right flythrough launcher. */}
+    <RenderControls anchorLeftPx={452} anchorBottomPx={12} lamps={lamps} />
+    {/* 2D floor-plan arranger — only in whole-house mode. Bottom-right, raised above B's flythrough
+        launcher. Drag room rectangles here (not in 3D) to reposition them; the 3D view updates live. */}
+    {houseMode && <PlanArranger placed={placed} bounds={houseBounds} anchorRightPx={14} anchorBottomPx={72} />}
+    {/* Consolidated viewport toolbar (one coherent group, top-centre):
+        2D plan view · whole-house toggle (2+ rooms) · collider-debug. */}
+    <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 8 }}>
+      <button
+        onClick={() => useHouseView.getState().requestPlanView()}
+        aria-label="Top-down 2D plan view"
+        title="Snap to a top-down 2D plan view"
+        style={toolbarChip(false)}
+      >
+        ⬓ Plan view
+      </button>
+      {houseRooms.length > 1 && (
         <button
           onClick={() => useHouseView.getState().toggle()}
+          aria-label={houseMode ? 'Switch to editing a single room' : 'View the whole house'}
+          aria-pressed={houseMode}
           title={houseMode ? 'Back to editing one room' : 'See all rooms together as a connected house'}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 999,
-            border: '1px solid rgba(0,0,0,0.12)',
-            background: houseMode ? '#111' : '#fff',
-            color: houseMode ? '#fff' : '#23211e',
-            font: '13px ui-sans-serif, system-ui, sans-serif',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          }}
+          style={toolbarChip(houseMode)}
         >
           {houseMode ? '🚪 Edit a room' : '🏠 View whole house'}
         </button>
-        <button
-          onClick={() => useHouseView.getState().toggleDebugColliders()}
-          title="Show the flythrough collision footprints (wireframes) — to test for invisible-wall bugs"
-          style={{
-            padding: '8px 12px',
-            borderRadius: 999,
-            border: '1px solid rgba(0,0,0,0.12)',
-            background: debugColliders ? '#ff2bd6' : '#fff',
-            color: debugColliders ? '#fff' : '#23211e',
-            font: '13px ui-sans-serif, system-ui, sans-serif',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          }}
-        >
-          ▦ Colliders
-        </button>
+      )}
+      <button
+        onClick={() => useHouseView.getState().toggleDebugColliders()}
+        aria-label="Toggle the collision-footprint debug overlay"
+        aria-pressed={debugColliders}
+        title="Show the flythrough collision footprints (wireframes) — to test for invisible-wall bugs"
+        style={toolbarChip(debugColliders, '#ff2bd6', '#fff')}
+      >
+        ▦ Colliders
+      </button>
+    </div>
+
+    {/* Light Mode lock notice — a single, always-visible in-canvas pill so the user knows furniture
+        is locked WITHOUT spraying a 🔒 badge over every piece (that clutter was removed). Stays
+        visible even if the Lighting panel (which has its own banner) is collapsed/closed. */}
+    {lightMode && (
+      <div
+        style={{
+          position: 'fixed', top: 56, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999,
+          background: 'rgba(180,120,20,0.92)', color: '#fff',
+          font: '600 12.5px ui-sans-serif, system-ui, sans-serif',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.22)', pointerEvents: 'none', whiteSpace: 'nowrap',
+        }}
+        role="status"
+        aria-live="polite"
+      >
+        <span aria-hidden>🔒</span> Sun Mode — furniture is locked
       </div>
     )}
     </>

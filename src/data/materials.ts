@@ -55,6 +55,9 @@ export const FLOOR_TEXTURES: FloorTexture[] = [
   { id: 'slate-tile', name: 'Slate tile', kind: 'tile', base: '#6f7174', accent: '#54565a', cell: 40 },
   { id: 'marble-tile', name: 'Marble', kind: 'tile', base: '#ebe9e6', accent: '#cdd1d4', cell: 50 },
   { id: 'check-tile', name: 'Checker', kind: 'tile', base: '#e4e2dc', accent: '#3a3a3a', cell: 30 },
+  // Room-type accent tiles (used by the flat templates so bathrooms/kitchens read distinctly).
+  { id: 'blue-tile', name: 'Ocean blue tile', kind: 'tile', base: '#3f7fb0', accent: '#2c5f88', cell: 20 },
+  { id: 'terracotta-tile', name: 'Terracotta tile', kind: 'tile', base: '#c07b52', accent: '#a15f3c', cell: 30 },
   // --- Concrete / soft ---
   { id: 'light-concrete', name: 'Light concrete', kind: 'concrete', base: '#cdcac4', accent: '#b6b3ac', cell: 100 },
   { id: 'mid-concrete', name: 'Concrete', kind: 'concrete', base: '#a8a6a1', accent: '#94928d', cell: 100 },

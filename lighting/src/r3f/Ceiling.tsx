@@ -2,9 +2,9 @@
 //   1) a SHADOW ROOF — always present, invisible to the camera (colorWrite off) but castShadow
 //      on, so the sun can't light or cast shadows into a windowless interior (the roof shadows it).
 //      Wall windows still let low-angle sun in (they're holes in the walls, not the roof).
-//   2) a VISUAL CEILING + recessed downlights — hidden in the default (high) view, fading in when
-//      the camera drops below the ceiling (you're looking up from inside).
-// The downlight POINT LIGHTS stay on regardless, so the room is always lit from the ceiling.
+//   2) a VISUAL CEILING with recessed downlight discs — hidden in the default (high) view, fading in
+//      when the camera drops below the ceiling (you're looking up from inside). These are purely
+//      VISUAL: the room is lit by the sun + IBL, not by electric ceiling fixtures.
 
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
@@ -16,8 +16,6 @@ export interface CeilingProps {
   cornersWorld: [number, number][]
   /** ceiling height in meters (wall height). */
   heightM: number
-  /** max recessed point lights (perf cap; sun is the primary caster). */
-  maxLights?: number
 }
 
 function buildShapeGeometry(cornersWorld: [number, number][]): THREE.BufferGeometry {
@@ -49,11 +47,12 @@ function pointInPolygon(x: number, z: number, poly: [number, number][]): boolean
   return inside
 }
 
-export function Ceiling({ cornersWorld, heightM, maxLights = 6 }: CeilingProps) {
+export function Ceiling({ cornersWorld, heightM }: CeilingProps) {
   const geom = useMemo(() => buildShapeGeometry(cornersWorld), [cornersWorld])
 
-  // Grid of recessed downlights inside the polygon (~one per 1.6 m), capped.
-  const { discs, lightPositions } = useMemo(() => {
+  // Grid of recessed downlight DISCS inside the polygon (~one per 1.6 m) — purely the visual ceiling
+  // detail you see looking up. The room is lit by the sun + IBL, not electric ceiling fixtures.
+  const discs = useMemo(() => {
     let minX = Infinity,
       maxX = -Infinity,
       minZ = Infinity,
@@ -76,11 +75,8 @@ export function Ceiling({ cornersWorld, heightM, maxLights = 6 }: CeilingProps) 
         if (pointInPolygon(x, z, cornersWorld)) ds.push([x, z])
       }
     }
-    // pick a spread-out subset for the actual point lights (perf cap)
-    const step = Math.max(1, Math.ceil(ds.length / maxLights))
-    const lp = ds.filter((_, i) => i % step === 0).slice(0, maxLights)
-    return { discs: ds, lightPositions: lp }
-  }, [cornersWorld, maxLights])
+    return ds
+  }, [cornersWorld])
 
   const visualRef = useRef<THREE.Group>(null)
   const opacity = useRef(0)
@@ -116,19 +112,6 @@ export function Ceiling({ cornersWorld, heightM, maxLights = 6 }: CeilingProps) 
       <mesh geometry={geom} position={[0, heightM, 0]} castShadow>
         <meshBasicMaterial colorWrite={false} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-
-      {/* 3) recessed downlight POINT LIGHTS — always on (room is lit from the ceiling) */}
-      {lightPositions.map(([x, z], i) => (
-        <pointLight
-          key={i}
-          position={[x, heightM - 0.12, z]}
-          color={discColor}
-          intensity={0.32}
-          distance={Math.max(4, heightM * 3)}
-          decay={0}
-          castShadow={false}
-        />
-      ))}
 
       {/* 2) visual ceiling + glowing downlight discs — fade in when camera drops inside */}
       <group ref={visualRef} visible={false}>

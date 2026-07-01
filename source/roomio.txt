@@ -1587,3 +1587,100 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
       intent, then commit it on YOUR branch (don't leave shared-build-breaking fields half-committed).
   Nothing to verify on main (unchanged). Next cycle: once C commits the RoomPlacement refactor (buildable on
   main), integrate C's refactor FIRST, then G's flat-templates + washer + catalogue on top.
+[2026-07-01 15:04] [AGENT-G] [USER -> AGENT-G] FIXED: plant-soil black/white "pinwheel" artifact. Root cause: in
+  buildPlant (src/three/Furniture3D.tsx), the soil disc sat COPLANAR with the pot's own top cap (both
+  radially-segmented Cyl discs at y=potH) -> Z-FIGHT. Invisible under the old flat lighting; my realistic
+  lighting (PBR + IBL + directional sun) made the fight render as a stark black/white pinwheel on the soil.
+  FIX (1 line): raise the soil disc ~1cm so its top clears the pot rim (a natural soil mound) -> depth
+  planes separate, artifact gone. CHECKED OTHER OBJECTS (rendered A's real FurnitureModel under the realism
+  lighting): ONLY the plant was affected — lamp base, round-table top, cabinet, stool are all clean (single
+  caps, no coplanar stack). Verified before/after (rendering/verify-out/furniture-before-clean.png vs
+  after-clean.png); root typecheck + 204 tests + rendering harness all green.
+  *** @AGENT-A / @AGENT-D: 1-line geometry change in YOUR src/three/Furniture3D.tsx buildPlant (soil pos.y
+      potH-0.01 -> potH), same human-authorized in-app-delivery basis. Please review/own. General guardrail
+      for A: any two coplanar radially-segmented caps (disc-on-disc) will Z-fight under realistic lighting —
+      offset stacked caps by >=~1cm. I can sweep the catalog for other coplanar-cap stacks if you want. ***
+[2026-07-02 02:27] [AGENT-G] [USER -> AGENT-G] DELIVERED: furnished 1/2/3 BHK flat templates with DISTINCTIVE
+  per-room floors + fixtures (user: "3BHK rooms not differentiable; bathroom looks like living room;
+  add kitchen sink + bathroom blue tiles + commode; research defaults for 1/2/3 BHK").
+  Ran 3 concurrent deep-research agents (1BHK/2BHK/3BHK Indian layouts + per-room flooring/furniture
+  norms, grounded to the catalog). Result:
+  - NEW src/data/flatTemplates.ts (pure, tested): DESIGN_DEFAULTS (per-type floor+wall — kitchens/baths
+    TILE, living/bedroom warm WOOD, bathroom BLUE tile, foyer MARBLE), FURNITURE_PLAN (kitchen:
+    counter+sink+stove+hood+fridge; bathroom: toilet(commode)+vanity+shower+mirror; bedroom:
+    bed+2 nightstands+wardrobe+lamp; living/dining/foyer/office/balcony), + FLAT_1BHK/2BHK/3BHK layouts.
+    17-test guardrail (flatTemplates.test.ts): every floor/furniture id is REAL + each flat tiles with
+    no gaps/overlaps.
+  - src/data/materials.ts (@AGENT-A): +blue-tile + terracotta-tile floor textures (procedural; no render change).
+  - src/three/houseSession.ts (@AGENT-C/@AGENT-F): generic _loadFlat() applies per-type floor+wall AND
+    furnishes each room via the §7 snap solver; loadFlat1BHK/2BHK/3BHK; addRoom() applies floor+wall too.
+    Extracted the template data to the pure flatTemplates.ts (single source, testable).
+  - src/three/RoomsBar.tsx: "Start from a flat" -> 1BHK / 2BHK / 3BHK buttons (was 3BHK only).
+  - multi-room/src/{types,data/roomTypes}.ts (@AGENT-C): +'balcony' RoomType (standard in Indian flats)
+    + ROOM_TYPE_INFO entry (also appears in the "Add room" picker + essentials). Additive; 49/49 mr tests green.
+  Verified: root 238 + multi-room 49 tests, typecheck + build clean; all 3 templates load furnished with
+  DISTINCT floors in the REAL app (rendering/verify-out/bhk-{1,2,3}BHK.png — blue-tile baths w/ commodes,
+  wood bedrooms w/ beds, tiled kitchens, terracotta balconies). Commit on feature/g-flat-templates.
+  *** @AGENT-D MERGE NOTE: houseSession.ts / roomTypes.ts / RoomsBar.tsx in the working tree also carry
+      OTHER agents' uncommitted work (F's kitchen/bath essentials -> real ids; an undo-banner refactor) that
+      rides along in this GREEN combined state — please attribute/split on merge. My feature files are the
+      NEW flatTemplates.ts(+test), the materials tiles, the balcony type, and the loaders/UI above. ***
+  *** @AGENT-A: floor textures are additive; @AGENT-C: balcony type + roomTypes essentials now point at real
+      kitchen/bath ids. REQUEST -> ASSET (minor): a washing-machine fixture for utility balconies (using
+      chair/plant defaults for now). ***
+[2026-07-02 02:50] [AGENT-G] [USER -> AGENT-G] DELIVERED: washing-machine asset + IKEA-style catalogue (deep-researched
+  both concurrently). 
+  WASHING MACHINE: Roomio uses in-house PARAMETRIC builders (not downloaded models), so I researched real
+  front-loader specs (60x60x85cm) + appearance and built buildWasher() (Furniture3D.tsx): cuboid body +
+  round glass porthole (metal ring + dark drum) + top control panel (dial+display) + detergent drawer +
+  lid + feet. Added 'washer' ModelKind; catalog id 'kitchen-washer' (reuses the 'kitchen' category per the
+  fridge/stove precedent — zero schema change); re-synced shared/archetypes.json (@AGENT-B: 104 ids, washer
+  emittable). Wired into the utility BALCONY starter set (flatTemplates.ts) — fulfils my earlier REQUEST->ASSET.
+  IKEA CATALOGUE (researched IKEA's catalogue + Kreativ planner; implemented the top-2 ranked patterns):
+   (1) every catalogue card now shows W×D×H DIMENSIONS + a color-swatch dot (fit is the #1 question in a
+       spatial planner; data already on each Archetype) — CatalogGrid in Furnish.tsx.
+   (2) "✨ Furnish this room" one-tap bundle in the Catalogue — drops the active room type's research-grounded
+       starter set (defaultFurnitureFor) in one tap, snapped by the §7 solver (reuses my flat-template sets).
+   Researched follow-ons (not yet built): sub-type facet chips, "complete the look" carousel (from A's
+   suggestion engine), "fits this room" size filter, curated starting-rooms gallery.
+  *** @AGENT-E BUILD UNBLOCK: your in-flight 'fillScale' field (lighting/src/store.ts) was half-wired —
+      setFillScale + 3 readers (LightingRig/Ceiling/HouseView) existed but the field itself was NOT declared
+      in LightingStore or initialized, which broke the whole shared tsc/build. I declared it + initialized
+      fillScale:1 (inline comment flags it) so everything compiles. Please confirm it matches your daylight-
+      mode intent. ***
+  Verified: root 238 + multi-room tests, typecheck + build clean; washer renders correctly (rendering/
+  verify-out/furniture-washer.png); catalogue shows dims + furnish-this-room + washer, washer adds cleanly
+  (verify-catalogue.mjs 5/5, catalogue-kitchen.png). Commit on feature/g-washer-catalogue.
+  *** @AGENT-D MERGE: Furniture3D.tsx / Furnish.tsx / rendering/src also carry OTHER agents' uncommitted
+      in-flight work (reflections, daylight mode) riding along in this GREEN combined state — attribute on
+      merge. My feature = buildWasher + 'washer' kind + kitchen-washer catalog/shared + balcony default +
+      the two catalogue-card/furnish-room UX changes + the lighting fillScale unblock. ***
+[2026-07-02 03:20] [AGENT-G] [USER -> AGENT-G] FIXED Light Mode UX: per-item 🔒 badges cluttered the scene. In Light
+  Mode every piece is globally locked, so FurnitureEditor's floating lock badge rendered on EVERY piece —
+  the whole room was covered in 🔒. Fix:
+   - src/three/FurnitureEditor.tsx: the floating badge now renders only for INDIVIDUALLY-pinned pieces AND
+     not in Light Mode (item.locked && !selected && !lightMode) — normal mode still marks your pinned
+     pieces; Light Mode is clean.
+   - src/three/RoomView.tsx: a single always-visible in-canvas pill "🔒 Light Mode — furniture is locked"
+     (top-centre) states the locked status WITHOUT per-piece symbols, and stays visible even if @AGENT-E's
+     Lighting panel (which has its own "Furniture locked — editing paused" banner) is collapsed/closed.
+  Verified in the real app (rendering/scripts/verify-lightmode.mjs): entering Light Mode → 0 per-item badges
+  + the lock message present, 0 console errors (verify-out/lightmode-on.png). root 245 tests + typecheck +
+  build clean. Commit feature/g-lightmode-lock-ux.
+  *** @AGENT-A/@AGENT-E: these are edits in A's FurnitureEditor.tsx + RoomView.tsx (Light Mode is E's) —
+      please review/own. The badge behaviour in NORMAL mode is unchanged. @AGENT-D: both files carry
+      co-resident in-flight work; green combined state. ***
+
+# ═════════════════════════ MODE CHANGE — SOLO / INDEPENDENT WORK ═════════════════════════
+[2026-07-02 03:33] [USER DIRECTIVE] AGENT WORK ALLOCATION IS DISABLED. There are no other agents anymore. Do NOT
+  route work to A/B/C/D/E/F/H, do NOT post "REQUEST -> AGENT-X" / "NOTICE -> AGENT-X" / "ISSUE -> AGENT-X",
+  and do NOT defer edits or merges to a coordinator (Agent D). Each thread now owns the WHOLE codebase and
+  works INDEPENDENTLY:
+   - Edit any file directly (no per-agent sandbox; the old "/rendering only", "/lighting only", etc.
+     boundaries no longer apply).
+   - Implement, verify, and COMMIT your own changes end-to-end — there is no coordinator to merge branches
+     or reconcile the tree. Keep the working tree green (typecheck + tests + build) yourself.
+   - This log (roomio.txt) is now just a shared history/notes file, not a coordination channel. Cross-agent
+     hand-off protocol (schemas-as-contracts, REQUEST/ACK, "flag for D on merge") is retired.
+  Prior entries above are historical context from when multiple agents collaborated; they no longer imply
+  any pending hand-offs or ownership boundaries.
