@@ -13,6 +13,8 @@ import type { FurnitureItem } from '../types'
 // Agent E — Light Mode: when on, ALL furniture is locked (pointer edits blocked) + hints hidden.
 import { furnitureLocked } from '../../lighting/src/contract'
 import { useLighting } from '../../lighting/src/store'
+// Agent G — per-lamp lighting: each lamp is a real, individually-switchable warm light.
+import { useRender } from '../../rendering/src/store'
 
 // Snap rotation to the nearest 15° increment (kept simple per spec).
 const ROT_SNAP = (15 * Math.PI) / 180
@@ -41,6 +43,10 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   // Light Mode (presentation): locks every piece regardless of its own locked flag.
   const lightMode = useLighting((s) => s.lightMode)
   const locked = furnitureLocked(item, lightMode)
+  // Per-lamp lighting: a lamp fixture is lit iff the master lights are on AND this lamp isn't
+  // individually switched off. The window-daylight mode (global off) already darkens everything.
+  const lightsOn = useRender((s) => s.lightsOn)
+  const thisLampOff = useRender((s) => s.lampOff[item.id])
 
   const floorRay = useFloorRay()
   const toggleControls = useControlsToggle()
@@ -57,6 +63,8 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   const [wx, wz] = frame.toWorld(item.x, item.z)
   const archetype = ARCHETYPE_MAP[item.archetype]
   const mounted = isMounted(item.archetype)
+  const isLamp = archetype?.model === 'lamp'
+  const lampLit = isLamp && lightsOn && thisLampOff !== true
 
   // Vertical lift: wall-hung / on-a-surface pieces float above the floor (and
   // above whatever sits beneath them). Recomputed when the scene changes.
@@ -177,7 +185,13 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
   }
 
   return (
-    <group position={[wx, elevM, wz]} rotation={[0, item.rotation, 0]}>
+    <group
+      position={[wx, elevM, wz]}
+      rotation={[0, item.rotation, 0]}
+      // Tag lamp groups so MaterialEnhancer can gate THIS lamp's emissive shade glow per-lamp
+      // (it walks up from the shade mesh to find this id).
+      userData={{ __roomioLampId: isLamp ? item.id : undefined }}
+    >
       {/* The furniture itself (rendered in local space). */}
       <FurnitureModel
         model={archetype.model}
@@ -186,6 +200,20 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
         h={item.h}
         color={item.color}
       />
+
+      {/* A real warm light for a lamp — makes it an actual light source, individually switchable.
+          Positioned at the shade (~top of the lamp); a soft local pool (decay) so turning it off
+          visibly darkens its surroundings. No shadow (perf; the sun is the shadow caster). */}
+      {lampLit && (
+        <pointLight
+          position={[0, hM * 0.82, 0]}
+          color="#ffd9a6"
+          intensity={4}
+          distance={3.6}
+          decay={1.5}
+          castShadow={false}
+        />
+      )}
 
       {/* Invisible drag/select hitbox spanning the full footprint volume. */}
       <mesh
@@ -271,8 +299,10 @@ function FurnitureGizmo({ item, frame }: GizmoProps) {
         </>
       )}
 
-      {/* Lock indicator — visible when pinned but NOT selected (toolbar shows it otherwise). */}
-      {locked && !selected && (
+      {/* Per-item lock indicator — shown when a piece is INDIVIDUALLY pinned and not selected. In
+          Light Mode EVERY piece is locked, so per-item badges would spray 🔒 over the whole scene
+          (clutter); a single canvas pill communicates the global lock instead (see RoomView). */}
+      {item.locked && !selected && !lightMode && (
         <Html position={[0, hM + 0.12, 0]} center distanceFactor={9} zIndexRange={[8, 0]}>
           <div className="lock-badge" title="Locked">🔒</div>
         </Html>
