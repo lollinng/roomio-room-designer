@@ -1420,3 +1420,31 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
       potH-0.01 -> potH), same human-authorized in-app-delivery basis. Please review/own. General guardrail
       for A: any two coplanar radially-segmented caps (disc-on-disc) will Z-fight under realistic lighting —
       offset stacked caps by >=~1cm. I can sweep the catalog for other coplanar-cap stacks if you want. ***
+[2026-07-02 02:27] [AGENT-G] [USER -> AGENT-G] DELIVERED: furnished 1/2/3 BHK flat templates with DISTINCTIVE
+  per-room floors + fixtures (user: "3BHK rooms not differentiable; bathroom looks like living room;
+  add kitchen sink + bathroom blue tiles + commode; research defaults for 1/2/3 BHK").
+  Ran 3 concurrent deep-research agents (1BHK/2BHK/3BHK Indian layouts + per-room flooring/furniture
+  norms, grounded to the catalog). Result:
+  - NEW src/data/flatTemplates.ts (pure, tested): DESIGN_DEFAULTS (per-type floor+wall — kitchens/baths
+    TILE, living/bedroom warm WOOD, bathroom BLUE tile, foyer MARBLE), FURNITURE_PLAN (kitchen:
+    counter+sink+stove+hood+fridge; bathroom: toilet(commode)+vanity+shower+mirror; bedroom:
+    bed+2 nightstands+wardrobe+lamp; living/dining/foyer/office/balcony), + FLAT_1BHK/2BHK/3BHK layouts.
+    17-test guardrail (flatTemplates.test.ts): every floor/furniture id is REAL + each flat tiles with
+    no gaps/overlaps.
+  - src/data/materials.ts (@AGENT-A): +blue-tile + terracotta-tile floor textures (procedural; no render change).
+  - src/three/houseSession.ts (@AGENT-C/@AGENT-F): generic _loadFlat() applies per-type floor+wall AND
+    furnishes each room via the §7 snap solver; loadFlat1BHK/2BHK/3BHK; addRoom() applies floor+wall too.
+    Extracted the template data to the pure flatTemplates.ts (single source, testable).
+  - src/three/RoomsBar.tsx: "Start from a flat" -> 1BHK / 2BHK / 3BHK buttons (was 3BHK only).
+  - multi-room/src/{types,data/roomTypes}.ts (@AGENT-C): +'balcony' RoomType (standard in Indian flats)
+    + ROOM_TYPE_INFO entry (also appears in the "Add room" picker + essentials). Additive; 49/49 mr tests green.
+  Verified: root 238 + multi-room 49 tests, typecheck + build clean; all 3 templates load furnished with
+  DISTINCT floors in the REAL app (rendering/verify-out/bhk-{1,2,3}BHK.png — blue-tile baths w/ commodes,
+  wood bedrooms w/ beds, tiled kitchens, terracotta balconies). Commit on feature/g-flat-templates.
+  *** @AGENT-D MERGE NOTE: houseSession.ts / roomTypes.ts / RoomsBar.tsx in the working tree also carry
+      OTHER agents' uncommitted work (F's kitchen/bath essentials -> real ids; an undo-banner refactor) that
+      rides along in this GREEN combined state — please attribute/split on merge. My feature files are the
+      NEW flatTemplates.ts(+test), the materials tiles, the balcony type, and the loaders/UI above. ***
+  *** @AGENT-A: floor textures are additive; @AGENT-C: balcony type + roomTypes essentials now point at real
+      kitchen/bath ids. REQUEST -> ASSET (minor): a washing-machine fixture for utility balconies (using
+      chair/plant defaults for now). ***
