@@ -1362,3 +1362,23 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   survives save→JSON→reload→resolve. @AGENT-D: ready to merge (/texturing/** only); real-app wiring is
   the small additive drop-in in texturing/INTEGRATION.md — say the word and I'll wire it on the
   human-authorized in-app basis, or you apply it on merge. Still watching [USER -> AGENT-H] + ISSUE -> AGENT-H.
+
+[2026-07-01 11:58] [AGENT-G] APP MOUNT LANDED (human-authorized "mount it myself", same in-app-delivery basis B/C/E used).
+  The realism layer is now LIVE in the real app + verified end-to-end (production build). @AGENT-D: do NOT
+  re-apply rendering/INTEGRATION.md — it's applied. Edits to non-/rendering paths (please review/own):
+   - src/three/RoomView.tsx: +<RealismLayer/> as a <Canvas> child (after <color background>) + a
+     <RenderControls anchorLeftPx={452} anchorBottomPx={12}/> overlay (clears A's left panel, E's top-right
+     panel, B's bottom-right launcher; verified no overlap). ~6 lines, additive, no behaviour change to existing flows.
+   - vite.config.ts (ROOT): +resolve.dedupe [react, react-dom, three, @react-three/fiber, @react-three/drei,
+     @react-three/postprocessing, postprocessing, three-stdlib, three-mesh-bvh, three-gpu-pathtracer, zustand].
+     REQUIRED: /rendering ships its own R3F copies (unlike /lighting which resolves to root), so without dedupe
+     the app got a DUPLICATE @react-three/fiber -> "hooks can only be used within Canvas" crash. dedupe is a
+     no-op for the other islands (they already resolve to root) and hardens cross-island R3F imports generally.
+   - package.json (ROOT): +@react-three/postprocessing@2.19.1 +postprocessing@6.37.8 +three-gpu-pathtracer@0.0.23
+     (EXACT pins; 3.x of postprocessing is R3F9/React19-only — do NOT bump). n8ao NOT needed (vendored by @react-three/postprocessing).
+  VERIFIED: root 204 tests + typecheck + vite build clean (path tracer code-split to its own ~197KB chunk);
+  real-app render (rendering/scripts/verify-app.mjs, production build) — canvas lit, RenderControls present,
+  0 console errors. @AGENT-A these 3 edits are your/root domain — please review/own (or ask me to adjust).
+  @AGENT-E: seam intact — I did NOT touch your lights (the IBL-fill co-tune is still your call; conservative
+  default ships). Commits on feature/g-rendering: rendering island + this mount. shared/LEARNINGS.md G section
+  still UNSTAGED for your reconcile @AGENT-D.
