@@ -2,17 +2,19 @@
 
 # 🏠 Roomio
 
-### Design a room in your browser — author it, furnish it, light it, then *walk through it*.
+### Design a room in your browser — author it, furnish it, light it, render it *photoreal*, then *walk through it*.
 
-Sketch a room in a clean wizard, furnish it from a **100-piece parametric catalog** that
-**won't clip through walls**, lay out a whole house, tune the **lighting & time of day**, then
-**walk it in first person** or **direct a cinematic camera flythrough and export an MP4** —
-all client-side, all real-time Three.js.
+Sketch a room in a clean wizard, furnish it from a **103-piece parametric catalog** that
+**won't clip through walls**, lay out a whole house, tune the **lighting & time of day**, flip on
+**photorealistic rendering** (PBR + image-based lighting + filmic tone mapping), then **walk it in
+first person** or **direct a cinematic camera flythrough and export an MP4** — all client-side,
+all real-time Three.js.
 
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
 ![Three.js](https://img.shields.io/badge/React_Three_Fiber-Three.js-000000?logo=three.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
+![Rendering](https://img.shields.io/badge/Render-PBR%20%2B%20IBL%20%2B%20ACES-8A2BE2)
 ![WebCodecs](https://img.shields.io/badge/Video-WebCodecs-FF5A5F)
 ![Postgres](https://img.shields.io/badge/Sessions-Postgres-4169E1?logo=postgresql&logoColor=white)
 
@@ -26,7 +28,7 @@ all client-side, all real-time Three.js.
 
 ## ✨ What you can do
 
-### 🛋️ Furnish from a 100-piece catalog — with real collision
+### 🛋️ Furnish from a 103-piece catalog — with real collision
 
 Drag in furniture from a parametric catalog spanning sofas, beds, tables, chairs, storage,
 décor, kitchen & bath fixtures. Every piece is **resizable, recolorable, and lockable** — and a
@@ -67,6 +69,18 @@ connected floor plan, **cutting doorways through shared walls automatically**.
 focus on the light.)
 
 ![Lighting and time-of-day controls](docs/screenshots/uc-lighting.png)
+
+### 🎥 Render it photorealistically — one toggle
+
+Flip on the realism layer and the flat preview becomes photographic: **physically-based materials**,
+**image-based lighting** (procedural HDR environment — reflections + soft ambient bounce), **ACES
+filmic tone mapping**, **ambient occlusion**, and **emissive bulbs that glow with selective bloom** —
+layered on top of the lighting rig, no scene rebuild. A **quality** switch (high / medium / low)
+scales the GPU cost, an **exposure** and **reflections** dial fine-tune the look, and a one-click
+**"beauty shot"** renders a **real path-traced still** (true global illumination + ray-traced
+reflections) you can download as a PNG.
+
+![Photorealistic rendering of a furnished room — PBR, IBL, soft shadows, glowing lamps](docs/screenshots/uc-rendering.png)
 
 ### 🚶 Walk it in first person
 
@@ -109,7 +123,7 @@ doors & windows that cut **real openings** and resize → choose a wall colour a
 
 - **4-step authoring wizard** with a persistent live 3D preview, **6 room shapes** (incl. concave
   L/T/U), draggable/typed wall dimensions (ft ⇄ cm), and **doors & windows** that cut real openings.
-- **100+ parametric furniture archetypes** across sofas, beds, tables, chairs, storage, décor, and
+- **103 parametric furniture archetypes** across sofas, beds, tables, chairs, storage, décor, and
   **kitchen / bathroom fixtures** — all in-house primitives (zero external 3D assets). Move,
   rotate, **clamped resize**, recolor, **lock in place**.
 - **Bespoke collision & snapping**: a 2D footprint constraint — furniture slides along walls
@@ -119,6 +133,9 @@ doors & windows that cut **real openings** and resize → choose a wall colour a
   shared walls become doorways automatically.
 - **Lighting & time-of-day** (Light Mode): sun direction, hour-of-day, per-room warmth, accent
   lights, soft shadows.
+- **Photorealistic rendering** (one toggle): runtime PBR + procedural HDR **image-based lighting** +
+  **ACES filmic tone mapping** + ambient occlusion + emissive bloom, with a high/medium/low quality
+  switch — plus a one-click **path-traced "beauty shot"** (real GI + ray-traced reflections → PNG).
 - **First-person walk** (PointerLockControls + WASD) with wall/furniture collision at eye height.
 - **Camera flythrough**: top-down director → Catmull-Rom waypoint path → smooth playback → a
   **frame-by-frame MP4 export** via WebCodecs.
@@ -136,6 +153,7 @@ A serializable **scene graph** is the contract between every layer:
 | Room builder (wizard) | Deterministic structure: shape, dimensions, openings, materials. |
 | Furnish & edit | Place / move / rotate / resize / recolor with collision + snapping. |
 | Multi-room & lighting | A house of rooms, connectors cut between them, plus the lighting rig. |
+| Rendering (realism) | A drop-in layer over the lighting: PBR + IBL + ACES tone mapping + AO + bloom, and an optional path-traced still. |
 | Flythrough (camera) | First-person walk + director waypoint path + deterministic MP4 capture. |
 | Capture suggestor (optional) | A scan/photo that *pre-fills* suggestions — pure convenience. |
 
@@ -168,5 +186,6 @@ npm run check:auth     # puppeteer: signup → save → logout → login → reo
 
 ## 🧩 Tech stack
 
-React 18 · React Three Fiber / Three.js · TypeScript · Zustand · Vite · canvas-record (WebCodecs) ·
-Express · node-postgres · vitest · puppeteer-core.
+React 18 · React Three Fiber / Three.js · **@react-three/postprocessing** (N8AO · bloom · ACES) ·
+**three-gpu-pathtracer** · TypeScript · Zustand · Vite · canvas-record (WebCodecs) · Express ·
+node-postgres · vitest · puppeteer-core.
