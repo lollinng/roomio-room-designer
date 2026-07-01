@@ -22,7 +22,7 @@ Agents: **A** = interiors / presets / suggestions · **B** = detection + camera/
   Keep new fields optional + announce in the log before relying on them. `[affects: A,B,C,E]`
 - **Contract versions in flight (all v1.0):** `detection_schema` (LOCKED), `camera_path_schema`,
   `scene_contract`, `house_schema`, `persona_preset_schema`, `rule_schema`, `lighting_schema`,
-  `save_envelope_schema`. `[affects: all]`
+  `save_envelope_schema`, `render_schema` (G), `texture_schema` (H), `pbr_conventions` (H+G, ratified). `[affects: all]`
 - **`detection_schema` v1.0 is LOCKED** — shape won't change without an announce + ack. `status="error"`
   with `proposals:[]` is valid (no crash); consumers validate leniently (`additionalProperties: true`). `[affects: A,B]`
 - **`house_schema` v1.0 WRAPS, never forks, `RoomDesign`** — `HouseRoom.interior: RoomDesign` verbatim.
@@ -102,19 +102,94 @@ Agents: **A** = interiors / presets / suggestions · **B** = detection + camera/
 - **No-windows = unlit interior.** A closed box looks dark at "noon" because no window lets the sun in; the
   panel warns the user to add a window in Step 3. A passes `hasWindows` (design.openings has a `window`) to `<LightingControls>`.
 
+## Realistic Rendering (Agent G) — `/rendering`, `shared/render_schema.json` (v1.0)
+
+- **"Ray tracing" delivered as real-time PBR realism, NOT a live per-pixel ray tracer** (infeasible in-browser):
+  runtime MeshStandard PBR enhance + procedural HDR-IBL (Lightformer env, no CDN) + ACESFilmic tone mapping +
+  N8AO ambient occlusion + emissive bulbs/windows with selective bloom + RectAreaLight area fills, layered ON
+  TOP of E's lighting. Quality toggle high/med/low. There IS a real path-traced "hero still" (three-gpu-
+  pathtracer, static camera, graceful raster fallback) — genuine Monte-Carlo accumulation, but a one-off
+  export, not the live view. `[affects: A,E,G]`
+- **Render↔lighting seam (confirmed with E):** `<Canvas shadows flat>` is UNCHANGED — `shadows` (PCFSoftShadowMap)
+  is E's (sun caster); `flat` (NoToneMapping) is KEPT because **G's post EffectComposer owns ACESFilmic tone
+  mapping + sRGB**. **Never remove `flat` or set `gl.toneMapping`** or ACES applies TWICE (washed/clipped). G
+  adds ONLY `<Canvas>` children via `<RealismLayer/>` + a `<RenderControls/>` DOM overlay. G drives E's lights
+  read/write at runtime (lights on/off, emissive bulb glow) via E's public store API — no edits to E source.
+  A full blackout would need E's hardcoded ceiling downlights + hemisphere/ambient to respect a global
+  `roomLightsEnabled` flag (open E/G coordination); today "off" is a realistic daytime dim. `[affects: E,G]`
+- **⚠ Cross-island R3F dedupe is REQUIRED (root `vite.config.ts`).** `/rendering` ships its OWN copies of
+  react/three/@react-three/*, so without `resolve.dedupe` for [react, react-dom, three, @react-three/fiber,
+  @react-three/drei, @react-three/postprocessing, postprocessing, three-stdlib, three-mesh-bvh,
+  three-gpu-pathtracer, zustand] the app loads a DUPLICATE `@react-three/fiber` → "hooks can only be used
+  within Canvas" crash. Harmless no-op for islands that already resolve to root (e.g. /lighting). Keep it. `[affects: A,G,D]`
+- **EXACT dep pins (root `package.json`) — do NOT bump:** `@react-three/postprocessing@2.19.1`,
+  `postprocessing@6.37.8`, `three-gpu-pathtracer@0.0.23`. postprocessing 3.x is R3F9/React19-only (this app is
+  R3F8/React18). n8ao is vendored by @react-three/postprocessing (no separate dep). Path-tracer code-splits to
+  its own ~197KB chunk. `[affects: A,G]`
+- **Path tracer on headless/software GL** (SwiftShader) needs ~18–21s for the FIRST sample (shader compile +
+  BVH build) then converges; watchdog is 25s (real GPUs hit sample 1 in <1s). `dynamicLowRes=false` for clean
+  full-res static accumulation. `[affects: G]`
+
+## Photo Texture Mapping (Agent H) — `/texturing`, `shared/texture_schema.json` + `shared/pbr_conventions.json` (v1.0)
+
+- User uploads a furniture photo → H crops the surface (client-side canvas, from **B's detection bbox on the
+  ORIGINAL photo** — zero change to B's pipeline) → seamless de-lit tiling PBR material (albedo+roughness+
+  normal) → applied to the matching archetype's material SLOT. `[affects: A,B,H]`
+- **UV de-risk: the whole corpus is Three.js PRIMITIVES** (box/cylinder/sphere/cone/torus), which ALL
+  auto-generate a `uv` attribute + use `meshStandardMaterial`. So the classic "no uv → only dots" failure
+  CANNOT occur. The real work is (1) **world-space tiling** (`repeat = worldDimCm / repeat_cm`, same trick the
+  floor uses) so a pattern isn't shown at wildly different scales on a 210cm sofa vs a 50cm table, and (2) a
+  **triplanar fallback** (onBeforeCompile, normal-weighted) for the 2 anisotropic meshes (freestanding tub,
+  open lamp-shade cone) whose default UVs stretch. `[affects: A,H]`
+- **Textures are REFERENCES, never bytes-in-design** (cardinal rule). `FurnitureItem.texture?: AppliedTexture`
+  (additive, optional) carries content-hash refs (`sha256:`); bytes live in a content-addressed asset store
+  `roomio.asset.<sha256>` (IndexedDB) behind C's StorageAdapter shape. Round-trips through C's persistence
+  verbatim. Open C decisions: export inline-bytes vs graceful color fallback; asset GC/ref-counting. `[affects: A,C,H]`
+- **Slot targeting:** v1 textures the PRIMARY 'body' surface (meshes using the raw item color: sofa body/
+  cushions, table/desk top, cabinet body, chair seat, bed duvet) and skips legs/metal/glass — precise via an
+  optional `userData.role`, else a LINEAR-lightness heuristic (legs ≈ 0.5× shade). Applies to a CLONED
+  material for exact revert. `[affects: A,H]`
+
+## PBR conventions — DECISION RATIFIED (Agent D, cycle 3) — `shared/pbr_conventions.json` v1.0
+
+H authors the maps; G owns the renderer. Both agreed; D ratifies:
+- **Color space:** albedo `.map` = `SRGBColorSpace`; roughnessMap + normalMap + metalnessMap = LINEAR
+  (`NoColorSpace`, the three default). Normals are **+Y (OpenGL) tangent-space**, uploaded via CanvasTexture
+  with `flipY=true` (matches albedo / the `textures.ts` precedent — a DataTexture path would invert relief).
+- **Roughness bands:** fabric 0.8–0.95, wood 0.4–0.6, authored for an IBL-lit world.
+- **No metalnessMap for dielectrics** (fabric/wood ⇒ `material.metalness=0`); H pings G before adding one.
+- **No baked aoMap in tiling materials** — G's N8AO owns contact AO. (three 0.169 unifies UV channels, so the
+  brief's "aoMap needs uv2" is pre-r150 framing; no uv2 needed from H or A.)
+- **Ownership seam (no double-mutation):** H owns per-material `{map,roughnessMap,normalMap}` +
+  colorSpace/wrap/repeat, keeping the material `MeshStandard` so G's runtime MaterialEnhancer still upgrades
+  it. G owns `renderer.toneMapping`/`outputColorSpace`/`scene.environment`/bloom/SSAO/shadow + `envMapIntensity`.
+  Textures apply first; G's env/passes layer on top. (Open: G's re-enhance trigger so `envMapIntensity`
+  re-applies to a freshly-textured mesh at runtime — until then H sets `needsUpdate` + G re-enhances on traversal.) `[affects: G,H]`
+
 ## Build / Tooling
 
 - **`main` is PR-gated.** `.githooks/pre-commit` blocks direct commits to main; `.githooks/pre-push` blocks
   direct pushes to main AND runs root `typecheck + test` before any push. `.github/workflows/ci.yml` runs
   typecheck + vitest + build on PRs into main. Advance main only via a merged PR. `npm run prepare` wires
   `core.hooksPath=.githooks` on install. `[affects: all]`
-- **The repo is FIVE independent TS build islands** — `src`(A), `camera-flythrough`(B), `multi-room`(C),
-  `lighting`(E), `persistence`(C f2) — each with its OWN `node_modules` + `tsconfig (include:["src"])` +
-  vite/vitest, PLUS the Python `detection-pipeline`(B). Ports (dev ports): app 5180, server 5181, flythrough
-  5184, lighting 5186, persistence 5187. `[affects: all]`
+- **The repo is SEVEN independent TS build islands** — `src`(A), `camera-flythrough`(B), `multi-room`(C),
+  `lighting`(E), `persistence`(C f2), `rendering`(G), `texturing`(H) — each with its OWN `node_modules` +
+  `tsconfig (include:["src"])` + vite/vitest, PLUS the Python `detection-pipeline`(B). Ports (dev): app 5180,
+  server 5181, flythrough 5184, lighting 5186, persistence 5187, rendering 5188, texturing 5189 (H moved
+  5188→5189 after a collision with G). `[affects: all]`
 - **⚠ Root CI only typechecks/tests `src/`** (root tsconfig `include:["src"]`). It does **NOT** cover the
-  sub-islands. A type error inside `/lighting`, `/multi-room`, `/camera-flythrough`, `/persistence` will
-  pass CI and merge silently. **Coordinator MUST `tsc -b` + `vitest run` each island every cycle.** `[affects: D,B,C,E]`
+  sub-islands. A type error OR failing test inside any island (`/lighting`, `/multi-room`,
+  `/camera-flythrough`, `/persistence`, `/rendering`, `/texturing`) passes CI and merges silently.
+  **Coordinator MUST `tsc -b` + `vitest run` each island every cycle** — and note **`vitest` does NOT
+  full-typecheck** (esbuild transpiles), so root `npm test` can be green while `tsc`/`vite build` fail.
+  Always run BOTH. **CONCRETE INSTANCE (cycle 3): `origin/main` shipped a RED multi-room test** —
+  `multi-room/src/data/roomTypes.test.ts` hard-codes `expect(CATALOG_IDS.size).toBe(91)` but A grew
+  `src/data/archetypes.catalog.json` to 103 ids; the multi-room suite has been failing on main unnoticed
+  because CI never runs it. **RECOMMENDED FIX: add island `tsc + vitest` to `.github/workflows/ci.yml`**
+  (only AFTER the red test is fixed, else it blocks all PRs). `[affects: D,B,C,E,G,H]`
+- **Don't hard-code the archetype catalog CARDINALITY in a test.** The catalog is A's single source of
+  truth and grows ADDITIVELY (23→91→103…). Any `.toBe(<count>)` assertion on it is guaranteed to break on
+  the next catalog growth. Assert MEMBERSHIP (`CATALOG_IDS.has(id)`), never the size. `[affects: C, all test authors]`
 - **`shared/lib/` is the FIRST cross-island TS import** (Agent F) — see the Shared-lib section. It resolves
   under each island's tsc + vitest despite living outside `include:["src"]` (`moduleResolution:"bundler"`
   pulls the imported leaf in). Its tests run under the ROOT vitest (`vitest.config.ts` includes
@@ -195,6 +270,16 @@ Import: `import { clamp, clamp01, DEG2RAD } from '../../shared/lib/math'`.
   uncommitted; then E's broad `git add` swept the `lighting/*` import lines into the E8 commit **without**
   `shared/lib/math.ts` → the committed lighting island failed `tsc` (TS2307, missing module). D had to land
   F's file to repair it. Lesson: a shared/lib file + every importer go in ONE commit, on the author's branch.
+- **Do NOT commit a shared A-file that's entangled with ANOTHER agent's in-flight work** `[affects: all, esp. D,G,C]`.
+  Cycle 3: G's app-mount commit (`1ca1ec9`) committed `src/three/RoomView.tsx` — but that file also carried C's
+  UNCOMMITTED plan-view/RoomPlacement multi-room work (C explicitly said "I did NOT commit RoomView solo — it's
+  entangled; commit it with the multi-room cluster"). G's branch thus shipped a RoomView calling the OLD
+  `layoutHouse({design,pos,type}[])` API, incompatible with main's committed `layoutHouse(RoomDesign[])` →
+  root `tsc`/`vite build` broke (RoomView 173-175), though `vitest` stayed green (esbuild skips types). D's fix:
+  **reconstruct the file from main's working version + re-apply ONLY the incoming agent's own additions** (G's
+  2 imports + `<RealismLayer/>` + `<RenderControls/>`), dropping the smuggled in-flight code for its owner to
+  land later. Lesson: when you mount into a hot shared file, commit ONLY your own hunks; if the file is
+  entangled, hand D the exact diff instead of committing the whole file.
 - **Scope your `git add`.** Beyond the above, `git add -A` once swept `detection-pipeline/.venv` (8675 files).
   `.venv`, `__pycache__`, `*.tsbuildinfo`, regenerable `__shots/` belong in `.gitignore`; add specific paths.
 - **Human-authorized cross-source edits happen.** At the human's explicit "I see nothing in the frontend"

@@ -1488,3 +1488,56 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
     in LINEAR colour space (albedo sRGB) per my earlier request.
   All in /rendering (+ the already-merged RealismLayer mount). Root 204 tests + typecheck + build clean;
   harness 13/13 + hero + both diagnostic suites 0-fail. Commits on feature/g-rendering.
+
+# ───────────────────────── AGENT D (Coordinator) — cycle 3 ─────────────────────────
+[2026-07-01 14:49] [AGENT-D] CYCLE 3. main health: RUNNABLE (y) — with ONE pre-existing island test red
+  (see ISSUE -> AGENT-C; NOT caused by this cycle). Integrated Agent G (realistic rendering, /rendering) +
+  Agent H (photo texture mapping, /texturing) via PR from feature/g-rendering (one linear branch carrying
+  both islands, 23 commits).
+  SEAM BUILD BREAK FOUND + FIXED (the headline): G's app-mount commit 1ca1ec9 committed src/three/RoomView.tsx
+    — but that file was ENTANGLED with Agent C's UNCOMMITTED in-flight multi-room "plan view" work
+    (PlanViewSnap, a consolidated toolbar, and a stale `layoutHouse(rooms.map(r=>({design,pos,type})))` call).
+    C had EXPLICITLY warned (log above): "I did NOT commit RoomView solo — it's entangled; commit it with the
+    multi-room cluster." G committed the whole file anyway. Result: g-rendering's RoomView calls the OLD
+    layoutHouse({design,pos,type}[]) API, but main's COMMITTED houseLayout.ts exports layoutHouse(RoomDesign[]).
+    → root `tsc -b` + `vite build` BROKE (RoomView 173-175). vitest stayed GREEN (esbuild skips types), which is
+    exactly why this class of break slips past `npm test`. FIX (seam/glue, in the integration branch only):
+    reset src/three/RoomView.tsx to main's working version, then re-apply ONLY G's rendering mount — 2 imports
+    (RealismLayer, RenderControls) + <RealismLayer/> Canvas child + <RenderControls/> overlay. Dropped ALL of
+    C's smuggled in-flight code (C lands it later via the real multi-room cluster commit). Diff vs main = 8 lines.
+  VERIFIED (authoritative — in an isolated worktree at the integration branch, every island):
+    root(A+G mount) tsc✓ + 201 tests + `vite build`✓ · camera-flythrough(B) 28✓ · lighting(E) 30✓ ·
+    persistence(C-f2) 50✓ · rendering(G) 13✓ · texturing(H) 65✓  — all tsc-clean.
+    Adversarial review (workflow): G's root edits (vite.config dedupe + exact dep pins) = PASS; H isolation +
+    contracts (texture_schema/pbr_conventions valid, real archetype ids, references-not-bytes) = PASS.
+  *** ISSUE -> AGENT-C (pre-existing on main; root CI can't see it): multi-room/src/data/roomTypes.test.ts
+      hard-codes `expect(CATALOG_IDS.size).toBe(91)`, but A's src/data/archetypes.catalog.json is now 103 ids
+      → the multi-room suite FAILS (48/49) on a PRISTINE origin/main checkout too, not just this merge. REPRO:
+      `cd multi-room && npx vitest run src/data/roomTypes.test.ts` → "expected 103 to be 91". FIX: delete the
+      brittle cardinality assertion; the meaningful invariant (every essential id EXISTS in the catalog,
+      `CATALOG_IDS.has(...)`, line 36) already passes. Never assert catalog SIZE — it grows additively. ***
+  DECISIONS (ratified by Agent D):
+    - PBR CONVENTIONS RATIFIED (shared/pbr_conventions.json v1.0, H authored + G agreed): albedo=sRGB,
+      roughness/normal/metalness=LINEAR, +Y(OpenGL) normals via CanvasTexture(flipY), no metalnessMap for
+      dielectrics, no baked aoMap (G's N8AO owns contact AO). Ownership seam: H owns per-material map slots;
+      G owns renderer toneMapping/env/passes/envMapIntensity. Textures apply first; G's passes layer on top.
+    - RENDER↔LIGHT seam CONFIRMED: <Canvas shadows flat> stays; `shadows` is E's, `flat` is KEPT so G's post
+      EffectComposer owns ACES tone mapping — do NOT set gl.toneMapping (double-ACES). G drives E's lights via
+      E's public store API (no source edits).
+    - CROSS-ISLAND R3F DEDUPE (root vite.config.ts) is REQUIRED because /rendering ships its own R3F copies
+      (else duplicate @react-three/fiber → "hooks only within Canvas" crash). Exact dep pins kept
+      (@react-three/postprocessing@2.19.1, postprocessing@6.37.8, three-gpu-pathtracer@0.0.23) — do NOT bump.
+  OPEN ITEMS by owner (none block the app):
+    - ISSUE -> AGENT-C: fix the brittle multi-room catalog-count test (above).
+    - REVIEW -> AGENT-A: G's src/three/RoomView.tsx mount + root package.json/vite.config.ts edits are yours to
+      own (human-authorized in-app delivery). B's/E's earlier RoomView edits also still pending your review.
+    - RECOMMENDATION -> team: add island `tsc + vitest` to .github/workflows/ci.yml so island regressions stop
+      merging silently — but only AFTER C fixes the red test, else CI blocks every PR.
+    - DEFERRED (not in this merge — all UNCOMMITTED in-flight): H's real-app texture wiring
+      (FurnitureItem.texture + ScanRoom/ItemEditor drop-in per texturing/INTEGRATION.md), and C's multi-room
+      "plan view"/RoomPlacement cluster (HouseView/houseLayout/houseViewMode changes) + B/A detection-pipeline
+      & archetype churn. Will integrate once each is committed on its own branch.
+  CONTRACTS VERIFIED: detection v1.0 (LOCKED) · archetypes.json (now 103 ids, additive) · camera_path/
+    scene_contract v1.0 · house_schema v1.0 · lighting_schema v1.0 · save_envelope v1.0 · render_schema v1.0
+    (G) · texture_schema + pbr_conventions v1.0 (H+G ratified). LEARNINGS.md curated (Rendering, Texturing,
+    PBR, +7-island/CI-gap/entangled-commit gotchas).
