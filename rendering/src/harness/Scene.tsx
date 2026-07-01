@@ -37,7 +37,7 @@ function Furn({ position, size, color, roughness = 0.7, metalness = 0, emissive,
   )
 }
 
-export function HarnessScene({ bulbsOn = true }: { bulbsOn?: boolean }) {
+export function HarnessScene({ lightsOn = true }: { lightsOn?: boolean }) {
   return (
     <group>
       {/* floor */}
@@ -69,9 +69,9 @@ export function HarnessScene({ bulbsOn = true }: { bulbsOn?: boolean }) {
         <meshStandardMaterial color="#cfd2d6" roughness={0.08} metalness={1.0} />
       </mesh>
 
-      {/* table lamp: a coupled bulb — emissive shade (blooms after the enhancer boost) + its point
-          light. `bulbsOn` toggles BOTH together, so turning it off removes the light AND the glow
-          (the "toggling a bulb changes light + glow" behaviour, as in-app once fixtures attach to E's lights). */}
+      {/* table lamp: a coupled bulb — emissive shade (glow gated by MaterialEnhancer on `lightsOn`)
+          + its point light (toggled by `lightsOn`). So turning the lights off removes the light AND
+          the glow together (the "toggling a light changes light + glow" behaviour). */}
       <group position={[-1.45, 0, 1.7]}>
         <mesh position={[0, 0.18, 0]} castShadow>
           <cylinderGeometry args={[0.03, 0.03, 0.5, 12]} />
@@ -79,15 +79,9 @@ export function HarnessScene({ bulbsOn = true }: { bulbsOn?: boolean }) {
         </mesh>
         <mesh position={[0, 0.46, 0]} castShadow>
           <cylinderGeometry args={[0.16, 0.22, 0.28, 24]} />
-          <meshStandardMaterial
-            color="#f2dba0"
-            emissive="#ffd98a"
-            emissiveIntensity={bulbsOn ? 0.45 : 0}
-            roughness={0.7}
-            metalness={0}
-          />
+          <meshStandardMaterial color="#f2dba0" emissive="#ffd98a" emissiveIntensity={0.45} roughness={0.7} metalness={0} />
         </mesh>
-        {bulbsOn && <pointLight position={[0, 0.5, 0]} color="#ffd98a" intensity={2.2} distance={0} decay={0} castShadow={false} />}
+        {lightsOn && <pointLight position={[0, 0.5, 0]} color="#ffd98a" intensity={2.2} distance={0} decay={0} castShadow={false} />}
       </group>
 
       {/* a "window" on the back wall: an emissive pane (blooms into a bright window) + a RectAreaLight
@@ -122,11 +116,11 @@ export function HarnessScene({ bulbsOn = true }: { bulbsOn?: boolean }) {
         <orthographicCamera attach="shadow-camera" args={[-8, 8, 8, -8, 0.5, 48]} />
       </directionalLight>
 
-      {/* ceiling bulb: point light + a small emissive sphere fixture (blooms) — also `bulbsOn`-coupled */}
-      {bulbsOn && <pointLight position={[0, WH - 0.2, 0]} color="#fff1e0" intensity={1.4} distance={0} decay={0} castShadow={false} />}
+      {/* ceiling bulb: point light + a small emissive sphere fixture — also `lightsOn`-coupled */}
+      {lightsOn && <pointLight position={[0, WH - 0.2, 0]} color="#fff1e0" intensity={1.4} distance={0} decay={0} castShadow={false} />}
       <mesh position={[0, WH - 0.12, 0]}>
         <sphereGeometry args={[0.075, 16, 16]} />
-        <meshStandardMaterial color="#ffffff" emissive="#fff1e0" emissiveIntensity={bulbsOn ? 0.6 : 0} roughness={1} metalness={0} />
+        <meshStandardMaterial color="#ffffff" emissive="#fff1e0" emissiveIntensity={0.6} roughness={1} metalness={0} />
       </mesh>
     </group>
   )

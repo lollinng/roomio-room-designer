@@ -37,6 +37,8 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
   const setQuality = useRender((s) => s.setQuality)
   const setExposure = useRender((s) => s.setExposure)
   const setEnvIntensity = useRender((s) => s.setEnvIntensity)
+  const lightsOn = useRender((s) => s.lightsOn)
+  const toggleLights = useRender((s) => s.toggleLights)
   const heroActive = useRender((s) => s.heroActive)
   const heroSamples = useRender((s) => s.heroSamples)
   const heroSupported = useRender((s) => s.heroSupported)
@@ -94,6 +96,27 @@ export function RenderControls({ anchorLeftPx = 12, anchorBottomPx = 12 }: Rende
 
       {open && (
         <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={toggleLights}
+            aria-pressed={lightsOn}
+            title="Turn the scene's lights on/off"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 11px',
+              borderRadius: 8,
+              border: '1px solid rgba(0,0,0,0.12)',
+              background: lightsOn ? '#111' : '#fff',
+              color: lightsOn ? '#fff' : '#23211e',
+              font: '700 12px ui-sans-serif, system-ui, sans-serif',
+              cursor: 'pointer',
+            }}
+          >
+            <span>{lightsOn ? '💡 Lights on' : '🌙 Lights off'}</span>
+            <span style={{ opacity: 0.6, fontWeight: 400 }}>{lightsOn ? 'tap to turn off' : 'tap to turn on'}</span>
+          </button>
+
           <div>
             <div style={{ opacity: 0.65, marginBottom: 5 }}>Quality</div>
             <div style={{ display: 'flex', gap: 6 }}>

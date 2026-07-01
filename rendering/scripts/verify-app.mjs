@@ -78,6 +78,22 @@ try {
   ok(s && s.mean > 25 && s.darkFrac < 0.85, `app canvas renders lit (mean ${s?.mean.toFixed(1)}, dark ${(s?.darkFrac * 100).toFixed(1)}%)`)
   writeFileSync(`${OUT}/10-app-realism.png`, await page.screenshot({ encoding: 'binary' }))
 
+  // (2b) the LIGHTS TOGGLE works in the app: clicking it dims the scene (E's room lights go off).
+  const clickLights = () => page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Lights (on|off)/.test(x.textContent || ''))
+    if (b) { b.click(); return true }
+    return false
+  })
+  ok(await clickLights(), 'Lights toggle button found + clicked')
+  await sleep(1200)
+  const off = await page.evaluate(MEAN)
+  writeFileSync(`${OUT}/11-app-lights-off.png`, await page.screenshot({ encoding: 'binary' }))
+  ok(off && s && off.mean < s.mean - 1, `lights OFF dims the scene (mean ${s?.mean.toFixed(1)} → ${off?.mean.toFixed(1)})`)
+  await clickLights() // back on
+  await sleep(1000)
+  const back = await page.evaluate(MEAN)
+  ok(back && s && Math.abs(back.mean - s.mean) < 6, `lights back ON restores brightness (mean ${back?.mean.toFixed(1)} ≈ ${s?.mean.toFixed(1)})`)
+
   // (3) no critical console errors from the realism mount (ignore backend-auth / favicon noise).
   const critical = errs.filter((e) => !/favicon|401|unauthorized|403|404|Download the React DevTools|ffmpeg/i.test(e))
   ok(critical.length === 0, `no critical console errors (${critical.length})`)

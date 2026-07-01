@@ -17,7 +17,11 @@ import { Environment, Lightformer } from '@react-three/drei'
 import { useRender } from '../store'
 
 export function IBL() {
-  const intensity = useRender((s) => s.settings.ibl.intensity)
+  const baseIntensity = useRender((s) => s.settings.ibl.intensity)
+  const lightsOn = useRender((s) => s.lightsOn)
+  // When the scene lights are off, drop the IBL ambient to a low residual so "off" reads clearly
+  // darker (the user's slider value is preserved — this is a runtime factor, not a settings change).
+  const intensity = lightsOn ? baseIntensity : baseIntensity * 0.28
 
   return (
     <Environment frames={1} resolution={256} background={false} environmentIntensity={intensity}>

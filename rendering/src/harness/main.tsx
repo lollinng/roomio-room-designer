@@ -34,12 +34,10 @@ function btn(active: boolean): CSSProperties {
 
 function App() {
   const [realism, setRealism] = useState(!startFlat)
-  const [bulbsOn, setBulbs] = useState(true)
+  const lightsOn = useRender((s) => s.lightsOn)
   const quality = useRender((s) => s.settings.quality)
   const realismRef = useRef(realism)
   realismRef.current = realism
-  const bulbsRef = useRef(bulbsOn)
-  bulbsRef.current = bulbsOn
 
   // Apply the starting quality once.
   useEffect(() => {
@@ -53,8 +51,8 @@ function App() {
       store: useRender,
       setRealism,
       getRealism: () => realismRef.current,
-      setBulbs,
-      getBulbs: () => bulbsRef.current,
+      setLights: (b: boolean) => useRender.getState().setLightsOn(b),
+      getLights: () => useRender.getState().lightsOn,
       setQuality: (q: RenderQuality) => useRender.getState().setQuality(q),
       setExposure: (e: number) => useRender.getState().setExposure(e),
       setEnvIntensity: (i: number) => useRender.getState().setEnvIntensity(i),
@@ -71,7 +69,7 @@ function App() {
         camera={{ position: [4.2, 3.0, 4.6], fov: 40, near: 0.1, far: 200 }}
       >
         <color attach="background" args={['#cdccc9']} />
-        <HarnessScene bulbsOn={bulbsOn} />
+        <HarnessScene lightsOn={lightsOn} />
         <RealismLayer enabled={realism} />
         <OrbitControls
           makeDefault
@@ -87,8 +85,8 @@ function App() {
         <button style={btn(realism)} onClick={() => setRealism((r) => !r)}>
           {realism ? '✨ Realism ON' : '▢ Flat baseline'}
         </button>
-        <button style={btn(bulbsOn)} onClick={() => setBulbs((b) => !b)} title="Toggle bulbs — light + glow change together">
-          {bulbsOn ? '💡 Bulbs on' : '🌑 Bulbs off'}
+        <button style={btn(lightsOn)} onClick={() => useRender.getState().toggleLights()} title="Toggle lights — light + glow change together">
+          {lightsOn ? '💡 Lights on' : '🌙 Lights off'}
         </button>
         <span
           style={{

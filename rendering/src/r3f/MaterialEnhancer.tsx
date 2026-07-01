@@ -25,7 +25,7 @@ interface RoomioMatData {
   __roomioBaseEmissive?: number
 }
 
-function enhanceScene(scene: THREE.Object3D, envMapIntensity: number) {
+function enhanceScene(scene: THREE.Object3D, envMapIntensity: number, lightsOn: boolean) {
   scene.traverse((obj) => {
     const mesh = obj as THREE.Mesh
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined
@@ -38,15 +38,16 @@ function enhanceScene(scene: THREE.Object3D, envMapIntensity: number) {
       // (1) scale IBL contribution (uniform set — no recompile)
       sm.envMapIntensity = envMapIntensity
 
-      // (2) lift authored emissive into the HDR bloom range, proportional to its authored value
-      const lit =
-        !!sm.emissive &&
-        sm.emissive.r + sm.emissive.g + sm.emissive.b > 0.01 &&
-        sm.emissiveIntensity > 0
-      if (lit) {
-        const ud = sm.userData as RoomioMatData
+      // (2) lift authored emissive into the HDR bloom range, proportional to its authored value,
+      //     and GATE it on lightsOn so bulbs stop glowing when the scene lights go off. Detection
+      //     keys on the cached base (once seen) so a zeroed-emissive bulb can be restored.
+      const ud = sm.userData as RoomioMatData
+      const isBulb =
+        ud.__roomioBaseEmissive !== undefined ||
+        (!!sm.emissive && sm.emissive.r + sm.emissive.g + sm.emissive.b > 0.01 && sm.emissiveIntensity > 0)
+      if (isBulb) {
         if (ud.__roomioBaseEmissive === undefined) ud.__roomioBaseEmissive = sm.emissiveIntensity
-        sm.emissiveIntensity = ud.__roomioBaseEmissive * EMISSIVE_BOOST
+        sm.emissiveIntensity = lightsOn ? ud.__roomioBaseEmissive * EMISSIVE_BOOST : 0
       }
     }
   })
@@ -55,17 +56,18 @@ function enhanceScene(scene: THREE.Object3D, envMapIntensity: number) {
 export function MaterialEnhancer() {
   const scene = useThree((s) => s.scene)
   const envMapIntensity = useRender((s) => s.settings.materials.envMapIntensity)
+  const lightsOn = useRender((s) => s.lightsOn)
   const frame = useRef(0)
 
-  // Immediate apply on mount + whenever the intensity dial changes (responsive sliders).
+  // Immediate apply on mount + whenever the intensity dial or lights toggle changes.
   useEffect(() => {
-    enhanceScene(scene, envMapIntensity)
-  }, [scene, envMapIntensity])
+    enhanceScene(scene, envMapIntensity, lightsOn)
+  }, [scene, envMapIntensity, lightsOn])
 
   // Catch dynamically added/edited furniture without per-frame cost.
   useFrame(() => {
     frame.current += 1
-    if (frame.current % 24 === 0) enhanceScene(scene, envMapIntensity)
+    if (frame.current % 24 === 0) enhanceScene(scene, envMapIntensity, lightsOn)
   })
 
   return null
