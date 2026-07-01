@@ -1,114 +1,170 @@
 import { describe, it, expect } from 'vitest'
-import { layoutHouse, houseBoundsCm, houseColliders } from './houseLayout'
+import { layoutHouse, houseBoundsCm, houseColliders, type RoomPlacement } from './houseLayout'
 import { newDesign } from '../store'
 import { bbox, deriveWalls } from '../geometry/walls'
-import type { Opening } from '../types'
+import type { Opening, FurnitureItem } from '../types'
 import { resolveWalk } from '../../camera-flythrough/src/engine/collision'
-import type { RoomDesign } from '../types'
 
-function room(id: string): RoomDesign {
-  return { ...newDesign('rect'), id, openings: [] }
+function room(id: string, type?: string): RoomPlacement {
+  return { design: { ...newDesign('rect'), id, openings: [] }, type }
+}
+function aabbOf(p: ReturnType<typeof layoutHouse>[number]) {
+  const bb = bbox(p.design.corners)
+  return { minX: p.centerCm.x - bb.w / 2, maxX: p.centerCm.x + bb.w / 2, minZ: p.centerCm.z - bb.d / 2, maxZ: p.centerCm.z + bb.d / 2 }
+}
+function rectsOverlap(a: ReturnType<typeof aabbOf>, b: ReturnType<typeof aabbOf>) {
+  return Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX) > 1 && Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ) > 1
 }
 
-describe('houseLayout — interconnected floor plan', () => {
-  it('places rooms adjacently (each touching the previous along a shared edge)', () => {
-    const designs = [room('a'), room('b'), room('c')]
-    const placed = layoutHouse(designs)
+// dims of the default rect room (all test rooms are identical)
+const W = bbox(room('w').design.corners).w
+const D = bbox(room('w').design.corners).d
+
+describe('houseLayout — 2D floor plan', () => {
+  it('arranges rooms in a 2D grid (not a single straight strip)', () => {
+    const placed = layoutHouse([room('a'), room('b'), room('c')])
     expect(placed).toHaveLength(3)
-    // centers strictly increase along x
-    expect(placed[0].centerCm.x).toBeLessThan(placed[1].centerCm.x)
-    expect(placed[1].centerCm.x).toBeLessThan(placed[2].centerCm.x)
-    // right edge of room k == left edge of room k+1 (touching, exact shared wall)
-    for (let k = 1; k < placed.length; k++) {
-      const a = placed[k - 1]
-      const b = placed[k]
-      const rightA = a.centerCm.x + bbox(a.design.corners).w / 2
-      const leftB = b.centerCm.x - bbox(b.design.corners).w / 2
-      expect(rightA).toBeCloseTo(leftB, 6)
-    }
+    // ⌈√3⌉ = 2 per row ⇒ rooms occupy more than one z band (2D, not a strip)
+    const zBands = new Set(placed.map((p) => Math.round(p.centerCm.z)))
+    expect(zBands.size).toBeGreaterThan(1)
+    // no two rooms overlap
+    for (let i = 0; i < placed.length; i++)
+      for (let j = i + 1; j < placed.length; j++) expect(rectsOverlap(aabbOf(placed[i]), aabbOf(placed[j]))).toBe(false)
   })
 
-  it('cuts a doorway in BOTH rooms of every adjacent pair', () => {
+  it('honors explicit per-room positions (drag / template)', () => {
+    const a = room('a')
+    a.pos = { x: 120, z: 240 }
+    const b = room('b')
+    b.pos = { x: 900, z: 240 }
+    const placed = layoutHouse([a, b])
+    expect(placed[0].centerCm).toEqual({ x: 120, z: 240 })
+    expect(placed[1].centerCm).toEqual({ x: 900, z: 240 })
+  })
+
+  it('un-positioned rooms never overlap positioned ones (mixed state: add a room after dragging)', () => {
+    const a = room('a')
+    a.pos = { x: W / 2, z: D / 2 } // dragged/positioned
+    const b = room('b')
+    b.pos = { x: W + W / 2, z: D / 2 } // dragged/positioned
+    const c = room('c') // freshly added — no pos (this used to grid-pack at the origin, ON TOP of a)
+    const placed = layoutHouse([a, b, c])
+    const C = aabbOf(placed[2])
+    expect(rectsOverlap(C, aabbOf(placed[0]))).toBe(false)
+    expect(rectsOverlap(C, aabbOf(placed[1]))).toBe(false)
+  })
+
+  it('cuts a real doorway between rooms that share a wall edge (unique ids)', () => {
     const placed = layoutHouse([room('a'), room('b'), room('c')])
-    // first room: 1 doorway (to b on its right); middle: 2 (left+right); last: 1 (left)
-    expect(placed[0].extraOpenings).toHaveLength(1)
-    expect(placed[1].extraOpenings).toHaveLength(2)
-    expect(placed[2].extraOpenings).toHaveLength(1)
-    // all doorways are real doors at wall centre
-    for (const p of placed) {
+    const total = placed.reduce((n, p) => n + p.extraOpenings.length, 0)
+    expect(total).toBeGreaterThanOrEqual(2) // the grid corner connects to its 2 neighbours
+    for (const p of placed)
       for (const o of p.extraOpenings) {
         expect(o.kind).toBe('door')
-        expect(o.t).toBeCloseTo(0.5)
         expect(o.width).toBeGreaterThan(70)
         expect(o.sill).toBe(0)
       }
-    }
-  })
-
-  it('doorways reference distinct walls (left vs right) and have unique ids', () => {
-    const placed = layoutHouse([room('a'), room('b')])
-    const ids = [...placed[0].extraOpenings, ...placed[1].extraOpenings].map((o) => o.id)
+    const ids = placed.flatMap((p) => p.extraOpenings.map((o) => o.id))
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('single room: no doorways, centered at origin', () => {
-    const placed = layoutHouse([room('solo')])
+  it('does NOT connect two bedrooms directly (realism: reached from the hall)', () => {
+    const a = room('a', 'bedroom')
+    a.pos = { x: W / 2, z: D / 2 }
+    const b = room('b', 'bedroom')
+    b.pos = { x: W + W / 2, z: D / 2 } // touches a along the shared vertical wall
+    const placed = layoutHouse([a, b])
     expect(placed[0].extraOpenings).toHaveLength(0)
-    expect(placed[0].centerCm.z).toBe(0)
+    expect(placed[1].extraOpenings).toHaveLength(0)
   })
 
-  // Step rightward in small increments, like the real ~4 cm/frame walk loop
-  // (resolveWalk is not swept, so a realistic test must step, not teleport).
+  it('single room: no doorways', () => {
+    const placed = layoutHouse([room('solo')])
+    expect(placed[0].extraOpenings).toHaveLength(0)
+  })
+
+  // Step rightward like the real ~5 cm/frame walk loop (resolveWalk is not swept).
   function walkRight(cols: ReturnType<typeof houseColliders>, start: { x: number; z: number }) {
     let p = start
     for (let i = 0; i < 120; i++) p = resolveWalk(p, { x: p.x + 5, z: p.z }, cols, { radius: 18 })
     return p
   }
 
-  it('houseColliders: you can WALK through the doorway from one room to the next', () => {
-    const placed = layoutHouse([room('a'), room('b')])
+  function twoSideBySide() {
+    const a = room('a')
+    a.pos = { x: W / 2, z: D / 2 }
+    const b = room('b')
+    b.pos = { x: W + W / 2, z: D / 2 }
+    return layoutHouse([a, b])
+  }
+
+  it('houseColliders: you can WALK through the doorway between two adjacent rooms', () => {
+    const placed = twoSideBySide()
     const cols = houseColliders(placed)
-    const bb0 = bbox(placed[0].design.corners)
-    const boundaryX = placed[0].centerCm.x + bb0.w / 2 // shared wall, house cm
-    const end = walkRight(cols, { x: boundaryX - 120, z: 0 }) // z=0 is the doorway
-    expect(end.x).toBeGreaterThan(boundaryX + 20) // crossed into room B through the doorway
+    const end = walkRight(cols, { x: W - 120, z: D / 2 }) // z=D/2 is the centred doorway
+    expect(end.x).toBeGreaterThan(W + 20)
+  })
+
+  it('houseColliders: a SOLID part of the shared wall still blocks you', () => {
+    const placed = twoSideBySide()
+    const cols = houseColliders(placed)
+    const end = walkRight(cols, { x: W - 120, z: 35 }) // near the wall end, away from the door
+    expect(end.x).toBeLessThan(W)
   })
 
   it('houseColliders: you CANNOT walk through a window (sill > 0 → solid at the floor)', () => {
     const a = room('a')
-    // put a window on a's right (shared) wall, away from the centred doorway
-    const rightWall = deriveWalls(a.corners)
+    a.pos = { x: W / 2, z: D / 2 }
+    const rightWall = deriveWalls(a.design.corners)
       .filter((w) => Math.abs(w.dirX) < 0.25)
       .reduce((m, w) => (w.midX > m.midX ? w : m))
     const win: Opening = { id: 'win', kind: 'window', style: 'windowSingle', wallId: rightWall.id, t: 0.2, width: 100, height: 120, sill: 90 }
-    a.openings = [win]
-    const placed = layoutHouse([a, room('b')])
+    a.design.openings = [win]
+    const b = room('b')
+    b.pos = { x: W + W / 2, z: D / 2 }
+    const placed = layoutHouse([a, b])
     const cols = houseColliders(placed)
-    const bb0 = bbox(placed[0].design.corners)
-    const boundaryX = placed[0].centerCm.x + bb0.w / 2
-    // z of the window (t=0.2 along the wall) in house cm
-    const winZ = rightWall.a.z + rightWall.dirZ * (0.2 * rightWall.length) + (placed[0].centerCm.z - bb0.cz)
-    const end = walkRight(cols, { x: boundaryX - 120, z: winZ })
-    expect(end.x).toBeLessThan(boundaryX) // window is solid at floor — blocked
+    const winZ = rightWall.a.z + rightWall.dirZ * (0.2 * rightWall.length)
+    const end = walkRight(cols, { x: W - 120, z: winZ })
+    expect(end.x).toBeLessThan(W) // window is solid at the floor — blocked
   })
 
-  it('houseColliders: a SOLID part of the shared wall still blocks you', () => {
-    const placed = layoutHouse([room('a'), room('b')])
-    const cols = houseColliders(placed)
-    const bb0 = bbox(placed[0].design.corners)
-    const boundaryX = placed[0].centerCm.x + bb0.w / 2
-    const zAwayFromDoor = bb0.d / 2 - 35 // near the wall end, away from the centred door
-    const end = walkRight(cols, { x: boundaryX - 120, z: zAwayFromDoor })
-    expect(end.x).toBeLessThan(boundaryX) // blocked by the solid wall, kept in room A
+  // A flat floor covering (rug/carpet) must be WALKABLE — you step onto it, so it
+  // must not become a collider footprint (else you hit an invisible wall at its edge).
+  function furn(archetype: string, over: Partial<FurnitureItem>): FurnitureItem {
+    return {
+      id: `f-${archetype}`, archetype, category: 'decor', name: archetype,
+      x: 300, z: 200, rotation: 0, w: 100, d: 100, h: 50, color: '#888', ...over,
+    }
+  }
+
+  it('houseColliders: a rug adds NO collider footprint, but a sofa does', () => {
+    const emptyCount = houseColliders(layoutHouse([room('a')])).furniture.length
+
+    const withRug = room('a')
+    withRug.design.furniture = [furn('decor-rug-large', { h: 1.5, w: 300, d: 250 })]
+    expect(houseColliders(layoutHouse([withRug])).furniture.length).toBe(emptyCount)
+
+    const withSofa = room('a')
+    withSofa.design.furniture = [furn('sofa-chesterfield', { h: 78, w: 200, d: 90 })]
+    expect(houseColliders(layoutHouse([withSofa])).furniture.length).toBe(emptyCount + 1)
   })
 
-  it('houseColliders: wall boxes are offset into shared house space (span all rooms)', () => {
-    const placed = layoutHouse([room('a'), room('b'), room('c')])
-    const cols = houseColliders(placed)
-    // walls are emitted as OBBs in furniture; their x-centres should span > one room
-    const xs = cols.furniture.map((o) => o.cx)
-    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(bbox(placed[0].design.corners).w)
-    expect(cols.walls).toHaveLength(0) // half-planes off; OBBs do the work
+  it('houseColliders: you WALK OVER a rug in your path, but a sofa blocks you', () => {
+    // Both pieces sit at the doorway (x≈W, z=D/2) squarely across the walk path.
+    const rugRoom = room('a')
+    rugRoom.pos = { x: W / 2, z: D / 2 }
+    rugRoom.design.furniture = [furn('decor-rug-large', { x: W, z: D / 2, w: 200, d: 300, h: 1.5 })]
+    const rugB = room('b'); rugB.pos = { x: W + W / 2, z: D / 2 }
+    const rugCols = houseColliders(layoutHouse([rugRoom, rugB]))
+    expect(walkRight(rugCols, { x: W - 120, z: D / 2 }).x).toBeGreaterThan(W + 20) // passed through
+
+    const sofaRoom = room('a')
+    sofaRoom.pos = { x: W / 2, z: D / 2 }
+    sofaRoom.design.furniture = [furn('sofa-chesterfield', { x: W, z: D / 2, w: 120, d: 200, h: 78 })]
+    const sofaB = room('b'); sofaB.pos = { x: W + W / 2, z: D / 2 }
+    const sofaCols = houseColliders(layoutHouse([sofaRoom, sofaB]))
+    expect(walkRight(sofaCols, { x: W - 120, z: D / 2 }).x).toBeLessThan(W) // stopped at the sofa
   })
 
   it('house bounds enclose all rooms', () => {

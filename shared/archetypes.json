@@ -24,6 +24,14 @@
       "label": "Storage"
     },
     {
+      "id": "kitchen",
+      "label": "Kitchen"
+    },
+    {
+      "id": "bathroom",
+      "label": "Bathroom"
+    },
+    {
       "id": "decor",
       "label": "Decor"
     },
@@ -570,7 +578,7 @@
     {
       "id": "decor-mirror",
       "category": "decor",
-      "name": "Floor Mirror",
+      "name": "Wall / Floor Mirror",
       "default_color_hex": "#caa86a"
     },
     {
@@ -578,6 +586,84 @@
       "category": "misc",
       "name": "Placeholder Box",
       "default_color_hex": "#b7b2a8"
+    },
+    {
+      "id": "kitchen-counter",
+      "category": "kitchen",
+      "name": "Counter & Cabinets",
+      "default_color_hex": "#d9d5cd"
+    },
+    {
+      "id": "kitchen-island",
+      "category": "kitchen",
+      "name": "Kitchen Island",
+      "default_color_hex": "#cdbfa6"
+    },
+    {
+      "id": "kitchen-sink",
+      "category": "kitchen",
+      "name": "Kitchen Sink Base",
+      "default_color_hex": "#d6cdbd"
+    },
+    {
+      "id": "kitchen-stove",
+      "category": "kitchen",
+      "name": "Range / Stove",
+      "default_color_hex": "#c9ccce"
+    },
+    {
+      "id": "kitchen-fridge",
+      "category": "kitchen",
+      "name": "Refrigerator",
+      "default_color_hex": "#cfd3d6"
+    },
+    {
+      "id": "kitchen-hood",
+      "category": "kitchen",
+      "name": "Range Hood",
+      "default_color_hex": "#c9ccce"
+    },
+    {
+      "id": "kitchen-washer",
+      "category": "kitchen",
+      "name": "Washing Machine",
+      "default_color_hex": "#eef1f2"
+    },
+    {
+      "id": "bath-toilet",
+      "category": "bathroom",
+      "name": "Toilet",
+      "default_color_hex": "#f3f2ec"
+    },
+    {
+      "id": "bath-vanity",
+      "category": "bathroom",
+      "name": "Sink Vanity",
+      "default_color_hex": "#e7e1d6"
+    },
+    {
+      "id": "bath-shower",
+      "category": "bathroom",
+      "name": "Walk-in Shower",
+      "default_color_hex": "#dfe3e6"
+    },
+    {
+      "id": "bath-tub-alcove",
+      "category": "bathroom",
+      "name": "Alcove Bathtub",
+      "default_color_hex": "#f1f2f0"
+    },
+    {
+      "id": "bath-tub-freestanding",
+      "category": "bathroom",
+      "name": "Freestanding Tub",
+      "default_color_hex": "#f4f4f2"
+    },
+    {
+      "id": "bath-jacuzzi",
+      "category": "bathroom",
+      "name": "Jacuzzi Whirlpool",
+      "default_color_hex": "#eaf0f1"
     }
   ]
 }

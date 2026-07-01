@@ -40,7 +40,7 @@ function App() {
         <Scene multi={MULTI} roof={ROOF} />
         <OrbitControls makeDefault target={target} enableDamping maxPolarAngle={LOWCAM ? Math.PI : Math.PI / 2.05} />
       </Canvas>
-      <LightingControls roomId="r_demo" />
+      <LightingControls />
       <EditingHint />
     </>
   )

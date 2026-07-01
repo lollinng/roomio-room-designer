@@ -5,9 +5,10 @@ import type { ShapeId } from './types'
 import { useAuth } from './auth'
 import { Wizard } from './wizard/Wizard'
 import { StartScreen } from './wizard/StartScreen'
+import { Listings } from './wizard/Listings'
 import { AuthScreen } from './wizard/AuthScreen'
 
-const STAGES: Stage[] = ['start', 'step1', 'step2', 'step3', 'step4', 'furnish']
+const STAGES: Stage[] = ['start', 'step1', 'step2', 'step3', 'step4', 'furnish', 'listings']
 const SHAPES: ShapeId[] = ['rect', 'l', 't', 'u', 'cut', 'beveled']
 
 // Whether the FIRST load was a deep-link (?stage / ?preset). Captured ONCE so that
@@ -57,6 +58,7 @@ export default function App() {
       return
     }
     const q = params.get('stage') as Stage | null
+    if (q === 'listings') { setStage('listings'); return } // full-page view, no room reset
     if (q && STAGES.includes(q) && q !== 'start') {
       const shapeParam = params.get('shape') as ShapeId | null
       const shape = shapeParam && SHAPES.includes(shapeParam) ? shapeParam : 'rect'
@@ -163,5 +165,9 @@ export default function App() {
     )
   }
 
-  return <div className="app">{stage === 'start' ? <StartScreen /> : <Wizard />}</div>
+  return (
+    <div className="app">
+      {stage === 'start' ? <StartScreen /> : stage === 'listings' ? <Listings /> : <Wizard />}
+    </div>
+  )
 }

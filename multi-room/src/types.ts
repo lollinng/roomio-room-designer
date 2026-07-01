@@ -22,6 +22,7 @@ export type RoomType =
   | 'office'
   | 'foyer'
   | 'hallway'
+  | 'balcony'
 
 export const ROOM_TYPES: RoomType[] = [
   'bedroom',
@@ -32,6 +33,7 @@ export const ROOM_TYPES: RoomType[] = [
   'office',
   'foyer',
   'hallway',
+  'balcony',
 ]
 
 /**

@@ -6,7 +6,6 @@
 import { useLighting } from '../store'
 import { TimeBar } from './TimeBar'
 import { NorthIndicator } from './NorthIndicator'
-import { LightEditor } from './LightEditor'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -18,12 +17,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function LightingControls({
-  roomId,
   hasWindows,
   anchorRightPx = 12,
 }: {
-  roomId?: string
-  /** whether the room has any window openings (drives the "no windows" sun notice). */
+  /** whether ANY room in the house has a window. Light Mode traces sunlight coming through windows,
+   *  so with no windows there is nothing to trace — the launcher is disabled and can't be entered. */
   hasWindows?: boolean
   /** right offset (px) so the launcher/panel can clear other app chrome. */
   anchorRightPx?: number
@@ -33,10 +31,19 @@ export function LightingControls({
 
   // CLOSED (default): just a compact launcher button. Controls are hidden.
   if (!lightMode) {
+    const disabled = !hasWindows
     return (
       <button
-        onClick={() => toggleLightMode(true)}
-        title="Light Mode: open lighting controls (locks furniture so you can focus on light)"
+        onClick={() => {
+          if (!disabled) toggleLightMode(true)
+        }}
+        disabled={disabled}
+        data-testid="light-mode-launch"
+        title={
+          disabled
+            ? 'Add a window first — Sun Mode traces the sunlight coming through your windows'
+            : 'Sun Mode: trace the sunlight through your windows (locks furniture so you can focus on light)'
+        }
         style={{
           position: 'fixed',
           top: 12,
@@ -49,12 +56,13 @@ export function LightingControls({
           color: '#f4f1ea',
           font: '12px ui-sans-serif, system-ui, sans-serif',
           fontWeight: 600,
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.45 : 1,
           backdropFilter: 'blur(8px)',
           boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
         }}
       >
-        💡 Light Mode
+        ☀ Sun Mode
       </button>
     )
   }
@@ -95,7 +103,7 @@ export function LightingControls({
             cursor: 'pointer',
           }}
         >
-          🔒 Light Mode
+          🔒 Sun Mode
         </button>
         <button
           onClick={() => toggleLightMode(false)}
@@ -134,11 +142,6 @@ export function LightingControls({
         <Section title="Sun & North">
           <NorthIndicator />
         </Section>
-        {roomId && (
-          <Section title="Room lights">
-            <LightEditor roomId={roomId} />
-          </Section>
-        )}
       </div>
     </div>
   )

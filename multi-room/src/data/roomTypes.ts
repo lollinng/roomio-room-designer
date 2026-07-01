@@ -7,10 +7,12 @@
  *
  * Numbers are research-seeded (the brief seeds NKBA-style kitchen/bath guidance
  * and general floor-plan standards) — not invented. Each `archetype` points at a
- * REAL id in Agent A's catalog (src/data/archetypes.catalog.json, 91 ids) where
- * Roomio already models the piece; `null` means Roomio has no asset yet, so we
- * fall back to the Placeholder Box ("misc-box") and emit a REQUEST -> ASSET in
- * roomio.txt (see data/assetRequests.ts). Kitchen/bath fixtures are the gap.
+ * REAL id in Agent A's catalog (src/data/archetypes.catalog.json) where Roomio
+ * models the piece; `null` means Roomio has no asset yet, so we fall back to the
+ * Placeholder Box ("misc-box"). Kitchen + bathroom fixtures are now modeled
+ * (counter/island/sink/stove/fridge/hood; toilet/vanity/shower/bathtub/jacuzzi),
+ * so those essentials point at real ids — only intentionally-empty essentials
+ * (e.g. hallway circulation) remain null.
  */
 import type { RoomType } from '../types'
 
@@ -72,11 +74,11 @@ export const ROOM_TYPE_INFO: Record<RoomType, RoomTypeInfo> = {
     label: 'Kitchen',
     purpose: 'Food storage, prep, cooking, cleanup.',
     essentials: [
-      { label: 'Counters / cabinets', archetype: null, note: 'not yet modeled — placeholder + asset request' },
-      { label: 'Sink', archetype: null, note: 'not yet modeled' },
-      { label: 'Stove / cooktop', archetype: null, note: 'not yet modeled' },
-      { label: 'Refrigerator', archetype: null, note: 'not yet modeled' },
-      { label: 'Island (optional)', archetype: null, note: 'only if room ≥ ~366 cm (12 ft) wide' },
+      { label: 'Counters / cabinets', archetype: 'kitchen-counter' },
+      { label: 'Sink', archetype: 'kitchen-sink' },
+      { label: 'Stove / cooktop', archetype: 'kitchen-stove' },
+      { label: 'Refrigerator', archetype: 'kitchen-fridge' },
+      { label: 'Island (optional)', archetype: 'kitchen-island', note: 'only if room ≥ ~366 cm (12 ft) wide' },
       { label: 'Counter stools (if island/peninsula)', archetype: 'stool-counter' },
     ],
     guidance: [
@@ -93,9 +95,10 @@ export const ROOM_TYPE_INFO: Record<RoomType, RoomTypeInfo> = {
     label: 'Bathroom',
     purpose: 'Hygiene; needs privacy + ventilation.',
     essentials: [
-      { label: 'Toilet', archetype: null, note: 'not yet modeled — placeholder + asset request' },
-      { label: 'Sink / vanity', archetype: null, note: 'not yet modeled' },
-      { label: 'Shower and/or bathtub', archetype: null, note: 'not yet modeled' },
+      { label: 'Toilet', archetype: 'bath-toilet' },
+      { label: 'Sink / vanity', archetype: 'bath-vanity' },
+      { label: 'Shower', archetype: 'bath-shower' },
+      { label: 'Bathtub (optional)', archetype: 'bath-tub-alcove', note: 'alcove, freestanding, or jacuzzi variants are in the catalog' },
       { label: 'Storage (optional)', archetype: 'storage-shelving' },
     ],
     guidance: [
@@ -161,6 +164,20 @@ export const ROOM_TYPE_INFO: Record<RoomType, RoomTypeInfo> = {
     guidance: [
       'Keep the width comfortable for passage (~92 cm / 36 in minimum, ~107 cm / 42 in generous).',
       'Can host the connectors that branch to several rooms — suggested when many rooms meet (AC6).',
+    ],
+  },
+  balcony: {
+    type: 'balcony',
+    label: 'Balcony',
+    purpose: 'Outdoor sit-out / utility (standard in Indian flats).',
+    essentials: [
+      { label: 'Seating', archetype: 'chair-lounge', note: 'a chair or two for a sit-out' },
+      { label: 'Side table', archetype: 'table-side' },
+      { label: 'Plant', archetype: 'decor-plant' },
+    ],
+    guidance: [
+      'Outdoor-grade anti-skid tile; open to the living room or a bedroom.',
+      'Keep it uncluttered — a couple of chairs, a side table, and greenery.',
     ],
   },
 }

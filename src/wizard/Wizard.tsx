@@ -11,7 +11,9 @@ import { Step3Openings } from './Step3Openings'
 import { Step4Style } from './Step4Style'
 import { Furnish } from './Furnish'
 
-const HINTS: Record<Exclude<Stage, 'start'>, string> = {
+// `start` and `listings` render their own full-page screens (StartScreen / Listings), not the
+// Wizard chrome — so the Wizard's per-stage hint/header maps only cover the wizard stages.
+const HINTS: Record<Exclude<Stage, 'start' | 'listings'>, string> = {
   step1: 'Drag to orbit · scroll to zoom',
   step2: 'Drag a wall to resize, or type an exact length',
   step3: 'Pick a style, then click a wall to place it',
@@ -19,7 +21,7 @@ const HINTS: Record<Exclude<Stage, 'start'>, string> = {
   furnish: 'Click a piece to add · drag to move · it snaps to walls',
 }
 
-const META: Record<Exclude<Stage, 'start'>, { eyebrow: string; title: string }> = {
+const META: Record<Exclude<Stage, 'start' | 'listings'>, { eyebrow: string; title: string }> = {
   step1: { eyebrow: 'Step 1 of 4', title: 'Set the shape and size' },
   step2: { eyebrow: 'Step 2 of 4', title: 'Adjust your dimensions' },
   step3: { eyebrow: 'Step 3 of 4', title: 'Add doors and windows' },
@@ -42,7 +44,7 @@ function NameBadge() {
 }
 
 export function Wizard() {
-  const stage = useStore((s) => s.stage) as Exclude<Stage, 'start'>
+  const stage = useStore((s) => s.stage) as Exclude<Stage, 'start' | 'listings'>
   const next = useStore((s) => s.next)
   const back = useStore((s) => s.back)
   const setStage = useStore((s) => s.setStage)

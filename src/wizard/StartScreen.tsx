@@ -23,6 +23,7 @@ function formatUpdated(ts: number): string {
 
 export function StartScreen() {
   const resetDesign = useStore((s) => s.resetDesign)
+  const setStage = useStore((s) => s.setStage)
   const loadDesignIntoStore = useStore((s) => s.loadDesign)
 
   const authStatus = useAuth((s) => s.status)
@@ -107,8 +108,18 @@ export function StartScreen() {
           )}
         </div>
 
-        <h1 className="start-title" style={{ marginTop: 26 }}>
-          Design your room
+        {/* Entry choice: browse real flat listings (no broker) OR design a room. */}
+        <button className="flats-hero" onClick={() => setStage('listings')}>
+          <span className="flats-hero-emoji">🏠</span>
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left', minWidth: 0 }}>
+            <span style={{ fontWeight: 800, fontSize: 17 }}>Looking for a flat? Browse listings</span>
+            <span style={{ fontSize: 13, opacity: 0.85 }}>Live flatmate posts, newest first — no broker, no brokerage. Call the owner directly.</span>
+          </span>
+          <span className="flats-hero-go">Browse flats →</span>
+        </button>
+
+        <h1 className="start-title" style={{ marginTop: 28 }}>
+          Or design your own room
         </h1>
         <p className="start-sub">
           Pick a shape, set the dimensions, add doors &amp; windows, choose your style — then

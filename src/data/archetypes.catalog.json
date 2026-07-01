@@ -103,6 +103,7 @@
   { "id": "kitchen-stove", "category": "kitchen", "name": "Range / Stove", "icon": "🍳", "model": "stove", "w": 76, "d": 66, "h": 92, "min": [50, 60, 88], "max": [92, 70, 98], "color": "#c9ccce" },
   { "id": "kitchen-fridge", "category": "kitchen", "name": "Refrigerator", "icon": "🧊", "model": "fridge", "w": 91, "d": 74, "h": 178, "min": [55, 65, 150], "max": [100, 82, 190], "color": "#cfd3d6" },
   { "id": "kitchen-hood", "category": "kitchen", "name": "Range Hood", "icon": "💨", "model": "rangeHood", "w": 76, "d": 50, "h": 60, "min": [50, 40, 40], "max": [120, 60, 75], "color": "#c9ccce", "mount": "wall" },
+  { "id": "kitchen-washer", "category": "kitchen", "name": "Washing Machine", "icon": "🧺", "model": "washer", "w": 60, "d": 60, "h": 85, "min": [55, 50, 82], "max": [68, 70, 92], "color": "#eef1f2" },
   { "id": "bath-toilet", "category": "bathroom", "name": "Toilet", "icon": "🚽", "model": "toilet", "w": 38, "d": 68, "h": 78, "min": [35, 60, 70], "max": [44, 75, 88], "color": "#f3f2ec" },
   { "id": "bath-vanity", "category": "bathroom", "name": "Sink Vanity", "icon": "🚰", "model": "vanity", "w": 80, "d": 50, "h": 85, "min": [50, 40, 80], "max": [160, 60, 92], "color": "#e7e1d6" },
   { "id": "bath-shower", "category": "bathroom", "name": "Walk-in Shower", "icon": "🚿", "model": "shower", "w": 90, "d": 90, "h": 210, "min": [80, 80, 190], "max": [120, 120, 225], "color": "#dfe3e6" },

@@ -24,8 +24,17 @@ CONTRACT_VERSION = "1.0"
 DEFAULT_MODEL = "qwen2.5vl:7b"
 FALLBACK_MODEL = "moondream"
 
-# Accepted request image extensions.
-IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
+# Accepted request image extensions. (.heic/.heif decode via pillow-heif; see color.py.)
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif")
 
 # Confidence below which a detection is demoted to the placeholder box.
 MIN_ARCHETYPE_CONFIDENCE = 0.30
+
+# Cap the longest side of the image handed to the VLM. Huge photos (e.g. 24 MP
+# iPhone HEIC) produce too many vision tokens and overflow the model context;
+# detection runs on the downscaled copy and color crops use the same array.
+MAX_VLM_IMAGE_DIM = 1536
+
+# Ollama context window for a vision request. The closed-set prompt embeds the
+# full archetype-name list, so headroom above the 4096 default avoids overflow.
+VLM_NUM_CTX = 8192

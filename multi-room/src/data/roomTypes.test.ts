@@ -8,7 +8,7 @@ import {
   resolveEssentialArchetype,
   PLACEHOLDER_ARCHETYPE,
 } from './roomTypes'
-import { allAssetGaps, assetRequestSummary } from './assetRequests'
+import { allAssetGaps } from './assetRequests'
 import catalog from '../../../src/data/archetypes.catalog.json'
 
 // The set of real catalog ids Agent A owns (single source of truth).
@@ -29,7 +29,7 @@ describe('C2 — room typing + per-type essentials', () => {
   })
 
   it('every non-null essential archetype is a REAL id in Agent A’s catalog', () => {
-    expect(CATALOG_IDS.size).toBe(91)
+    expect(CATALOG_IDS.size).toBeGreaterThanOrEqual(91) // extensible corpus (now incl. kitchen/bath fixtures)
     for (const t of ROOM_TYPES) {
       for (const e of essentialsFor(t)) {
         if (e.archetype !== null) {
@@ -40,9 +40,10 @@ describe('C2 — room typing + per-type essentials', () => {
   })
 
   it('un-modeled essentials resolve to the Placeholder Box (don’t block)', () => {
-    const counters = ROOM_TYPE_INFO.kitchen.essentials.find((e) => e.label.startsWith('Counters'))!
-    expect(counters.archetype).toBeNull()
-    expect(resolveEssentialArchetype(counters)).toBe(PLACEHOLDER_ARCHETYPE)
+    // hallway circulation is intentionally empty (still null) — exercises the fallback
+    const circ = ROOM_TYPE_INFO.hallway.essentials.find((e) => e.archetype === null)!
+    expect(circ).toBeDefined()
+    expect(resolveEssentialArchetype(circ)).toBe(PLACEHOLDER_ARCHETYPE)
     expect(CATALOG_IDS.has(PLACEHOLDER_ARCHETYPE)).toBe(true)
   })
 
@@ -59,12 +60,12 @@ describe('C2 — room typing + per-type essentials', () => {
     expect(g).toMatch(/privacy|pocket door|hinged/i)
   })
 
-  it('surfaces the kitchen/bath asset gaps for REQUEST -> ASSET', () => {
-    const gaps = allAssetGaps()
-    const labels = gaps.map((g) => `${g.type}:${g.essential.label}`)
-    expect(labels.some((l) => l.startsWith('kitchen:'))).toBe(true)
-    expect(labels.some((l) => l.startsWith('bathroom:'))).toBe(true)
-    expect(assetRequestSummary()).toMatch(/kitchen:.*Sink/)
-    expect(missingAssetsFor('living')).toHaveLength(0) // living is fully modeled
+  it('kitchen + bathroom are now fully modeled (no asset gaps)', () => {
+    expect(missingAssetsFor('kitchen')).toHaveLength(0)
+    expect(missingAssetsFor('bathroom')).toHaveLength(0)
+    expect(missingAssetsFor('living')).toHaveLength(0)
+    const gapTypes = allAssetGaps().map((g) => g.type)
+    expect(gapTypes).not.toContain('kitchen')
+    expect(gapTypes).not.toContain('bathroom')
   })
 })
