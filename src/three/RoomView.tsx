@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls, ContactShadows } from '@react-three/drei'
 import { useStore } from '../store'
@@ -26,11 +26,32 @@ import { useHouseView } from './houseViewMode'
 import { HouseView } from './HouseView'
 import { ColliderDebug } from './ColliderDebug'
 import { layoutHouse, houseBoundsCm } from './houseLayout'
+// Agent G realistic rendering (drop-in): PBR + HDR-IBL + ACESFilmic tone mapping + AO + emissive
+// bulbs/bloom + area lights, layered ON TOP of E's lighting. Mounts as <Canvas> children (no Canvas-
+// prop changes: `flat` is KEPT so the post EffectComposer owns tone mapping). RenderControls is the
+// quality/exposure/beauty-shot panel. See rendering/INTEGRATION.md.
+import { RealismLayer } from '../../rendering/src/r3f/RealismLayer'
+import { RenderControls } from '../../rendering/src/ui/RenderControls'
 
 type ControlsLike = {
   target: { set: (x: number, y: number, z: number) => void; toArray: () => number[] }
   update: () => void
 } | null
+
+/** Shared pill style for the consolidated viewport toolbar. */
+function toolbarChip(active: boolean, activeBg = '#111', activeFg = '#fff'): CSSProperties {
+  return {
+    padding: '8px 14px',
+    borderRadius: 999,
+    border: '1px solid rgba(0,0,0,0.12)',
+    background: active ? activeBg : '#fff',
+    color: active ? activeFg : '#23211e',
+    font: '13px ui-sans-serif, system-ui, sans-serif',
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+  }
+}
 
 /**
  * Refit the camera on shape change / fitNonce bump. If the loaded design carries
@@ -64,6 +85,25 @@ function CameraFit() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape, fitNonce])
+  return null
+}
+
+/** Snap the camera to a top-down 2D "plan" view when requestPlanView() is called. */
+function PlanViewSnap({ radius }: { radius: number }) {
+  const nonce = useHouseView((s) => s.planNonce)
+  const { camera, controls } = useThree()
+  useEffect(() => {
+    if (nonce === 0) return // skip initial mount
+    const h = Math.max(radius * 2.4, 4)
+    camera.position.set(0.001, h, 0.001) // directly above centre, looking straight down
+    camera.updateProjectionMatrix()
+    const c = controls as unknown as ControlsLike
+    if (c?.target) {
+      c.target.set(0, 0, 0)
+      c.update()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonce])
   return null
 }
 
@@ -129,8 +169,13 @@ export function RoomView({ children }: { children?: ReactNode }) {
   const houseMode = viewMode === 'house' && houseRooms.length > 1
   const { placed, houseBounds } = useMemo(() => {
     if (!houseMode) return { placed: [], houseBounds: { w: 0, d: 0, cx: 0, cz: 0 } }
-    const designs = houseRooms.map((r) => (r.id === activeId ? liveDesign : r.design))
-    const p = layoutHouse(designs)
+    const p = layoutHouse(
+      houseRooms.map((r) => ({
+        design: r.id === activeId ? liveDesign : r.design,
+        pos: r.pos,
+        type: r.type,
+      })),
+    )
     return { placed: p, houseBounds: houseBoundsCm(p) }
   }, [houseMode, houseRooms, activeId, liveDesign])
   const viewRadius = houseMode ? Math.max(houseBounds.w, houseBounds.d, 300) / 100 : radius
@@ -146,6 +191,9 @@ export function RoomView({ children }: { children?: ReactNode }) {
       onCreated={(s) => setOrigCam(s.camera)}
     >
       <color attach="background" args={['#cdccc9']} />
+      {/* Agent G: realism layer (IBL + material enhance + EffectComposer). One mount covers both
+          single-room and whole-house mode (HouseView renders inside this same Canvas). */}
+      <RealismLayer />
       {houseMode ? (
         <Suspense fallback={null}>
           <HouseView placed={placed} bounds={houseBounds} />
@@ -174,6 +222,7 @@ export function RoomView({ children }: { children?: ReactNode }) {
         </>
       )}
       <ColliderDebug />
+      <PlanViewSnap radius={viewRadius} />
       <OrbitControls
         makeDefault
         camera={origCam ?? undefined}
@@ -192,47 +241,41 @@ export function RoomView({ children }: { children?: ReactNode }) {
     {/* anchorRightPx clears the .vp-tools view toolbar (right:18px + 40px wide ⇒ 58px)
         so the "💡 Light Mode" launcher/panel doesn't overlap the undo/redo/fit/home buttons. */}
     <LightingControls roomId={designId} hasWindows={hasWindows} anchorRightPx={66} />
-    {/* Whole-house / single-room toggle (only meaningful with 2+ rooms) + a
-        collider-debug toggle (visualise the flythrough's collision footprints,
-        to test for "invisible wall" bugs). */}
-    {houseRooms.length > 1 && (
-      <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 8 }}>
+    {/* Agent G: render quality / exposure / IBL / beauty-shot panel. Bottom, clear of A's left
+        panel (~440px) and B's bottom-right flythrough launcher. */}
+    <RenderControls anchorLeftPx={452} anchorBottomPx={12} />
+    {/* Consolidated viewport toolbar (one coherent group, top-centre):
+        2D plan view · whole-house toggle (2+ rooms) · collider-debug. */}
+    <div style={{ position: 'fixed', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 8 }}>
+      <button
+        onClick={() => useHouseView.getState().requestPlanView()}
+        aria-label="Top-down 2D plan view"
+        title="Snap to a top-down 2D plan view"
+        style={toolbarChip(false)}
+      >
+        ⬓ Plan view
+      </button>
+      {houseRooms.length > 1 && (
         <button
           onClick={() => useHouseView.getState().toggle()}
+          aria-label={houseMode ? 'Switch to editing a single room' : 'View the whole house'}
+          aria-pressed={houseMode}
           title={houseMode ? 'Back to editing one room' : 'See all rooms together as a connected house'}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 999,
-            border: '1px solid rgba(0,0,0,0.12)',
-            background: houseMode ? '#111' : '#fff',
-            color: houseMode ? '#fff' : '#23211e',
-            font: '13px ui-sans-serif, system-ui, sans-serif',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          }}
+          style={toolbarChip(houseMode)}
         >
           {houseMode ? '🚪 Edit a room' : '🏠 View whole house'}
         </button>
-        <button
-          onClick={() => useHouseView.getState().toggleDebugColliders()}
-          title="Show the flythrough collision footprints (wireframes) — to test for invisible-wall bugs"
-          style={{
-            padding: '8px 12px',
-            borderRadius: 999,
-            border: '1px solid rgba(0,0,0,0.12)',
-            background: debugColliders ? '#ff2bd6' : '#fff',
-            color: debugColliders ? '#fff' : '#23211e',
-            font: '13px ui-sans-serif, system-ui, sans-serif',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          }}
-        >
-          ▦ Colliders
-        </button>
-      </div>
-    )}
+      )}
+      <button
+        onClick={() => useHouseView.getState().toggleDebugColliders()}
+        aria-label="Toggle the collision-footprint debug overlay"
+        aria-pressed={debugColliders}
+        title="Show the flythrough collision footprints (wireframes) — to test for invisible-wall bugs"
+        style={toolbarChip(debugColliders, '#ff2bd6', '#fff')}
+      >
+        ▦ Colliders
+      </button>
+    </div>
     </>
   )
 }

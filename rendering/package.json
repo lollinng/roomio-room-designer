@@ -1,26 +1,22 @@
 {
-  "name": "roomio",
+  "name": "roomio-rendering",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "Agent G — Realistic Rendering. A drop-in R3F realism layer (PBR + IBL + ACESFilmic tone mapping + AO + emissive bulbs/bloom + area lights) that sits on top of Agent E's lighting, plus a standalone furnished-room harness to verify it in isolation.",
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
-    "check:browser": "node scripts/browser-check.mjs",
-    "check:lock": "node scripts/lock-check.mjs",
-    "check:auth": "node scripts/auth-check.mjs",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:detect": "node scripts/detect-check.mjs"
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
     "@react-three/fiber": "^8.17.10",
     "@react-three/postprocessing": "2.19.1",
-    "canvas-record": "^4.2.0",
     "postprocessing": "6.37.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

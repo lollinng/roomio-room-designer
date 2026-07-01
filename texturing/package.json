@@ -1,31 +1,23 @@
 {
-  "name": "roomio",
+  "name": "roomio-texturing",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "Agent H — Roomio photo texture mapping: take a user's furniture photo, detect+crop its surface (reusing Agent B's detection), turn the crop into a seamless, de-lit tiling PBR material (albedo + roughness + normal), and apply it to the matching archetype's material slot with world-space tiling + user scale/rotation. UV guarantee: corpus is parametric R3F primitives (auto-UV'd) + triplanar safety net. Suggestion-with-confirm (preview/accept/revert). Drop-in R3F lib + standalone demo harness; no edits to A/B/C/E/G source.",
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "check:browser": "node scripts/browser-check.mjs",
-    "check:lock": "node scripts/lock-check.mjs",
-    "check:auth": "node scripts/auth-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:detect": "node scripts/detect-check.mjs"
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
     "@react-three/fiber": "^8.17.10",
-    "@react-three/postprocessing": "2.19.1",
-    "canvas-record": "^4.2.0",
-    "postprocessing": "6.37.8",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
-    "three-gpu-pathtracer": "0.0.23",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
