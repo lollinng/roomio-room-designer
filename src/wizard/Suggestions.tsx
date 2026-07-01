@@ -32,8 +32,12 @@ export function Suggestions() {
 
   const onAdd = (s: Suggestion) => {
     if (!s.suggest_archetype) return
-    const id = addFurnitureCentered(s.suggest_archetype)
-    if (id) selectFurniture(id)
+    // Add without stealing the panel — keep the suggestion checklist in view so you
+    // can knock out several in a row (matches the catalogue's stable add). Each
+    // resolved necessity drops off the list on its own as the design re-evaluates.
+    const prev = useStore.getState().selectedFurnitureId
+    addFurnitureCentered(s.suggest_archetype)
+    selectFurniture(prev)
   }
 
   return (
