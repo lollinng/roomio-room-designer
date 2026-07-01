@@ -97,6 +97,9 @@ export function HeroRender() {
       }
       tracer.bounces = bounces
       tracer.renderToCanvas = true
+      // Static-camera hero → accumulate at full resolution (no dynamic low-res proxy), so every
+      // sample refines the same full-res image and it converges cleanly.
+      tracer.dynamicLowRes = false
       // Heavy: builds the BVH + bakes materials/lights/env (scene.environment = G's IBL).
       tracer.setScene(scene, camera)
       camSnapshot.current.copy(camera.matrixWorld)
