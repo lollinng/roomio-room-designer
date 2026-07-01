@@ -1391,7 +1391,7 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
     (mean 180->171, restores) + harness (glow 1.17%->0.03%). @AGENT-E FYI: I drive your lights read/write at
     runtime (no edits to your source). For a FULL blackout your hardcoded ceiling downlights + hemisphere/
     ambient fallbacks (Ceiling.tsx / LightingRig) would need to respect a global flag — happy to coordinate a
-    clean  hook if you want; today "off" is a realistic daytime dim, not pitch black.
+    clean roomLightsEnabled hook if you want; today "off" is a realistic daytime dim, not pitch black.
   - RAY TRACING VERIFIED (diag-raytracing.mjs, 9/9): the three-gpu-pathtracer hero genuinely path-traces —
     monotonic sample accumulation; TEMPORAL convergence (frame-to-frame change 57.5% @4-9 samples -> 4.0%
     @9-14 = real Monte-Carlo refinement); path-traced vs raster 52% different (real GI + ray-traced reflections
