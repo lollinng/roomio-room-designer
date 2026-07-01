@@ -14,9 +14,12 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
-import { WebGLPathTracer } from 'three-gpu-pathtracer'
+import type { WebGLPathTracer } from 'three-gpu-pathtracer'
 import { useRender } from '../store'
 import { setHeroExporter } from './heroBus'
+
+// The path tracer is HEAVY and only needed on demand, so it is code-split (dynamic import on first
+// activation) — it never bloats the app's main bundle.
 
 function matricesClose(a: THREE.Matrix4, b: THREE.Matrix4, eps = 1e-5): boolean {
   const ae = a.elements
@@ -71,28 +74,40 @@ export function HeroRender() {
       return
     }
     useRender.getState().setHeroSupported(true)
-    let tracer = tracerRef.current
-    if (!tracer) {
-      tracer = new WebGLPathTracer(gl)
-      tracerRef.current = tracer
-    }
-    tracer.bounces = bounces
-    tracer.renderToCanvas = true
-    // Heavy: builds the BVH + bakes materials/lights/env (scene.environment = G's IBL).
-    tracer.setScene(scene, camera)
-    camSnapshot.current.copy(camera.matrixWorld)
-    useRender.getState().setHeroSamples(0)
-    sessionRef.current = true
 
-    // Watchdog: a GPU may report WebGL2 yet not actually drive the tracer's float targets (e.g.
-    // software GL) — samples never advance. Don't hang on "Rendering… 0": fall back gracefully.
-    const watchdog = setTimeout(() => {
-      if (useRender.getState().heroActive && useRender.getState().heroSamples === 0) {
-        useRender.getState().setHeroSupported(false)
-        useRender.getState().setHeroActive(false)
+    let cancelled = false
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    void (async () => {
+      // Code-split: fetch the path tracer only on first activation.
+      const { WebGLPathTracer } = await import('three-gpu-pathtracer')
+      if (cancelled) return
+      let tracer = tracerRef.current
+      if (!tracer) {
+        tracer = new WebGLPathTracer(gl)
+        tracerRef.current = tracer
       }
-    }, 5000)
-    return () => clearTimeout(watchdog)
+      tracer.bounces = bounces
+      tracer.renderToCanvas = true
+      // Heavy: builds the BVH + bakes materials/lights/env (scene.environment = G's IBL).
+      tracer.setScene(scene, camera)
+      camSnapshot.current.copy(camera.matrixWorld)
+      useRender.getState().setHeroSamples(0)
+      sessionRef.current = true
+
+      // Watchdog: a GPU may report WebGL2 yet not actually drive the tracer's float targets (e.g.
+      // software GL) — samples never advance. Don't hang on "Rendering… 0": fall back gracefully.
+      watchdog = setTimeout(() => {
+        if (useRender.getState().heroActive && useRender.getState().heroSamples === 0) {
+          useRender.getState().setHeroSupported(false)
+          useRender.getState().setHeroActive(false)
+        }
+      }, 5000)
+    })()
+
+    return () => {
+      cancelled = true
+      if (watchdog) clearTimeout(watchdog)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heroActive])
 

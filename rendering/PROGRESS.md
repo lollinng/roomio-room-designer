@@ -31,7 +31,7 @@ shift is compensated by G's tone-mapping `exposure` (co-tuned with E, recorded i
 | **G3** | Emissive bulbs + bloom + correct falloff + area lights | ✅ done — bulbs/window glow with bloom + RectAreaLight window/panel area fill (`AreaLight`); app window-rect wiring is a follow-on co-tune with E/A |
 | **G4** | Quality toggle (high/medium/low) + RenderControls panel | ✅ done (harness) |
 | **G5** | Optional: progressive path-traced hero render + export hook (with B/C) | ✅ done (graceful raster fallback; converges on a real GPU) |
-| **GA** | App mount (RealismLayer into RoomView) — handed to D/A via INTEGRATION.md | ⬜ awaiting D/E |
+| **GA** | App mount (RealismLayer into RoomView) | ✅ done (human-authorized) — mounted + verified in the real app |
 
 ### Adversarial review (2026-07-01) — 3/18 confirmed, all fixed
 A fan-out review (4 dimensions × find→verify) confirmed 3 high/med perf-lifecycle defects (15 refuted). All fixed in `RealismPost`:
@@ -87,6 +87,15 @@ No real-time ray tracer; renderer ownership with E is clean.
   Added a bulb toggle to the harness and verified the acceptance line "toggling a bulb changes both the
   light AND its glow" (bulbs off → bloom 1.17%→0.61% + room mean 193→174; lamp/ceiling go dark, window
   stays). Harness verify now 11/11.
-- **Status: G0–G5 complete + verified + committed in /rendering.** Remaining is the app MOUNT (GA) — a
-  drop-in handed to D/A via INTEGRATION.md (I stay in my sandbox; D merges) — and the IBL-fill co-tune
-  decision with E. Both are E/D-gated.
+- **App MOUNT (GA) done (2026-07-01, human-authorized "mount it myself"):** added `<RealismLayer/>` as a
+  `<Canvas>` child + `<RenderControls anchorLeftPx={452}/>` in `src/three/RoomView.tsx`; added
+  `@react-three/postprocessing@2.19.1` + `postprocessing@6.37.8` + `three-gpu-pathtracer@0.0.23` (EXACT) to
+  ROOT package.json; and `resolve.dedupe` to root `vite.config.ts` (React/three/R3F ecosystem) to fix a
+  duplicate-`@react-three/fiber` "hooks can only be used within Canvas" crash — the island shipped its own
+  R3F copies (unlike /lighting which resolves to root). Verified in the REAL app (production build via
+  `rendering/scripts/verify-app.mjs`): canvas renders lit, RenderControls panel present, 0 console errors;
+  screenshot in verify-out/10-app-realism.png. Root: 204 tests green, typecheck clean, `vite build` clean
+  (path tracer code-split to its own ~197 KB chunk via dynamic import).
+- **Status: G0–G5 + GA COMPLETE, verified end-to-end (harness + real app).** Remaining are E/D-coordinated
+  enhancements only (non-blocking, conservative defaults ship): the IBL-fill co-tune with E (brief's "lean on
+  IBL"); emissive fixtures on E's bare bulbs; window RectAreaLights from RoomDesign.openings.
