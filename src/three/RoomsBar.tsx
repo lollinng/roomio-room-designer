@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useStore } from '../store'
 import { useHouse, ROOM_TYPE_LIST, ROOM_TYPE_INFO } from './houseSession'
+import { useHouseView } from './houseViewMode'
 
 export function RoomsBar() {
   const rooms = useHouse((s) => s.rooms)
@@ -15,6 +16,12 @@ export function RoomsBar() {
   const addRoom = useHouse((s) => s.addRoom)
   const switchRoom = useHouse((s) => s.switchRoom)
   const removeRoom = useHouse((s) => s.removeRoom)
+  const loadFlat1BHK = useHouse((s) => s.loadFlat1BHK)
+  const loadFlat2BHK = useHouse((s) => s.loadFlat2BHK)
+  const loadFlat3BHK = useHouse((s) => s.loadFlat3BHK)
+  const lastRemoved = useHouse((s) => s.lastRemoved)
+  const undoRemove = useHouse((s) => s.undoRemove)
+  const dismissUndo = useHouse((s) => s.dismissUndo)
   // live name of the active room (the editor owns the active design)
   const activeName = useStore((s) => s.design.name)
   const [adding, setAdding] = useState(false)
@@ -24,7 +31,22 @@ export function RoomsBar() {
     ensureInit()
   }, [ensureInit])
 
+  // Auto-dismiss the "Undo" banner a few seconds after a delete.
+  useEffect(() => {
+    if (!lastRemoved) return
+    const t = setTimeout(() => dismissUndo(), 7000)
+    return () => clearTimeout(t)
+  }, [lastRemoved, dismissUndo])
+
   const list = rooms.length ? rooms : []
+
+  // Load a furnished flat template (each room gets a distinctive floor + starter furniture).
+  const loadTemplate = (fn: () => void, label: string) => {
+    if (list.length <= 1 || confirm(`Replace the current rooms with a furnished ${label} flat? Current rooms will be discarded.`)) {
+      fn()
+      useHouseView.getState().setMode('house')
+    }
+  }
 
   return (
     <div style={wrap}>
@@ -51,10 +73,8 @@ export function RoomsBar() {
               </button>
               {list.length > 1 && (
                 <button
-                  onClick={() => {
-                    if (confirm(`Remove “${name}”? This room's furniture will be discarded.`)) removeRoom(r.id)
-                  }}
-                  title="Remove room"
+                  onClick={() => removeRoom(r.id)}
+                  title="Remove room (you can undo)"
                   style={chipX(active)}
                 >
                   ×
@@ -72,7 +92,56 @@ export function RoomsBar() {
         >
           ＋ Add room
         </button>
+
       </div>
+
+      {/* Furnished flat templates — each room gets a distinctive floor + type-appropriate starter
+          furniture (kitchen tile + counter/sink/stove, bathroom blue tile + toilet/vanity/shower,
+          bedroom warm wood + bed, …) so the plan reads as a real home the moment it loads. */}
+      <div style={{ ...chipRow, marginTop: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.6, marginRight: 2 }}>🏠 Start from a flat</span>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ flex: 'none' }}
+          onClick={() => loadTemplate(loadFlat1BHK, '1BHK (~460 sq ft)')}
+          title="Load a furnished 1BHK: living, bedroom, kitchen, bath, foyer + utility balcony"
+          data-testid="load-1bhk"
+        >
+          1BHK
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ flex: 'none' }}
+          onClick={() => loadTemplate(loadFlat2BHK, '2BHK (~800 sq ft)')}
+          title="Load a furnished 2BHK: living, kitchen, dining, 2 bedrooms, 2 baths, hallway, balcony"
+          data-testid="load-2bhk"
+        >
+          2BHK
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ flex: 'none' }}
+          onClick={() => loadTemplate(loadFlat3BHK, '3BHK (~1250 sq ft)')}
+          title="Load a furnished 3BHK: foyer, living, dining, kitchen, 3 bedrooms, baths, hallway"
+          data-testid="load-3bhk"
+        >
+          3BHK
+        </button>
+      </div>
+
+      {lastRemoved && (
+        <div style={undoBar} data-testid="undo-bar">
+          <span style={{ flex: 1 }}>
+            Removed <b>{lastRemoved.entry.design.name}</b>
+          </span>
+          <button onClick={() => undoRemove()} style={undoBtn} data-testid="undo-btn">
+            ↩ Undo
+          </button>
+          <button onClick={() => dismissUndo()} title="Dismiss" style={undoDismiss}>
+            ×
+          </button>
+        </div>
+      )}
 
       {adding && (
         <div style={picker} data-testid="room-type-picker">
@@ -113,7 +182,7 @@ const chip: CSSProperties = {
   overflow: 'hidden',
   background: '#fff',
 }
-const chipActive: CSSProperties = { borderColor: '#111', background: '#111' }
+const chipActive: CSSProperties = { border: '1.5px solid #111', background: '#111' }
 const chipBtn = (active: boolean): CSSProperties => ({
   border: 'none',
   background: 'transparent',
@@ -140,3 +209,34 @@ const picker: CSSProperties = {
   background: '#fbfaf7',
 }
 const pickerGrid: CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }
+const undoBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginTop: 10,
+  padding: '8px 12px',
+  borderRadius: 10,
+  background: '#1f2937',
+  color: '#e9eef5',
+  fontSize: 13,
+}
+const undoBtn: CSSProperties = {
+  border: '1px solid #3b82f6',
+  background: '#3b82f6',
+  color: '#fff',
+  borderRadius: 999,
+  padding: '5px 12px',
+  fontSize: 12.5,
+  fontWeight: 700,
+  cursor: 'pointer',
+  flex: 'none',
+}
+const undoDismiss: CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: '#9fb0c3',
+  fontSize: 16,
+  cursor: 'pointer',
+  padding: '0 2px',
+  flex: 'none',
+}
