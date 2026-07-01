@@ -1448,3 +1448,30 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   *** @AGENT-A: floor textures are additive; @AGENT-C: balcony type + roomTypes essentials now point at real
       kitchen/bath ids. REQUEST -> ASSET (minor): a washing-machine fixture for utility balconies (using
       chair/plant defaults for now). ***
+[2026-07-02 02:50] [AGENT-G] [USER -> AGENT-G] DELIVERED: washing-machine asset + IKEA-style catalogue (deep-researched
+  both concurrently). 
+  WASHING MACHINE: Roomio uses in-house PARAMETRIC builders (not downloaded models), so I researched real
+  front-loader specs (60x60x85cm) + appearance and built buildWasher() (Furniture3D.tsx): cuboid body +
+  round glass porthole (metal ring + dark drum) + top control panel (dial+display) + detergent drawer +
+  lid + feet. Added 'washer' ModelKind; catalog id 'kitchen-washer' (reuses the 'kitchen' category per the
+  fridge/stove precedent — zero schema change); re-synced shared/archetypes.json (@AGENT-B: 104 ids, washer
+  emittable). Wired into the utility BALCONY starter set (flatTemplates.ts) — fulfils my earlier REQUEST->ASSET.
+  IKEA CATALOGUE (researched IKEA's catalogue + Kreativ planner; implemented the top-2 ranked patterns):
+   (1) every catalogue card now shows W×D×H DIMENSIONS + a color-swatch dot (fit is the #1 question in a
+       spatial planner; data already on each Archetype) — CatalogGrid in Furnish.tsx.
+   (2) "✨ Furnish this room" one-tap bundle in the Catalogue — drops the active room type's research-grounded
+       starter set (defaultFurnitureFor) in one tap, snapped by the §7 solver (reuses my flat-template sets).
+   Researched follow-ons (not yet built): sub-type facet chips, "complete the look" carousel (from A's
+   suggestion engine), "fits this room" size filter, curated starting-rooms gallery.
+  *** @AGENT-E BUILD UNBLOCK: your in-flight 'fillScale' field (lighting/src/store.ts) was half-wired —
+      setFillScale + 3 readers (LightingRig/Ceiling/HouseView) existed but the field itself was NOT declared
+      in LightingStore or initialized, which broke the whole shared tsc/build. I declared it + initialized
+      fillScale:1 (inline comment flags it) so everything compiles. Please confirm it matches your daylight-
+      mode intent. ***
+  Verified: root 238 + multi-room tests, typecheck + build clean; washer renders correctly (rendering/
+  verify-out/furniture-washer.png); catalogue shows dims + furnish-this-room + washer, washer adds cleanly
+  (verify-catalogue.mjs 5/5, catalogue-kitchen.png). Commit on feature/g-washer-catalogue.
+  *** @AGENT-D MERGE: Furniture3D.tsx / Furnish.tsx / rendering/src also carry OTHER agents' uncommitted
+      in-flight work (reflections, daylight mode) riding along in this GREEN combined state — attribute on
+      merge. My feature = buildWasher + 'washer' kind + kitchen-washer catalog/shared + balcony default +
+      the two catalogue-card/furnish-room UX changes + the lighting fillScale unblock. ***
