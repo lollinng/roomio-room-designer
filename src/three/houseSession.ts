@@ -11,7 +11,7 @@
  */
 import { create } from 'zustand'
 import { useStore, newDesign } from '../store'
-import type { RoomDesign, ShapeId, Vec2 } from '../types'
+import type { RoomDesign, ShapeId, Vec2, Opening } from '../types'
 import { presetCorners } from '../geometry/presets'
 import { bbox } from '../geometry/walls'
 import { defaultOpenings } from '../data/defaultOpenings'
@@ -164,8 +164,8 @@ export const useHouse = create<HouseSession>((set, get) => ({
     useStore.getState().loadDesign(d) // loads into the editor (stage → furnish)
     // Furnish the new room with type-appropriate starter pieces, then snapshot
     // the result back into the room entry so each room type looks distinct.
-    const fixtures = defaultFurnitureFor(type, corners)
-    for (const fx of fixtures) useStore.getState().addFurniture(fx.archetype, fx.x, fx.z)
+    const fixtures = defaultFurnitureFor(type, corners, d.openings)
+    for (const fx of fixtures) useStore.getState().addFurniture(fx.archetype, fx.x, fx.z, fx.rotation)
     useStore.getState().selectFurniture(null)
     get().syncActive()
     return d.id
@@ -363,11 +363,17 @@ export const useHouse = create<HouseSession>((set, get) => ({
     set({ rooms: entries, activeId: entries[0].id })
 
     // 2) Furnish each room through the editor so addFurniture()'s §7 solver snaps pieces flush,
-    //    then snapshot the furnished design back into its entry.
+    //    then snapshot the furnished design back into its entry. Doorways are cut between adjacent
+    //    rooms — compute them UP FRONT (same layout the house view uses) so each room's starter
+    //    furniture is placed CLEAR of its doors (a sofa/bed/mirror on a doorway is never real).
+    const doorwaysById = new Map<string, Opening[]>()
+    for (const pr of layoutHouse(entries.map((e) => ({ design: e.design, pos: e.pos, type: e.type })))) {
+      doorwaysById.set(pr.design.id, pr.extraOpenings)
+    }
     for (const entry of entries) {
       useStore.getState().loadDesign(entry.design)
-      for (const fx of defaultFurnitureFor(entry.type, entry.design.corners)) {
-        useStore.getState().addFurniture(fx.archetype, fx.x, fx.z)
+      for (const fx of defaultFurnitureFor(entry.type, entry.design.corners, doorwaysById.get(entry.id) ?? [])) {
+        useStore.getState().addFurniture(fx.archetype, fx.x, fx.z, fx.rotation)
       }
       useStore.getState().selectFurniture(null)
       const furnished = useStore.getState().design

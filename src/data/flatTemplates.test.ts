@@ -3,6 +3,7 @@ import {
   DESIGN_DEFAULTS,
   FURNITURE_PLAN,
   defaultFurnitureFor,
+  rotationFor,
   FLAT_1BHK,
   FLAT_2BHK,
   FLAT_3BHK,
@@ -11,6 +12,8 @@ import {
 import { ARCHETYPE_MAP } from './archetypes'
 import { FLOOR_MAP } from './materials'
 import { ROOM_TYPES } from '../../multi-room/src/index'
+import { deriveWalls } from '../geometry/walls'
+import type { Opening } from '../types'
 
 const FLATS: Array<[string, FlatSpec]> = [
   ['1BHK', FLAT_1BHK],
@@ -126,5 +129,49 @@ describe('defaultFurnitureFor', () => {
 
   it('unknown/empty types return no furniture (never throws)', () => {
     expect(defaultFurnitureFor('hallway', corners)).toEqual([])
+  })
+
+  it('every seed carries a numeric rotation', () => {
+    for (const f of defaultFurnitureFor('living', corners)) {
+      expect(Number.isFinite(f.rotation)).toBe(true)
+    }
+  })
+})
+
+describe('defaultFurnitureFor — orientation + door clearance', () => {
+  const corners = [
+    { x: 0, z: 0 },
+    { x: 400, z: 0 },
+    { x: 400, z: 300 },
+    { x: 0, z: 300 },
+  ]
+  const center = { x: 200, z: 150 }
+
+  it('backs wall pieces onto their wall facing INTO the room (not facing the wall)', () => {
+    expect(rotationFor('-z', 'front', { x: 200, z: 255 }, center)).toBeCloseTo(Math.PI) // +Z wall → faces -Z
+    expect(rotationFor('+z', 'back', { x: 200, z: 45 }, center)).toBeCloseTo(0) // -Z wall → faces +Z
+    expect(rotationFor('in', 'left', { x: 45, z: 150 }, center)).toBeCloseTo(Math.PI / 2) // -X wall → faces +X
+    expect(rotationFor('in', 'right', { x: 355, z: 150 }, center)).toBeCloseTo((3 * Math.PI) / 2) // +X wall → faces -X
+  })
+
+  it('the living-room sofa BACKS onto its wall (rotation ~π), not facing it (rotation 0)', () => {
+    const sofa = defaultFurnitureFor('living', corners).find((f) => f.archetype === 'sofa-3')!
+    expect(sofa).toBeTruthy()
+    expect(sofa.rotation).toBeCloseTo(Math.PI)
+  })
+
+  it('dining chairs face the table (the room centre)', () => {
+    const chairs = defaultFurnitureFor('dining', corners).filter((f) => f.archetype === 'chair-dining')
+    const nearBack = chairs.reduce((m, c) => (c.z < m.z ? c : m)) // -Z side chair
+    expect(nearBack.rotation).toBeCloseTo(0) // faces +Z toward the table
+  })
+
+  it('nudges a back-wall piece off a centred doorway so nothing blocks the door', () => {
+    const walls = deriveWalls(corners) // wall 0 = the z=0 (back) wall
+    const door: Opening = { id: 'd', kind: 'door', style: 'single', wallId: walls[0].id, t: 0.5, width: 90, height: 210, sill: 0 }
+    const tvNoDoor = defaultFurnitureFor('living', corners).find((f) => f.archetype === 'storage-tv')!
+    const tvWithDoor = defaultFurnitureFor('living', corners, [door]).find((f) => f.archetype === 'storage-tv')!
+    // without a door the media unit sits at the wall centre (x≈200); with a centred door it is pushed aside.
+    expect(Math.abs(tvWithDoor.x - 200)).toBeGreaterThan(Math.abs(tvNoDoor.x - 200) + 20)
   })
 })

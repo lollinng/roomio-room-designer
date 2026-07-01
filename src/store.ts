@@ -18,7 +18,7 @@ import { dependentsOf } from './three/mount'
 import { DEFAULT_WALL_COLOR, DEFAULT_FLOOR } from './data/materials'
 import { toRoomDesign, type PersonaPreset } from './data/personas'
 
-export type Stage = 'start' | 'step1' | 'step2' | 'step3' | 'step4' | 'furnish'
+export type Stage = 'start' | 'step1' | 'step2' | 'step3' | 'step4' | 'furnish' | 'listings'
 
 export const WIZARD_STEPS: Stage[] = ['step1', 'step2', 'step3', 'step4']
 
@@ -88,6 +88,9 @@ interface DesignStore {
   setUnit: (u: Unit) => void
   dragWallPerp: (wallId: string, deltaCm: number) => void
   setWallLength: (wallId: string, lengthCm: number) => void
+  /** Replace the whole footprint polygon (undoable). Used by the whole-house
+   *  plan view to resize the active room; rejects degenerate/inverted polygons. */
+  setCorners: (corners: Vec2[]) => void
   setWallHeight: (cm: number) => void
 
   // ---- step 3 / openings ----
@@ -103,7 +106,7 @@ interface DesignStore {
   setFloor: (id: string) => void
 
   // ---- furnish ----
-  addFurniture: (archetypeId: string, x: number, z: number) => string
+  addFurniture: (archetypeId: string, x: number, z: number, rotation?: number) => string
   /** add an item at a guaranteed-interior point of the room */
   addFurnitureCentered: (archetypeId: string) => string
   updateFurniture: (id: string, patch: Partial<FurnitureItem>) => void
@@ -281,6 +284,14 @@ export const useStore = create<DesignStore>((set, get) => ({
     applyCorners(set, get, corners)
   },
 
+  setCorners: (corners) => {
+    if (corners.length < 3) return
+    // reject degenerate polygons (min area guard mirrors setWallLength)
+    if (Math.abs(signedArea(corners)) < 1000) return
+    get().pushHistory()
+    applyCorners(set, get, corners)
+  },
+
   setWallHeight: (cm) => {
     const now = Date.now()
     if (now - lastCoalesceTs > 600) get().pushHistory()
@@ -363,7 +374,7 @@ export const useStore = create<DesignStore>((set, get) => ({
     set({ design: touch({ ...get().design, materials: { ...get().design.materials, floorTexture: id } }) })
   },
 
-  addFurniture: (archetypeId, x, z) => {
+  addFurniture: (archetypeId, x, z, rotation = 0) => {
     const a = ARCHETYPE_MAP[archetypeId]
     if (!a) return ''
     get().pushHistory()
@@ -374,7 +385,10 @@ export const useStore = create<DesignStore>((set, get) => ({
       name: a.name,
       x,
       z,
-      rotation: 0,
+      // Start from the caller's intended orientation (e.g. a sofa's back to its wall). The §7
+      // solver keeps/refines this — its rotation snap only fires when already ~wall-parallel, so
+      // passing the correct facing here is what makes a back-to-wall piece actually snap flush.
+      rotation,
       w: a.w,
       d: a.d,
       h: a.h,
