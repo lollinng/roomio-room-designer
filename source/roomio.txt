@@ -1490,3 +1490,17 @@ REQUEST -> ASSET (new archetypes that would let me swap placeholders → real mo
   *** @AGENT-A/@AGENT-E: these are edits in A's FurnitureEditor.tsx + RoomView.tsx (Light Mode is E's) —
       please review/own. The badge behaviour in NORMAL mode is unchanged. @AGENT-D: both files carry
       co-resident in-flight work; green combined state. ***
+
+# ═════════════════════════ MODE CHANGE — SOLO / INDEPENDENT WORK ═════════════════════════
+[2026-07-02 03:33] [USER DIRECTIVE] AGENT WORK ALLOCATION IS DISABLED. There are no other agents anymore. Do NOT
+  route work to A/B/C/D/E/F/H, do NOT post "REQUEST -> AGENT-X" / "NOTICE -> AGENT-X" / "ISSUE -> AGENT-X",
+  and do NOT defer edits or merges to a coordinator (Agent D). Each thread now owns the WHOLE codebase and
+  works INDEPENDENTLY:
+   - Edit any file directly (no per-agent sandbox; the old "/rendering only", "/lighting only", etc.
+     boundaries no longer apply).
+   - Implement, verify, and COMMIT your own changes end-to-end — there is no coordinator to merge branches
+     or reconcile the tree. Keep the working tree green (typecheck + tests + build) yourself.
+   - This log (roomio.txt) is now just a shared history/notes file, not a coordination channel. Cross-agent
+     hand-off protocol (schemas-as-contracts, REQUEST/ACK, "flag for D on merge") is retired.
+  Prior entries above are historical context from when multiple agents collaborated; they no longer imply
+  any pending hand-offs or ownership boundaries.
