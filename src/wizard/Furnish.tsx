@@ -4,6 +4,20 @@ import { useLighting } from '../../lighting/src/store'
 import { showEditingHints } from '../../lighting/src/contract'
 import { ARCHETYPES, ARCHETYPE_MAP, CATEGORY_ORDER, type Archetype } from '../data/archetypes'
 import { formatLenShort } from '../units'
+import { bbox } from '../geometry/walls'
+
+// Friendly labels for the catalogue sub-type facet chips (filter a drilled category by `model`).
+const MODEL_LABEL: Record<string, string> = {
+  sofa: 'Sofas', sectional: 'Sectionals', bed: 'Beds',
+  table: 'Tables', roundTable: 'Round', desk: 'Desks',
+  chair: 'Chairs', officeChair: 'Office', bench: 'Benches', ottoman: 'Ottomans', stool: 'Stools',
+  cabinet: 'Cabinets', openShelf: 'Shelves', box: 'Boxes',
+  lamp: 'Lamps', mirror: 'Mirrors', plant: 'Plants', rug: 'Rugs', tv: 'TVs',
+  counter: 'Counters', fridge: 'Fridges', island: 'Islands', rangeHood: 'Hoods', stove: 'Stoves',
+  washer: 'Washers', vanity: 'Sinks',
+  bathtub: 'Bathtubs', jacuzzi: 'Jacuzzi', shower: 'Showers', toilet: 'Toilets', tubFreestanding: 'Tubs',
+}
+const modelLabel = (m: string) => MODEL_LABEL[m] ?? m
 import type { FurnitureItem, FurnitureCategory } from '../types'
 import { ScanRoom } from './ScanRoom'
 import { Suggestions } from './Suggestions'
@@ -261,9 +275,24 @@ function CataloguePanel({
   const [scanning, setScanning] = useState(false)
   const [cat, setCat] = useState<FurnitureCategory | null>(null)
   const [query, setQuery] = useState('')
+  const [subModel, setSubModel] = useState<string | null>(null) // sub-type facet within a category
+  const [fitsOnly, setFitsOnly] = useState(false) // "fits this room" size filter
   const inputRef = useRef<HTMLInputElement>(null)
   const q = query.trim().toLowerCase()
   const searching = q.length > 0
+
+  // Room footprint (cm) for the "fits this room" filter — Roomio's differentiator: it knows the
+  // room's real dimensions, so it can hide pieces that can't physically fit (with side clearance).
+  const corners = useStore((s) => s.design.corners)
+  const roomB = bbox(corners)
+  const CLEARANCE = 30 // cm each side
+  const fitsRoom = (a: Archetype) =>
+    (a.mount != null && a.mount !== 'floor') || // wall/surface pieces don't need floor footprint
+    (a.w <= roomB.w - CLEARANCE && a.d <= roomB.d - CLEARANCE)
+  const openCat = (c: FurnitureCategory | null) => {
+    setCat(c)
+    setSubModel(null) // reset the sub-type facet when switching categories
+  }
 
   const catList = CATEGORY_ORDER.filter((c) => ARCHETYPES.some((a) => a.category === c.id))
   const activeCat = cat ? CATEGORY_ORDER.find((c) => c.id === cat) : null
@@ -360,7 +389,7 @@ function CataloguePanel({
                   key={c.id}
                   className="cat-tile"
                   style={{ background: `linear-gradient(150deg, ${c.tint} 0%, #ffffff 92%)` }}
-                  onClick={() => setCat(c.id)}
+                  onClick={() => openCat(c.id)}
                   data-testid={`cat-tile-${c.id}`}
                   aria-label={`${c.label}, ${n} pieces`}
                 >
@@ -381,7 +410,7 @@ function CataloguePanel({
           <div className="catalogue-drill">
             <button
               className="catalogue-back"
-              onClick={() => setCat(null)}
+              onClick={() => openCat(null)}
               data-testid="catalogue-back"
               aria-label="Back to all categories"
             >
@@ -395,12 +424,64 @@ function CataloguePanel({
               <span className="catalogue-drill__n"> · {ARCHETYPES.filter((a) => a.category === cat).length}</span>
             </span>
           </div>
-          <CatalogGrid
-            items={ARCHETYPES.filter((a) => a.category === cat)}
-            counts={counts}
-            onAdd={onAdd}
-            onRemoveLast={onRemoveLast}
-          />
+          {(() => {
+            const catItems = ARCHETYPES.filter((a) => a.category === cat)
+            const models = [...new Set(catItems.map((a) => a.model))]
+            // count how many would be hidden by the fit filter, to decide whether to offer it
+            const anyTooBig = catItems.some((a) => !fitsRoom(a))
+            const shown = catItems.filter(
+              (a) => (!subModel || a.model === subModel) && (!fitsOnly || fitsRoom(a)),
+            )
+            const chip = (active: boolean): CSSProperties => ({
+              padding: '5px 11px', borderRadius: 999, border: '1px solid rgba(0,0,0,0.14)',
+              background: active ? '#111' : '#fff', color: active ? '#fff' : '#23211e',
+              font: '600 12px ui-sans-serif, system-ui, sans-serif', cursor: 'pointer', flex: 'none',
+            })
+            return (
+              <>
+                {(models.length > 1 || anyTooBig) && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }} data-testid="catalogue-facets">
+                    {anyTooBig && (
+                      <button
+                        style={chip(fitsOnly)}
+                        aria-pressed={fitsOnly}
+                        onClick={() => setFitsOnly((v) => !v)}
+                        data-testid="facet-fits-room"
+                        title="Show only pieces that physically fit this room (with clearance)"
+                      >
+                        ↔ Fits this room
+                      </button>
+                    )}
+                    {models.length > 1 && (
+                      <>
+                        <button style={chip(subModel === null)} aria-pressed={subModel === null} onClick={() => setSubModel(null)}>
+                          All
+                        </button>
+                        {models.map((m) => (
+                          <button
+                            key={m}
+                            style={chip(subModel === m)}
+                            aria-pressed={subModel === m}
+                            onClick={() => setSubModel((v) => (v === m ? null : m))}
+                            data-testid={`facet-model-${m}`}
+                          >
+                            {modelLabel(m)}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+                {shown.length ? (
+                  <CatalogGrid items={shown} counts={counts} onAdd={onAdd} onRemoveLast={onRemoveLast} />
+                ) : (
+                  <div className="catalog-empty">
+                    {fitsOnly ? 'Nothing in this category fits the room — try a smaller piece or a bigger room.' : 'No pieces here.'}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </>
       )}
 

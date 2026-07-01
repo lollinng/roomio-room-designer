@@ -43,6 +43,19 @@ try {
     return d ? d.textContent : null
   })
   ok(dims && /×/.test(dims), `card shows W×D×H dimensions ("${dims}")`)
+
+  // (2b) sub-type facet chips present; clicking one narrows the grid
+  ok(!!(await page.$('[data-testid="catalogue-facets"]')), 'sub-type facet chips present in a drilled category')
+  const before = (await page.$$('.catalog-card')).length
+  const washerFacet = await page.$('[data-testid="facet-model-washer"]')
+  if (washerFacet) {
+    await washerFacet.click()
+    await sleep(400)
+    const after = (await page.$$('.catalog-card')).length
+    ok(after >= 1 && after < before, `sub-type facet filters the grid (${before} → ${after})`)
+    await washerFacet.click() // reset
+    await sleep(300)
+  } else { ok(false, 'washer sub-type facet chip present') }
   writeFileSync(`${OUT}/catalogue-kitchen.png`, await page.screenshot({ encoding: 'binary' }))
 
   // (3) add the washer to the room (it renders without error)
